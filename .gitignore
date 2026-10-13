@@ -53,3 +53,8 @@ scratch_bundle.js
 *.db-shm
 *.db-wal
 *.sqlite
+
+# Local migration and integration reports
+/MIGRATION_PLAN.md
+/docs/ITERATION_1_REPORT.md
+/docs/GIT_SYNC_REPORT.md

@@ -12,7 +12,7 @@ const deviceSchema = new mongoose.Schema(
     brand: { type: String, required: true, trim: true, index: true },
     category: {
       type: String,
-      enum: ['smartphone', 'laptop', 'camera', 'drone', 'audio', 'gaming', 'accessory'],
+      enum: ['smartphone', 'laptop', 'camera', 'drone', 'audio', 'tablet', 'gaming', 'accessory'],
       required: true,
       index: true,
     },
@@ -58,7 +58,50 @@ const deviceSchema = new mongoose.Schema(
   }
 );
 
+// Virtual aliases for backward compatibility
+deviceSchema.virtual('title').get(function () {
+  return this.name;
+}).set(function (val) {
+  this.name = val;
+});
+deviceSchema.virtual('owner').get(function () {
+  return this.ownerId;
+}).set(function (val) {
+  this.ownerId = val;
+});
+deviceSchema.virtual('dailyRate').get(function () {
+  return this.pricePerDay;
+}).set(function (val) {
+  this.pricePerDay = val;
+});
+deviceSchema.virtual('depositValue').get(function () {
+  return this.depositAmount;
+}).set(function (val) {
+  this.depositAmount = val;
+});
+deviceSchema.virtual('rating').get(function () {
+  return this.ratingAvg;
+});
+deviceSchema.virtual('reviewCount').get(function () {
+  return this.ratingCount;
+});
+deviceSchema.virtual('viewsCount').get(function () {
+  return this.rentalCount;
+});
+
+// GeoJSON 2dsphere index for radius queries
+deviceSchema.index({ location: '2dsphere' });
+// Compound index
 deviceSchema.index({ category: 1, status: 1 });
+// Text search index
+deviceSchema.index({ name: 'text', brand: 'text', description: 'text' });
+
+
+
+deviceSchema.add({ aiAnalysis: {
+  summary: { type: String, default: '' }, pros: [{ type: String }], cons: [{ type: String }],
+  rentalRecommendation: { type: String, default: '' }, analyzedAt: { type: Date },
+} });
 
 const Device = mongoose.models.Device || mongoose.model('Device', deviceSchema);
 
