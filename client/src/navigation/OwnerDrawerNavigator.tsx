@@ -1,6 +1,7 @@
 import React from 'react';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { View, Text, StyleSheet } from 'react-native';
+import { HomeRoute } from './HomeRoute';
 import OwnerDashboardScreen from '../screens/owner/OwnerDashboardScreen';
 import OwnerSidebarContent from './OwnerSidebarContent';
 import { theme } from '../theme/tokens';
@@ -106,12 +107,7 @@ export const OwnerDrawerNavigator: React.FC = () => {
       </Drawer.Screen>
 
       <Drawer.Screen name="RenterMode">
-        {() => (
-          <OwnerPlaceholderScreen
-            title="Renter Mode"
-            subtitle="Chuyển đổi giao diện sang chế độ Người đi thuê"
-          />
-        )}
+        {({ navigation }) => <HomeRoute onReturnToOwner={() => navigation.navigate('OwnerDashboard')} />}
       </Drawer.Screen>
 
       <Drawer.Screen name="OwnerNotifications">

@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../../config/api';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -134,11 +135,7 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
   // Tải dữ liệu từ Backend API MongoDB Atlas
   const fetchDashboardData = useCallback(async () => {
     try {
-      const endpoints = [
-        'http://192.168.1.36:5000/api/owner/dashboard',
-        'http://10.0.2.2:5000/api/owner/dashboard',
-        'http://localhost:5000/api/owner/dashboard',
-      ];
+      const endpoints = [`${API_BASE_URL}/owner/dashboard`];
 
       let jsonResult: any = null;
       for (const url of endpoints) {

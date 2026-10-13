@@ -60,6 +60,15 @@ userSchema.virtual('account', {
 userSchema.index({ location: '2dsphere' });
 userSchema.index({ trustScore: -1 });
 
+// Legacy discovery data includes these fields; retain the remote accountId/username/wishlist schema.
+userSchema.add({
+  email: { type: String, unique: true, lowercase: true, trim: true },
+  passwordHash: { type: String, minlength: 6, select: false },
+  role: { type: String, enum: ['admin', 'owner', 'renter'], default: 'renter' },
+  ownerRating: { type: Number, default: 5, min: 1, max: 5 },
+});
+userSchema.virtual('totalReview').get(function () { return this.totalReviews; }).set(function (value) { this.totalReviews = value; });
+
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 
 module.exports = User;

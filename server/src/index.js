@@ -1,50 +1,42 @@
-const path = require('path');
-require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
+const mongoose = require('mongoose');
+const { app } = require('./app');
+const { connectDB } = require('./config/db');
 
-const express = require('express');
-const cors = require('cors');
-const morgan = require('morgan');
-const connectDB = require('./config/db');
-const adminRoutes = require('./routes/adminRoutes');
-const ownerRoutes = require('./routes/ownerRoutes');
-
-const app = express();
-const PORT = process.env.PORT || 5000;
-
-// Kết nối cơ sở dữ liệu MongoDB Atlas
-connectDB();
-
-// Cấu hình Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(morgan('dev'));
-
-// Tuyến đường API Quản trị viên & Chủ thiết bị
-app.use('/api/admin', adminRoutes);
-app.use('/api/owner', ownerRoutes);
-
-// Tuyến đường mặc định & kiểm tra sức khỏe hệ thống
-app.get('/', (req, res) => {
-  res.json({
-    success: true,
-    message: 'TechShare Backend API is running.',
-    version: '1.0.0',
+async function startServer() {
+  const port = Number(process.env.PORT || 5001);
+  if (!Number.isInteger(port) || port < 0 || port > 65535) {
+    throw new Error('PORT must be an integer between 0 and 65535.');
+  }
+  await connectDB();
+  return new Promise((resolve, reject) => {
+    const server = app.listen(port, '0.0.0.0');
+    const onError = error => {
+      server.off('listening', onListening);
+      reject(error);
+    };
+    const onListening = () => {
+      server.off('error', onError);
+      console.log(`TechShare API listening on port ${server.address().port}`);
+      resolve(server);
+    };
+    server.once('error', onError);
+    server.once('listening', onListening);
   });
-});
+}
 
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'OK',
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
+if (require.main === module) {
+  startServer().catch(async error => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`Port ${process.env.PORT || 5001} is already in use. Stop the other server or change PORT and the client API URL.`);
+    } else {
+      console.error('Backend startup failed; check PORT and target database configuration.');
+    }
+    await mongoose.disconnect();
+    process.exitCode = 1;
   });
-});
-
-// Khởi chạy máy chủ Express
-app.listen(PORT, () => {
-  console.log(`[Server] TechShare Backend đang chạy tại http://localhost:${PORT}`);
-});
+}
 
 module.exports = app;
+module.exports.app = app;
+module.exports.startServer = startServer;
