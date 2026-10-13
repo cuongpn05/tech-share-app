@@ -1,0 +1,42 @@
+# ==========================================
+# Client (React Native Expo) .gitignore
+# ==========================================
+
+# Dependencies & Lockfiles
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Expo & Metro Cache
+.expo/
+.expo-shared/
+dist/
+web-build/
+.cache/
+
+# Native Build Artifacts (Prebuild)
+android/
+ios/
+
+# Environment Variables
+.env_
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local SQLite databases
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+
+# OS & Editor Files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

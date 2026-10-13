@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "TechShare",
+    "slug": "techshare",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Cho phép TechShare truy cập vị trí để lưu địa điểm thiết bị cho thuê."
+      },
+      "bundleIdentifier": "com.techshare.mma301"
+    },
+    "android": {
+      "package": "com.techshare.mma301",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Cho phép TechShare truy cập vị trí của bạn để tìm thiết bị cho thuê quanh đây."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Ứng dụng cần quyền truy cập thư viện ảnh để tải lên ảnh thiết bị."
+        }
+      ],
+      "expo-font"
+    ]
+  }
+}
