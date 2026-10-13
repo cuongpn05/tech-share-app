@@ -13,6 +13,14 @@ pnpm-lock.yaml
 .env.*
 !.env.example
 
+#agents
+.antigravity
+.agents
+skills-lock.json
+AGENTS.md
+docs/agents/
+.scratch/
+
 # OS & Editor Files
 .DS_Store
 Thumbs.db
