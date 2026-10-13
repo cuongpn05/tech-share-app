@@ -58,4 +58,18 @@ export const OWNER_STRINGS = {
     SYSTEM_NOTIFICATIONS: 'System Notifications',
     SIGN_OUT: 'Sign Out of Owner Session',
   },
+  MESSAGES: {
+    HEADER_TITLE: 'Customer Messages',
+    HEADER_SUBTITLE: 'Direct chats with renters for active & pending bookings',
+    SEARCH_PLACEHOLDER: 'Search renter or device...',
+    TABS: {
+      ALL_CHATS: 'All Chats',
+      RENTING: 'Renting',
+      PENDING: 'Pending',
+      COMPLETED: 'Completed',
+    },
+    EMPTY_SEARCH: 'Không tìm thấy cuộc trò chuyện nào phù hợp',
+    EMPTY_LIST: 'Chưa có cuộc trò chuyện nào',
+    FALLBACK_SNIPPET: 'Chưa có tin nhắn',
+  },
 } as const;

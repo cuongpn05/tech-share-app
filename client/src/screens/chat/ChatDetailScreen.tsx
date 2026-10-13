@@ -1,0 +1,363 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  StyleSheet,
+  View,
+  Text,
+  FlatList,
+  Image,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  Linking,
+  Alert,
+  StatusBar,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { theme } from '../../theme/tokens';
+import { chatService } from '../../services/chatService';
+import { socketService } from '../../services/socketService';
+import { MessageBubble } from '../../components/chat/MessageBubble';
+import { QuickMessageBar } from '../../components/chat/QuickMessageBar';
+import { ChatInputBar } from '../../components/chat/ChatInputBar';
+import {
+  ChatMessage,
+  ChatBookingInfo,
+  ChatOtherUser,
+  LocationData,
+  ChatMessageType,
+} from '../../types';
+
+export interface ChatDetailScreenProps {
+  route?: any;
+  navigation?: any;
+  bookingId?: string;
+  onBack?: () => void;
+}
+
+export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
+  route,
+  navigation,
+  bookingId: propBookingId,
+  onBack,
+}) => {
+  const effectiveBookingId = propBookingId || route?.params?.bookingId || '';
+
+  // Tài khoản hiện tại của chủ máy (owner1)
+  const currentUserId = '6ab13ee23bb7f33ae04d2c88';
+
+  const [booking, setBooking] = useState<ChatBookingInfo | null>(null);
+  const [otherUser, setOtherUser] = useState<ChatOtherUser | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [isSending, setIsSending] = useState(false);
+
+  // 1. Tải lịch sử chat từ API MongoDB
+  const loadChatHistory = useCallback(async () => {
+    if (!effectiveBookingId) return;
+    try {
+      const data = await chatService.getChatHistory(effectiveBookingId);
+      if (data) {
+        setBooking(data.booking);
+        setOtherUser(data.otherUser);
+        setMessages(data.messages || []);
+      }
+    } catch (err: any) {
+      console.warn('[ChatDetail] Load history error:', err?.message);
+    }
+  }, [effectiveBookingId]);
+
+  // 2. Kết nối Socket & Lắng nghe tin nhắn mới thời gian thực
+  useEffect(() => {
+    loadChatHistory();
+
+    if (effectiveBookingId) {
+      chatService.markChatAsRead(effectiveBookingId);
+    }
+
+    socketService.connect(currentUserId);
+
+    if (effectiveBookingId) {
+      socketService.joinChat(effectiveBookingId);
+    }
+
+    const unsubscribe = socketService.onNewMessage((incomingMsg: ChatMessage) => {
+      if (incomingMsg.bookingId !== effectiveBookingId) return;
+      chatService.markChatAsRead(effectiveBookingId);
+      setMessages((prev) => {
+        if (prev.some((m) => m._id === incomingMsg._id)) return prev;
+        return [incomingMsg, ...prev];
+      });
+    });
+
+    return () => {
+      unsubscribe();
+      if (effectiveBookingId) {
+        socketService.leaveChat(effectiveBookingId);
+      }
+    };
+  }, [effectiveBookingId, loadChatHistory]);
+
+  // 3. Cơ chế gửi tin với Optimistic UI
+  const dispatchMessage = async (
+    messageType: ChatMessageType,
+    text?: string,
+    mediaUrl?: string,
+    locationData?: LocationData
+  ) => {
+    if (!effectiveBookingId) return;
+
+    const tempId = `temp-${Date.now()}`;
+    const optimisticMessage: ChatMessage = {
+      _id: tempId,
+      bookingId: effectiveBookingId,
+      senderId: currentUserId,
+      messageType,
+      text,
+      mediaUrl,
+      locationData,
+      createdAt: new Date().toISOString(),
+      isSending: true,
+      status: 'sending',
+    };
+
+    // Đẩy ngay vào đầu danh sách (do FlatList inverted)
+    setMessages((prev) => [optimisticMessage, ...prev]);
+    setIsSending(true);
+
+    try {
+      const savedMessage = await chatService.sendMessage(effectiveBookingId, {
+        text,
+        messageType,
+        mediaUrl,
+        locationData,
+      });
+
+      // Thay thế tin nhắn tạm bằng tin nhắn chính thức từ DB
+      setMessages((prev) =>
+        prev.map((m) => (m._id === tempId ? savedMessage : m))
+      );
+    } catch (err: any) {
+      setMessages((prev) => prev.filter((m) => m._id !== tempId));
+      Alert.alert('Lỗi', err.message || 'Gửi tin nhắn thất bại');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const statusBarOffset = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
+
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+      return;
+    }
+    if (navigation?.navigate) {
+      navigation.navigate('OwnerMessages');
+      return;
+    }
+    if (navigation?.goBack) {
+      navigation.goBack();
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor={theme.colors.surface}
+        translucent={true}
+      />
+
+      {/* Header Bar */}
+      <View style={[styles.header, { paddingTop: statusBarOffset + 10 }]}>
+        <TouchableOpacity
+          onPress={handleBack}
+          style={styles.backButton}
+          activeOpacity={0.7}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <Ionicons name="arrow-back" size={24} color="#0F172A" />
+        </TouchableOpacity>
+
+        <Image
+          source={{
+            uri:
+              otherUser?.avatar ||
+              'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
+          }}
+          style={styles.avatar}
+        />
+
+        <View style={styles.headerInfo}>
+          <Text style={styles.userName} numberOfLines={1}>
+            {otherUser?.name || 'Khách thuê'}
+          </Text>
+          <Text style={styles.userRole}>
+            {(otherUser?.role || 'Renter').toUpperCase()}
+          </Text>
+        </View>
+
+        {otherUser?.phone ? (
+          <TouchableOpacity
+            onPress={() => Linking.openURL(`tel:${otherUser.phone}`)}
+            style={styles.callButton}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="call-outline" size={20} color="#0D9488" />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
+      {/* Banner thông tin thiết bị đang thuê */}
+      {booking?.device && (
+        <View style={styles.deviceBanner}>
+          <Image
+            source={{
+              uri:
+                booking.device.image ||
+                'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800',
+            }}
+            style={styles.bannerImage}
+          />
+          <View style={styles.bannerDetails}>
+            <Text style={styles.bannerTitle} numberOfLines={1}>
+              {booking.device.title}
+            </Text>
+            <Text style={styles.bannerSubtitle}>
+              Mã đơn: {booking.bookingCode || effectiveBookingId.slice(-6).toUpperCase()} •{' '}
+              <Text style={styles.bannerStatus}>{booking.status.toUpperCase()}</Text>
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* Danh sách tin nhắn đảo ngược (FlatList Inverted) */}
+      <FlatList
+        data={messages}
+        inverted
+        keyExtractor={(item) => item._id}
+        renderItem={({ item }) => (
+          <MessageBubble
+            message={item}
+            currentUserId={currentUserId}
+            otherUserId={otherUser?._id}
+            otherUserAvatar={otherUser?.avatar}
+          />
+        )}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+      />
+
+      {/* Thanh mẫu tin nhắn nhanh */}
+      <QuickMessageBar
+        onSelectTemplate={(tpl) => dispatchMessage('template', tpl)}
+      />
+
+      {/* Thanh nhập tin nhắn & đính kèm */}
+      <ChatInputBar
+        onSendText={(text) => dispatchMessage('text', text)}
+        onSendImage={async (uri) => {
+          try {
+            const uploadedUrl = await chatService.uploadChatImage(uri);
+            if (uploadedUrl) {
+              dispatchMessage('image', undefined, uploadedUrl);
+            }
+          } catch (err: any) {
+            Alert.alert('Lỗi', 'Không thể tải ảnh lên');
+          }
+        }}
+        onSendLocation={(loc) => dispatchMessage('location', undefined, undefined, loc)}
+        isSending={isSending}
+      />
+    </KeyboardAvoidingView>
+  );
+};
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    gap: 12,
+  },
+  backButton: {
+    padding: 4,
+  },
+  avatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#E2E8F0',
+  },
+  headerInfo: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  userRole: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+    marginTop: 1,
+  },
+  callButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#E6F7F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deviceBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  bannerImage: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+  },
+  bannerDetails: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  bannerTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  bannerSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  bannerStatus: {
+    color: '#0D9488',
+    fontWeight: '700',
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+});
+
+export default ChatDetailScreen;

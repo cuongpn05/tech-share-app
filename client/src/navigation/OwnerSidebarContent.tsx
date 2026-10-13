@@ -101,12 +101,8 @@ export const OwnerSidebarContent: React.FC<OwnerSidebarContentProps> = ({
 
   const handleMenuPress = (item: MenuItem) => {
     if (navigation) {
-      if (item.routeName === 'OwnerDashboard') {
-        navigation.navigate('OwnerDashboard');
-        navigation.closeDrawer?.();
-      } else {
-        navigation.navigate?.(item.routeName);
-      }
+      navigation.navigate(item.routeName);
+      navigation.closeDrawer?.();
     }
   };
 

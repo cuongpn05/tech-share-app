@@ -2,6 +2,8 @@ import React from 'react';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { View, Text, StyleSheet } from 'react-native';
 import OwnerDashboardScreen from '../screens/owner/OwnerDashboardScreen';
+import OwnerMessagesScreen from '../screens/owner/OwnerMessagesScreen';
+import ChatDetailScreen from '../screens/chat/ChatDetailScreen';
 import OwnerSidebarContent from './OwnerSidebarContent';
 import { theme } from '../theme/tokens';
 
@@ -60,14 +62,8 @@ export const OwnerDrawerNavigator: React.FC = () => {
         )}
       </Drawer.Screen>
 
-      <Drawer.Screen name="OwnerMessages">
-        {() => (
-          <OwnerPlaceholderScreen
-            title="Customer Messages"
-            subtitle="Hộp thoại tin nhắn trực tiếp với khách thuê"
-          />
-        )}
-      </Drawer.Screen>
+      <Drawer.Screen name="OwnerMessages" component={OwnerMessagesScreen} />
+      <Drawer.Screen name="ChatDetail" component={ChatDetailScreen} />
 
       <Drawer.Screen name="OwnerDeviceInventory">
         {() => (

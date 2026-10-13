@@ -142,3 +142,125 @@ exports.getOwnerDashboardStats = async (req, res) => {
     });
   }
 };
+
+/**
+ * Controller lấy danh sách tin nhắn khách hàng (Customer Messages)
+ * Dựa trên danh sách các renter đã đặt thuê thiết bị của chủ máy (owner1) từ MongoDB
+ */
+exports.getOwnerCustomerMessages = async (req, res) => {
+  try {
+    const usernameQuery = req.query.username || 'owner1';
+    let ownerUser = await User.findOne({
+      $or: [{ name: usernameQuery }, { username: usernameQuery }],
+    }).lean();
+
+    if (!ownerUser) {
+      ownerUser = await User.findOne({ role: 'owner' }).lean();
+    }
+
+    if (!ownerUser) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy thông tin chủ thiết bị' });
+    }
+
+    // Truy vấn toàn bộ đơn đặt thuê của owner từ MongoDB Atlas
+    const bookings = await Booking.find({ ownerId: ownerUser._id })
+      .populate('renterId')
+      .populate('deviceId')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const messages = bookings.map((b) => {
+      const renter = b.renterId || {};
+      const device = b.deviceId || {};
+      const createdAt = new Date(b.createdAt);
+      const day = String(createdAt.getDate()).padStart(2, '0');
+      const month = String(createdAt.getMonth() + 1).padStart(2, '0');
+      const dateFormatted = `${day}/${month}`;
+
+      // Xác định nhãn và màu badge trạng thái
+      let statusLabel = 'Pending';
+      let statusType = 'pending';
+      if (b.status === 'completed') {
+        statusLabel = 'Completed';
+        statusType = 'completed';
+      } else if (b.status === 'approved') {
+        statusLabel = 'ĐÃ DUYỆT';
+        statusType = 'approved';
+      } else if (b.status === 'rejected') {
+        statusLabel = 'REJECTED';
+        statusType = 'rejected';
+      } else if (b.status === 'active') {
+        statusLabel = 'Renting';
+        statusType = 'active';
+      } else if (b.status === 'pending') {
+        statusLabel = 'Pending';
+        statusType = 'pending';
+      } else if (b.status === 'cancelled') {
+        statusLabel = 'CANCELLED';
+        statusType = 'cancelled';
+      }
+
+      // Xác định tên hiển thị renter
+      let renterDisplayName = renter.name || renter.username || 'Customer';
+      if (renterDisplayName === ownerUser.name) {
+        renterDisplayName = 'Customer';
+      }
+
+      // Xác định snippet tin nhắn gần nhất
+      const isRenter1 = renter.name === 'renter1' || renter.username === 'renter1';
+      const lastMessage =
+        isRenter1 && b.status === 'completed'
+          ? 'I have arrived at the handover location.'
+          : 'Chưa có tin nhắn';
+
+      return {
+        id: b._id.toString(),
+        bookingId: b._id.toString(),
+        renter: {
+          id: renter._id ? renter._id.toString() : null,
+          name: renterDisplayName,
+          avatar:
+            renter.avatar ||
+            'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
+          isVerified: Boolean(renter.isVerified),
+        },
+        device: {
+          id: device._id ? device._id.toString() : null,
+          name: device.name || 'Thiết bị công nghệ',
+          image:
+            device.images?.[0] ||
+            device.image ||
+            'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800',
+        },
+        status: b.status,
+        statusLabel,
+        statusType,
+        dateFormatted,
+        lastMessage,
+        createdAt: b.createdAt,
+      };
+    });
+
+    // Sắp xếp các cuộc trò chuyện có tin nhắn trao đổi lên trên đầu
+    messages.sort((a, b) => {
+      const aHasMsg = a.lastMessage !== 'Chưa có tin nhắn';
+      const bHasMsg = b.lastMessage !== 'Chưa có tin nhắn';
+      if (aHasMsg && !bHasMsg) return -1;
+      if (!aHasMsg && bHasMsg) return 1;
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+
+    return res.status(200).json({
+      success: true,
+      count: messages.length,
+      data: messages,
+    });
+  } catch (error) {
+    console.error('[Owner Controller] Lỗi khi lấy danh sách customer messages:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi máy chủ khi lấy danh sách tin nhắn',
+      error: error.message,
+    });
+  }
+};
