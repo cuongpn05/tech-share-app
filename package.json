@@ -1,0 +1,25 @@
+{
+  "name": "tech-share-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TechShare - Mobile Platform for Tech Device Sharing & AI Review",
+  "scripts": {
+    "dev": "npm --prefix server run dev",
+    "start": "npm --prefix client start",
+    "client": "npm --prefix client start",
+    "client:clear": "npm --prefix client start -c",
+    "server": "npm --prefix server run dev",
+    "server:seed": "npm --prefix server run seed",
+    "test:notifications": "npm --prefix server run test:notifications",
+    "install:all": "npm --prefix server install && npm --prefix client install"
+  },
+  "keywords": [
+    "react-native",
+    "expo",
+    "express",
+    "mongodb",
+    "gemini-ai"
+  ],
+  "author": "TechShare Team",
+  "license": "MIT"
+}

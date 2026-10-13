@@ -1,0 +1,52 @@
+{
+  "name": "techshare-client",
+  "version": "1.0.0",
+  "main": "expo/AppEntry.js",
+  "scripts": {
+    "dev": "expo start",
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^15.0.2",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-navigation/bottom-tabs": "^7.1.0",
+    "@react-navigation/drawer": "^7.1.0",
+    "@react-navigation/native": "^7.0.0",
+    "@react-navigation/native-stack": "^7.0.0",
+    "@reduxjs/toolkit": "^2.2.6",
+    "axios": "^1.7.2",
+    "babel-preset-expo": "~57.0.0",
+    "expo": "~57.0.21",
+    "expo-camera": "~57.0.6",
+    "expo-font": "~57.0.4",
+    "expo-image-picker": "~57.0.16",
+    "expo-location": "~57.0.19",
+    "expo-status-bar": "~57.0.1",
+    "firebase": "^13.0.0",
+    "formik": "^2.4.6",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-calendars": "^1.1314.0",
+    "react-native-chart-kit": "^7.0.4",
+    "react-native-gesture-handler": "~2.32.0",
+    "react-native-qrcode-svg": "^6.3.26",
+    "react-native-reanimated": "4.5.1",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
+    "react-native-svg": "^15.15.5",
+    "react-native-webview": "13.16.1",
+    "react-native-worklets": "0.10.1",
+    "react-redux": "^9.1.2",
+    "socket.io-client": "^4.8.3",
+    "yup": "^1.4.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.20.0",
+    "@types/node": "^22.20.3",
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  },
+  "private": true
+}
