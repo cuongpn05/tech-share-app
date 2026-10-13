@@ -1,14 +1,21 @@
 const mongoose = require('mongoose');
+const path = require('path');
 
-const FALLBACK_MONGODB_URI =
-  'mongodb+srv://qnhat202005_db_user:qnhat202005@tech-share.0srn8rv.mongodb.net/techshare?retryWrites=true&w=majority&appName=tech-share';
+// Nạp biến môi trường từ file .env
+require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
+require('dotenv').config();
 
 /**
  * Kết nối tới cơ sở dữ liệu MongoDB Atlas bằng Mongoose
  * @returns {Promise<typeof mongoose>}
  */
 const connectDB = async () => {
-  const uri = process.env.MONGODB_URI || FALLBACK_MONGODB_URI;
+  const uri = process.env.MONGODB_URI;
+
+  if (!uri) {
+    console.error('[MongoDB Error] Lỗi: Chưa cấu hình biến môi trường MONGODB_URI trong file .env');
+    process.exit(1);
+  }
 
   // Lắng nghe các sự kiện của Mongoose connection
   mongoose.connection.on('error', (err) => {
