@@ -1,0 +1,61 @@
+/**
+ * Constants định nghĩa toàn bộ nhãn chuỗi UI cho Owner Module
+ * Tuân thủ web-coding-rules.md: không hardcode chuỗi trực tiếp trong JSX
+ */
+
+export const OWNER_STRINGS = {
+  HEADER: {
+    TITLE: 'KPI & Performance Hub',
+    SUBTITLE: 'Performance metrics & net revenue',
+  },
+  PROFILE: {
+    DEFAULT_USERNAME: 'owner1',
+    DEFAULT_EMAIL: 'owner1@techshare.vn',
+    RATING_FALLBACK: '4.9 (28)',
+    TRUST_FALLBACK: 'Trust: 100',
+    TOP_OWNER_BADGE: 'Top Owner',
+  },
+  TIMEFRAME: {
+    SECTION_TITLE: 'Performance & Revenue',
+    WEEK: 'Week',
+    MONTH: 'Month',
+  },
+  METRICS: {
+    NET_REVENUE: 'Net Revenue',
+    TOTAL_RENTALS: 'Total Rentals',
+    ACTIVE_RENTALS: 'Active Rentals',
+    OCCUPANCY_RATE: 'Occupancy Rate',
+    DEFAULT_NET_REVENUE: '35.1M',
+    DEFAULT_TOTAL_RENTALS: '94 orders',
+    DEFAULT_ACTIVE_RENTALS: '0 devices',
+    DEFAULT_OCCUPANCY_RATE: '0%',
+  },
+  CHART: {
+    TITLE: 'Revenue last 7 days (VND)',
+    PEAK_PREFIX: 'Peak: 18.700.000 đ',
+  },
+  WALLET: {
+    AVAILABLE_BALANCE: 'Available Balance',
+    WITHDRAW: 'Withdraw',
+    ESCROW_HOLDING: 'Escrow Holding',
+    MONTHLY_REVENUE: 'Monthly Revenue',
+    DEFAULT_AVAILABLE: '28.088.000 đ',
+    DEFAULT_ESCROW: '15.000.000 đ',
+    DEFAULT_MONTHLY: '35.110.000 đ',
+    DEFAULT_TREND: '(+18.4%)',
+  },
+  SIDEBAR: {
+    MENU_SECTION: 'OWNER MENU',
+    DASHBOARD_KPIS: 'Dashboard & KPIs',
+    REVENUE_ANALYTICS: 'Revenue & Analytics',
+    PENDING_BOOKINGS: 'Pending Bookings',
+    CUSTOMER_MESSAGES: 'Customer Messages',
+    MY_DEVICE_INVENTORY: 'My Device Inventory',
+    LIST_NEW_DEVICES: 'List New Devices',
+    REVENUE_DEPOSIT_WALLET: 'Revenue & Deposit Wallet',
+    AI_ASSISTANT: 'AI Assistant',
+    SWITCH_TO_RENTER_MODE: 'Switch to Renter Mode',
+    SYSTEM_NOTIFICATIONS: 'System Notifications',
+    SIGN_OUT: 'Sign Out of Owner Session',
+  },
+} as const;

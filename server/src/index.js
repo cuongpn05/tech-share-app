@@ -7,6 +7,7 @@ const cors = require('cors');
 const morgan = require('morgan');
 const connectDB = require('./config/db');
 const adminRoutes = require('./routes/adminRoutes');
+const ownerRoutes = require('./routes/ownerRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -20,8 +21,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 
-// Tuyến đường API Quản trị viên
+// Tuyến đường API Quản trị viên & Chủ thiết bị
 app.use('/api/admin', adminRoutes);
+app.use('/api/owner', ownerRoutes);
 
 // Tuyến đường mặc định & kiểm tra sức khỏe hệ thống
 app.get('/', (req, res) => {
