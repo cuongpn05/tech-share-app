@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Backend RESTful API for TechShare MMA301 Project",
   "main": "src/index.js",
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
