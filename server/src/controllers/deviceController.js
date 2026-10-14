@@ -69,23 +69,68 @@ const getNearbyDevices = asyncHandler(async (req, res) => {
   });
 });
 
- const getMyDevices = async (req, res) => {
-  try {
-    const devices = await Device.find({
-      ownerId: req.auth.id,
-      isDeleted: false,
-    }).sort({ createdAt: -1 });
-    res.status(200).json({
-      success: true,
-      message: "Lấy danh sách thiết bị thành công",
-      data: devices,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Không thể lấy danh sách thiết bị",
-      error: error.message,
-    });
+const getMyDevices = asyncHandler(async (req, res) => {
+  const devices = await Device.find({
+    ownerId: req.user._id,
+    isDeleted: false,
+  }).sort({ createdAt: -1 });
+  return res.status(200).json({
+    success: true,
+    message: "Lấy danh sách thiết bị thành công",
+    data: devices,
+  });
+});
+
+const createDevice = asyncHandler(async (req, res) => {
+  const {
+    name,
+    brand,
+    category,
+    description,
+    images,
+    specs,
+    pricePerDay,
+    depositAmount,
+    location,
+    addressText,
+  } = req.body || {};
+
+  if (images !== undefined && (!Array.isArray(images) || images.some(image => typeof image !== "string"))) {
+    return res.status(400).json({ success: false, message: "images must be an array of strings" });
   }
-};
-module.exports = { getNearbyDevices ,getMyDevices };
+  if (specs !== undefined && (!specs || typeof specs !== "object" || Array.isArray(specs))) {
+    return res.status(400).json({ success: false, message: "specs must be an object" });
+  }
+
+  const device = await Device.create({
+    ownerId: req.user._id,
+    name,
+    brand,
+    category,
+    description,
+    images,
+    specs,
+    pricePerDay,
+    depositAmount,
+    location,
+    addressText,
+  });
+
+  return res.status(201).json({
+    success: true,
+    message: "Đăng thiết bị thành công",
+    data: device,
+  });
+});
+
+const uploadDeviceImage = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: "Please upload a JPEG, PNG, or WebP image." });
+  }
+  return res.status(201).json({
+    success: true,
+    data: { url: `/uploads/${req.file.filename}` },
+  });
+});
+
+module.exports = { getNearbyDevices, getMyDevices, createDevice, uploadDeviceImage };

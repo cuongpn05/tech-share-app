@@ -1,7 +1,10 @@
 const { Router } = require('express');
-const { getNearbyDevices, getMyDevices } = require('../controllers/deviceController');
+const { getNearbyDevices, getMyDevices, createDevice, uploadDeviceImage } = require('../controllers/deviceController');
 const { requireAuth } = require('../middlewares/authMiddleware');
+const imageUpload = require('../middlewares/deviceImageUpload');
 const router = Router();
 router.get('/nearby', getNearbyDevices);
-router.get("/myDevices",requireAuth,getMyDevices);
+router.get('/myDevices', requireAuth, getMyDevices);
+router.post('/upload-image', requireAuth, imageUpload.single('image'), uploadDeviceImage);
+router.post('/', requireAuth, createDevice);
 module.exports = router;
