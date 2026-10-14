@@ -13,34 +13,6 @@ const requireAuth = async (req, res, next) => {
     }
 
     if (!token) {
-      // Fallback cho môi trường development nếu chưa đăng nhập
-      if (process.env.NODE_ENV !== 'production') {
-        const owner = await User.findOne({
-          $or: [{ name: 'owner1' }, { role: 'owner' }],
-        }).lean();
-
-        if (owner) {
-          const fallbackId = owner._id.toString();
-          const fallbackRole = owner.role || 'owner';
-          req.account = {
-            _id: owner.accountId || fallbackId,
-            username: owner.username || owner.name || 'owner1',
-            email: owner.email || 'owner@techshare.vn',
-            lastLogin: new Date(),
-          };
-          req.user = owner;
-          req.userRole = fallbackRole;
-          req.auth = {
-            id: fallbackId,
-            userId: fallbackId,
-            _id: fallbackId,
-            role: fallbackRole,
-            name: owner.name,
-          };
-          return next();
-        }
-      }
-
       return res.status(401).json({
         success: false,
         message: 'Bạn chưa đăng nhập hoặc phiên đăng nhập đã hết hạn.',
@@ -62,49 +34,57 @@ const requireAuth = async (req, res, next) => {
       }
     }
 
-    const account = await Account.findById(decoded.accountId || decoded.id).populate('roleId');
-    if (!account) {
+    let account = null;
+    let user = null;
+
+    if (decoded.accountId) {
+      account = await Account.findById(decoded.accountId).populate('roleId');
+    }
+    if (decoded.id) {
+      user = await User.findById(decoded.id);
+    }
+    if (!account && user && user.accountId) {
+      account = await Account.findById(user.accountId).populate('roleId');
+    }
+    if (!user && account) {
+      user = await User.findOne({ accountId: account._id });
+    }
+    if (!account && decoded.id) {
+      account = await Account.findById(decoded.id).populate('roleId');
+    }
+
+    if (!user && !account) {
       return res.status(401).json({
         success: false,
         message: 'Tài khoản không tồn tại trên hệ thống.',
       });
     }
 
-    if (account.isActive === false) {
+    if (account && account.isActive === false) {
       return res.status(403).json({
         success: false,
         message: 'Tài khoản đã bị tạm khóa. Vui lòng liên hệ quản trị viên.',
       });
     }
 
-    let user = await User.findOne({ accountId: account._id });
-    if (!user && account.email) {
-      user = await User.findOne({ email: account.email });
-    }
-
-    let roleCode = 'renter';
-    if (account.roleId && account.roleId.code) {
-      roleCode = account.roleId.code;
-    } else if (typeof account.roleId === 'string') {
-      const roleDoc = await Role.findById(account.roleId);
-      if (roleDoc && roleDoc.code) roleCode = roleDoc.code;
-    }
+    let roleCode = user?.role || (account?.roleId && account.roleId.code) || decoded.role || 'renter';
+    const currentUserId = user ? user._id.toString() : (account ? account._id.toString() : String(decoded.id));
 
     req.account = account;
     req.user = user || {
-      _id: account._id,
-      accountId: account._id,
-      name: account.username,
-      email: account.email,
+      _id: currentUserId,
+      accountId: account?._id || currentUserId,
+      name: account?.username || decoded.name || 'User',
+      email: account?.email || decoded.email,
       role: roleCode,
     };
     req.userRole = roleCode;
     req.auth = {
-      id: (user ? user._id : account._id).toString(),
-      userId: (user ? user._id : account._id).toString(),
-      _id: (user ? user._id : account._id).toString(),
+      id: currentUserId,
+      userId: currentUserId,
+      _id: currentUserId,
       role: roleCode,
-      name: (user && user.name) || account.username,
+      name: user?.name || account?.username || decoded.name,
     };
 
     next();

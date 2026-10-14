@@ -79,21 +79,6 @@ const getConversations = async (req, res) => {
               : new Date().toISOString(),
             status: lastMsg.status || 'sent',
           };
-        } else {
-          // Tin nhắn mặc định nếu có renter1 và completed
-          const isRenter1 = otherUser?.name === 'renter1';
-          if (isRenter1 && b.status === 'completed') {
-            lastMessageData = {
-              _id: 'default_msg',
-              text: 'I have arrived at the handover location.',
-              senderId: otherUser._id ? otherUser._id.toString() : 'renter1',
-              isFromMe: false,
-              createdAt: b.createdAt
-                ? new Date(b.createdAt).toISOString()
-                : new Date().toISOString(),
-              status: 'sent',
-            };
-          }
         }
 
         return {
@@ -210,21 +195,6 @@ const getChatHistory = async (req, res) => {
       status: m.status || 'sent',
     }));
 
-    // Nếu là booking của renter1 và chưa có message trong DB, bổ sung tin nhắn mẫu hiển thị
-    if (messages.length === 0 && otherUser?.name === 'renter1' && booking.status === 'completed') {
-      const mockMsg = {
-        _id: 'default_msg_1',
-        bookingId: booking._id.toString(),
-        senderId: otherUser._id.toString(),
-        receiverId: currentUserId.toString(),
-        messageType: 'text',
-        text: 'I have arrived at the handover location.',
-        createdAt: new Date(booking.createdAt).toISOString(),
-        status: 'read',
-      };
-      messages = [mockMsg];
-    }
-
     const deviceObj = booking.deviceId || {};
 
     return res.status(200).json({
@@ -294,11 +264,20 @@ const sendMessage = async (req, res) => {
       status: 'sent',
     });
 
+    const sender = await User.findById(currentUserId).select('name avatar role');
+    const device = booking.deviceId ? await Device.findById(booking.deviceId).select('name title') : null;
+    const senderDisplayName = sender?.name || 'Người dùng';
+    const senderDisplayAvatar = sender?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400';
+    const deviceDisplayTitle = device?.name || device?.title || 'Thiết bị';
+
     const savedMessageResponse = {
       _id: newMessage._id.toString(),
       bookingId: newMessage.bookingId.toString(),
       senderId: newMessage.senderId.toString(),
       receiverId: newMessage.receiverId.toString(),
+      senderName: senderDisplayName,
+      senderAvatar: senderDisplayAvatar,
+      deviceTitle: deviceDisplayTitle,
       messageType,
       text: newMessage.content || '',
       mediaUrl: newMessage.mediaUrl || '',
@@ -312,13 +291,29 @@ const sendMessage = async (req, res) => {
     if (io) {
       io.to(`chat_${bookingId}`).emit('new_message', savedMessageResponse);
       io.to(`user_${receiverId}`).emit('new_message', savedMessageResponse);
+      io.to(`user_${receiverId}`).emit('new_notification', {
+        _id: `notif_${Date.now()}`,
+        userId: receiverId.toString(),
+        title: `${senderDisplayName} đã gửi tin nhắn`,
+        body:
+          messageContent ||
+          (messageType === 'image' ? '[Hình ảnh]' : '[Vị trí GPS]'),
+        type: 'message',
+        relatedId: bookingId.toString(),
+        data: {
+          screen: 'ChatDetail',
+          bookingId: bookingId.toString(),
+          senderName: senderDisplayName,
+          senderAvatar: senderDisplayAvatar,
+        },
+        createdAt: new Date().toISOString(),
+      });
     }
 
     // 4. Push Notification nền
-    const sender = await User.findById(currentUserId).select('name');
     createAndSendNotification({
       userId: receiverId,
-      title: `${sender?.name || 'Ai đó'} đã gửi tin nhắn`,
+      title: `${senderDisplayName} đã gửi tin nhắn`,
       body:
         messageContent ||
         (messageType === 'image' ? 'Đã gửi một hình ảnh' : 'Đã chia sẻ vị trí GPS'),

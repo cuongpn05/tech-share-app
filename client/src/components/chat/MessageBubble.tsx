@@ -19,12 +19,14 @@ interface MessageBubbleProps {
   currentUserId: string;
   otherUserId?: string;
   otherUserAvatar?: string;
+  showAvatar?: boolean;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   currentUserId,
   otherUserAvatar,
+  showAvatar = true,
 }) => {
   const isFromMe = String(message.senderId) === String(currentUserId);
 
@@ -52,16 +54,20 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         isFromMe ? styles.rowFromMe : styles.rowFromOther,
       ]}
     >
-      {/* Avatar người gửi đối diện */}
+      {/* 2. Không bao giờ hiện avatar của chính mình; 3. Quy tắc gom cụm (Cluster Rule) - chỉ hiện ở tin cuối cụm */}
       {!isFromMe && (
-        <Image
-          source={{
-            uri:
-              otherUserAvatar ||
-              'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
-          }}
-          style={styles.avatar}
-        />
+        showAvatar ? (
+          <Image
+            source={{
+              uri:
+                otherUserAvatar ||
+                'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
+            }}
+            style={styles.avatar}
+          />
+        ) : (
+          <View style={styles.avatarSpacer} />
+        )
       )}
 
       <View
@@ -162,11 +168,15 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
   },
   avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     marginRight: 8,
     backgroundColor: '#E2E8F0',
+  },
+  avatarSpacer: {
+    width: 28,
+    marginRight: 8,
   },
   bubble: {
     maxWidth: SCREEN_WIDTH * 0.76,

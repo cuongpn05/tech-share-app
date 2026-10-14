@@ -15,6 +15,9 @@ export interface ChatMessage {
   bookingId: string;
   senderId: string;
   receiverId?: string;
+  senderName?: string;
+  senderAvatar?: string;
+  deviceTitle?: string;
   messageType: ChatMessageType;
   text?: string;
   mediaUrl?: string;

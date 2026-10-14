@@ -24,6 +24,8 @@ import Svg, {
 } from 'react-native-svg';
 import { theme } from '../../theme/tokens';
 import { OWNER_STRINGS } from '../../constants/ownerStrings';
+import { chatService } from '../../services/chatService';
+import { socketService } from '../../services/socketService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -81,6 +83,31 @@ interface OwnerChartData {
 export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navigation }) => {
   const [selectedTimeframe, setSelectedTimeframe] = useState<'week' | 'month'>('week');
   const [refreshing, setRefreshing] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const loadUnreadCount = useCallback(async () => {
+    try {
+      const convs = await chatService.getConversations();
+      if (Array.isArray(convs)) {
+        const total = convs.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+        setUnreadCount(total);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    loadUnreadCount();
+    const unsub = socketService.onNewMessage(() => {
+      loadUnreadCount();
+    });
+    const unsubRead = socketService.onMessagesRead(() => {
+      loadUnreadCount();
+    });
+    return () => {
+      unsub();
+      unsubRead();
+    };
+  }, [loadUnreadCount]);
 
   // Dữ liệu mặc định khởi tạo chuẩn theo thiết kế (Ảnh 1 & 2)
   const [profile, setProfile] = useState<OwnerProfileData>({
@@ -250,6 +277,7 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
           activeOpacity={0.7}
         >
           <Ionicons name="notifications-outline" size={20} color={theme.colors.text.primary} />
+          {unreadCount > 0 && <View style={styles.notifBadgeDot} />}
         </TouchableOpacity>
       </View>
 
@@ -860,6 +888,17 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.bold,
     color: theme.colors.brand[500],
     marginLeft: 4,
+  },
+  notifBadgeDot: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: '#EF4444',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
   },
 });
 

@@ -13,7 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useAppDispatch } from '../../store';
 import { setAuth } from '../../store/slices/authSlice';
-import { apiClient } from '../../config/api';
+import { apiClient, setAuthToken } from '../../config/api';
 import { socketService } from '../../services/socketService';
 import { theme } from '../../theme/tokens';
 
@@ -64,6 +64,7 @@ export function LoginScreen({
 
       if (response.data?.success && response.data?.token && response.data?.user) {
         const { token, user } = response.data;
+        setAuthToken(token);
         dispatch(setAuth({ token, user }));
         // Workflow 1: Kết nối Socket.IO và gia nhập room định danh cá nhân user_{userId}
         const userId = user._id || (user as any).id;
@@ -77,7 +78,7 @@ export function LoginScreen({
         setErrorMessage(response.data?.message || 'Login failed. Please try again.');
       }
     } catch (err: any) {
-      console.error('Login error:', err);
+      console.error('Login error:', err.message, 'Target URL:', `${apiClient.defaults.baseURL}/auth/login`);
       if (err.response?.data?.message) {
         setErrorMessage(err.response.data.message);
       } else if (err.message === 'Network Error' || !err.response) {

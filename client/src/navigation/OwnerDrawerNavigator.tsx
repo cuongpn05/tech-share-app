@@ -4,7 +4,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { HomeRoute } from './HomeRoute';
 import OwnerDashboardScreen from '../screens/owner/OwnerDashboardScreen';
 import OwnerMessagesScreen from '../screens/owner/OwnerMessagesScreen';
-import ChatDetailScreen from '../screens/chat/ChatDetailScreen';
+import NotificationScreen from '../screens/notification/NotificationScreen';
 import OwnerSidebarContent from './OwnerSidebarContent';
 import { theme } from '../theme/tokens';
 
@@ -64,7 +64,6 @@ export const OwnerDrawerNavigator: React.FC = () => {
       </Drawer.Screen>
 
       <Drawer.Screen name="OwnerMessages" component={OwnerMessagesScreen} />
-      <Drawer.Screen name="ChatDetail" component={ChatDetailScreen} />
 
       <Drawer.Screen name="OwnerDeviceInventory">
         {() => (
@@ -106,14 +105,7 @@ export const OwnerDrawerNavigator: React.FC = () => {
         {({ navigation }) => <HomeRoute onReturnToOwner={() => navigation.navigate('OwnerDashboard')} />}
       </Drawer.Screen>
 
-      <Drawer.Screen name="OwnerNotifications">
-        {() => (
-          <OwnerPlaceholderScreen
-            title="System Notifications"
-            subtitle="Thông báo hệ thống và cập nhật trạng thái đơn thuê"
-          />
-        )}
-      </Drawer.Screen>
+      <Drawer.Screen name="OwnerNotifications" component={NotificationScreen} />
     </Drawer.Navigator>
   );
 };

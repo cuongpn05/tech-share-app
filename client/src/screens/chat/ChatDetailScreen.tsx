@@ -12,6 +12,7 @@ import {
   Alert,
   StatusBar,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../theme/tokens';
 import { chatService } from '../../services/chatService';
@@ -20,6 +21,7 @@ import { MessageBubble } from '../../components/chat/MessageBubble';
 import { QuickMessageBar } from '../../components/chat/QuickMessageBar';
 import { ChatInputBar } from '../../components/chat/ChatInputBar';
 import { useAppSelector } from '../../store';
+import { ChatMessagesSkeleton } from '../../components/common/ShimmerPlaceholders';
 import {
   ChatMessage,
   ChatBookingInfo,
@@ -45,17 +47,19 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
 
   // Lấy ID tài khoản người dùng hiện tại từ Redux Store
   const currentUser = useAppSelector((state) => state.auth.user);
-  const currentUserId = currentUser?._id || '6ab13ee23bb7f33ae04d2c88';
+  const currentUserId = currentUser?._id || (currentUser as any)?.id || '';
 
   const [booking, setBooking] = useState<ChatBookingInfo | null>(null);
   const [otherUser, setOtherUser] = useState<ChatOtherUser | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isSending, setIsSending] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // 1. Tải lịch sử chat từ API MongoDB (GET /api/chats/:bookingId)
   const loadChatHistory = useCallback(async () => {
     if (!effectiveBookingId) return;
     try {
+      setIsLoading(true);
       const data = await chatService.getChatHistory(effectiveBookingId);
       if (data) {
         setBooking(data.booking);
@@ -64,67 +68,68 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
       }
     } catch (err: any) {
       console.warn('[ChatDetail] Load history error:', err?.message);
+    } finally {
+      setIsLoading(false);
     }
   }, [effectiveBookingId]);
 
-  // 2. Kết nối Socket & Lắng nghe tin nhắn mới + Read Receipts thời gian thực
-  useEffect(() => {
-    loadChatHistory();
+  // 2. Kết nối Socket & Lắng nghe tin nhắn mới + Read Receipts CHỈ KHI màn hình đang được FOCUS
+  useFocusEffect(
+    useCallback(() => {
+      if (!effectiveBookingId) return;
 
-    if (effectiveBookingId) {
+      loadChatHistory();
       chatService.markChatAsRead(effectiveBookingId);
-    }
 
-    // Kết nối socket cá nhân nếu chưa kết nối
-    socketService.connect(currentUserId);
+      // Kết nối socket cá nhân nếu chưa kết nối
+      if (currentUserId) {
+        socketService.connect(currentUserId);
+      }
 
-    // Gia nhập room chat của đơn thuê
-    if (effectiveBookingId) {
+      // Gia nhập room chat của đơn thuê & đánh dấu đang xem phòng này
       socketService.joinChat(effectiveBookingId);
-    }
 
-    // Lắng nghe tin nhắn mới từ đối phương
-    const unsubscribeNewMsg = socketService.onNewMessage((incomingMsg: ChatMessage) => {
-      if (incomingMsg.bookingId !== effectiveBookingId) return;
+      // Lắng nghe tin nhắn mới từ đối phương
+      const unsubscribeNewMsg = socketService.onNewMessage((incomingMsg: ChatMessage) => {
+        if (incomingMsg.bookingId !== effectiveBookingId) return;
 
-      // Đánh dấu đã đọc ngay lập tức vì đang ở trong màn hình chat
-      chatService.markChatAsRead(effectiveBookingId);
+        // Đánh dấu đã đọc ngay lập tức vì đang ở TRỰC TIẾP trong màn hình chat
+        chatService.markChatAsRead(effectiveBookingId);
 
-      setMessages((prev) => {
-        if (prev.some((m) => m._id === incomingMsg._id)) return prev;
-        // Tránh trùng nếu tin nhắn là do chính mình gửi và đã được cập nhật bởi optimistic UI
-        if (incomingMsg.senderId === currentUserId) {
-          const hasTemp = prev.some((m) => m.isSending && m.text === incomingMsg.text);
-          if (hasTemp) return prev;
-        }
-        return [incomingMsg, ...prev];
+        setMessages((prev) => {
+          if (prev.some((m) => m._id === incomingMsg._id)) return prev;
+          // Tránh trùng nếu tin nhắn là do chính mình gửi và đã được cập nhật bởi optimistic UI
+          if (incomingMsg.senderId === currentUserId) {
+            const hasTemp = prev.some((m) => m.isSending && m.text === incomingMsg.text);
+            if (hasTemp) return prev;
+          }
+          return [incomingMsg, ...prev];
+        });
       });
-    });
 
-    // Lắng nghe sự kiện đối phương đã đọc tin nhắn để cập nhật trạng thái 'read'
-    const unsubscribeReadReceipt = socketService.onMessagesRead(
-      (data: { bookingId: string; readBy: string }) => {
-        if (data.bookingId === effectiveBookingId) {
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.senderId === currentUserId && m.status !== 'read'
-                ? { ...m, status: 'read' }
-                : m
-            )
-          );
+      // Lắng nghe sự kiện đối phương đã đọc tin nhắn để cập nhật trạng thái 'read'
+      const unsubscribeReadReceipt = socketService.onMessagesRead(
+        (data: { bookingId: string; readBy: string }) => {
+          if (data.bookingId === effectiveBookingId) {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.senderId === currentUserId && m.status !== 'read'
+                  ? { ...m, status: 'read' }
+                  : m
+              )
+            );
+          }
         }
-      }
-    );
+      );
 
-    // Rời phòng & Dọn dẹp kết nối khi rời màn hình
-    return () => {
-      unsubscribeNewMsg();
-      unsubscribeReadReceipt();
-      if (effectiveBookingId) {
+      // Khi BLUR (rời khỏi màn hình hoặc đóng màn hình): lập tức dọn dẹp và rời room
+      return () => {
+        unsubscribeNewMsg();
+        unsubscribeReadReceipt();
         socketService.leaveChat(effectiveBookingId);
-      }
-    };
-  }, [effectiveBookingId, loadChatHistory, currentUserId]);
+      };
+    }, [effectiveBookingId, loadChatHistory, currentUserId])
+  );
 
   // 3. Cơ chế gửi tin với Optimistic UI
   const dispatchMessage = async (
@@ -180,12 +185,13 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
       onBack();
       return;
     }
+    if (navigation?.canGoBack?.()) {
+      navigation.goBack();
+      return;
+    }
     if (navigation?.navigate) {
       navigation.navigate('OwnerMessages');
       return;
-    }
-    if (navigation?.goBack) {
-      navigation.goBack();
     }
   };
 
@@ -211,14 +217,17 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
           <Ionicons name="arrow-back" size={24} color="#0F172A" />
         </TouchableOpacity>
 
-        <Image
-          source={{
-            uri:
-              otherUser?.avatar ||
-              'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
-          }}
-          style={styles.avatar}
-        />
+        <View style={styles.avatarWrapper}>
+          <Image
+            source={{
+              uri:
+                otherUser?.avatar ||
+                'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
+            }}
+            style={styles.avatar}
+          />
+          <View style={styles.onlineBadge} />
+        </View>
 
         <View style={styles.headerInfo}>
           <Text style={styles.userName} numberOfLines={1}>
@@ -264,21 +273,46 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
       )}
 
       {/* Danh sách tin nhắn đảo ngược (FlatList Inverted) */}
-      <FlatList
-        data={messages}
-        inverted
-        keyExtractor={(item) => item._id}
-        renderItem={({ item }) => (
-          <MessageBubble
-            message={item}
-            currentUserId={currentUserId}
-            otherUserId={otherUser?._id}
-            otherUserAvatar={otherUser?.avatar}
-          />
-        )}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      />
+      {isLoading && messages.length === 0 ? (
+        <ChatMessagesSkeleton />
+      ) : (
+        <FlatList
+          data={messages}
+          inverted
+          keyExtractor={(item) => item._id}
+          renderItem={({ item, index }) => {
+            const isSent = String(item.senderId) === String(currentUserId);
+            // Quy tắc gom cụm (Cluster Rule) trong FlatList inverted (messages[0] là tin mới nhất ở dưới cùng):
+            // Chỉ hiện avatar tròn 28x28 ở tin nhắn dưới cùng của một cụm tin đối phương:
+            // index === 0 HOẶC tin liền kề phía dưới (index - 1) là tin do chính mình gửi
+            const isLastInReceivedCluster =
+              !isSent &&
+              (index === 0 ||
+                String(messages[index - 1]?.senderId) === String(currentUserId));
+
+            return (
+              <MessageBubble
+                message={item}
+                currentUserId={currentUserId}
+                otherUserId={otherUser?._id}
+                otherUserAvatar={otherUser?.avatar}
+                showAvatar={isLastInReceivedCluster}
+              />
+            );
+          }}
+          ListEmptyComponent={
+            <View style={styles.emptyMessagesContainer}>
+              <Ionicons name="chatbubble-ellipses-outline" size={44} color="#94A3B8" />
+              <Text style={styles.emptyMessagesTitle}>Bắt đầu cuộc trò chuyện</Text>
+              <Text style={styles.emptyMessagesSubtitle}>
+                Gửi tin nhắn hoặc chọn mẫu tin nhắn nhanh bên dưới để trao đổi với {otherUser?.name || 'đối tác'}.
+              </Text>
+            </View>
+          }
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
 
       {/* Thanh mẫu tin nhắn nhanh */}
       <QuickMessageBar
@@ -326,11 +360,27 @@ const styles = StyleSheet.create({
   backButton: {
     padding: 4,
   },
+  avatarWrapper: {
+    position: 'relative',
+    width: 36,
+    height: 36,
+  },
   avatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#E2E8F0',
+  },
+  onlineBadge: {
+    position: 'absolute',
+    bottom: -1,
+    right: -1,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#10B981',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
   },
   headerInfo: {
     flex: 1,
@@ -390,6 +440,27 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 16,
     paddingVertical: 12,
+  },
+  emptyMessagesContainer: {
+    transform: [{ scaleY: -1 }],
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 32,
+  },
+  emptyMessagesTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#334155',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  emptyMessagesSubtitle: {
+    fontSize: 13,
+    color: '#64748B',
+    marginTop: 6,
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });
 

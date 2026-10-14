@@ -8,11 +8,31 @@ let activeBookingId: string | null = null;
 
 type MessageListener = (message: ChatMessage) => void;
 type MessagesReadListener = (data: { bookingId: string; readBy: string }) => void;
+export type InAppNotification = {
+  _id: string;
+  userId: string;
+  title: string;
+  body: string;
+  type: string;
+  relatedId?: string;
+  data?: {
+    screen?: string;
+    bookingId?: string;
+    senderName?: string;
+    senderAvatar?: string;
+  };
+  createdAt?: string;
+};
+type NotificationListener = (notification: InAppNotification) => void;
 
 let messageListeners: MessageListener[] = [];
 let messagesReadListeners: MessagesReadListener[] = [];
+let notificationListeners: NotificationListener[] = [];
 
 export const socketService = {
+  getActiveBookingId: () => activeBookingId,
+  getCurrentUserId: () => currentUserId,
+
   onNewMessage: (listener: MessageListener) => {
     messageListeners.push(listener);
     return () => {
@@ -24,6 +44,13 @@ export const socketService = {
     messagesReadListeners.push(listener);
     return () => {
       messagesReadListeners = messagesReadListeners.filter((l) => l !== listener);
+    };
+  },
+
+  onNotification: (listener: NotificationListener) => {
+    notificationListeners.push(listener);
+    return () => {
+      notificationListeners = notificationListeners.filter((l) => l !== listener);
     };
   },
 
@@ -62,6 +89,10 @@ export const socketService = {
 
     socket.on('new_message', (message: ChatMessage) => {
       messageListeners.forEach((fn) => fn(message));
+    });
+
+    socket.on('new_notification', (notification: InAppNotification) => {
+      notificationListeners.forEach((fn) => fn(notification));
     });
 
     socket.on('messages_read', (data: { bookingId: string; readBy: string }) => {

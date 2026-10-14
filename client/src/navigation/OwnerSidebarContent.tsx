@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/tokens';
 import { OWNER_STRINGS } from '../constants/ownerStrings';
+import { chatService } from '../services/chatService';
+import { socketService } from '../services/socketService';
 
 export interface OwnerSidebarContentProps {
   navigation?: any;
@@ -34,6 +36,31 @@ export const OwnerSidebarContent: React.FC<OwnerSidebarContentProps> = ({
   pendingCount = 2,
 }) => {
   const statusBarOffset = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
+  const [unreadMessages, setUnreadMessages] = useState(0);
+
+  const loadUnreadCount = useCallback(async () => {
+    try {
+      const convs = await chatService.getConversations();
+      if (Array.isArray(convs)) {
+        const total = convs.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+        setUnreadMessages(total);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    loadUnreadCount();
+    const unsub = socketService.onNewMessage(() => {
+      loadUnreadCount();
+    });
+    const unsubRead = socketService.onMessagesRead(() => {
+      loadUnreadCount();
+    });
+    return () => {
+      unsub();
+      unsubRead();
+    };
+  }, [loadUnreadCount]);
 
   const menuItems: MenuItem[] = [
     {
@@ -60,6 +87,7 @@ export const OwnerSidebarContent: React.FC<OwnerSidebarContentProps> = ({
       title: OWNER_STRINGS.SIDEBAR.CUSTOMER_MESSAGES,
       icon: 'chatbubble-ellipses-outline',
       routeName: 'OwnerMessages',
+      badge: unreadMessages > 0 ? unreadMessages : undefined,
     },
     {
       id: 'inventory',
@@ -96,6 +124,7 @@ export const OwnerSidebarContent: React.FC<OwnerSidebarContentProps> = ({
       title: OWNER_STRINGS.SIDEBAR.SYSTEM_NOTIFICATIONS,
       icon: 'notifications-outline',
       routeName: 'OwnerNotifications',
+      badge: unreadMessages > 0 ? unreadMessages : undefined,
     },
   ];
 

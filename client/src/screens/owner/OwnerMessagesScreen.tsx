@@ -11,6 +11,7 @@ import {
   StatusBar,
   Image,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../theme/tokens';
 import { OWNER_STRINGS } from '../../constants/ownerStrings';
@@ -18,6 +19,7 @@ import { chatService } from '../../services/chatService';
 import { socketService } from '../../services/socketService';
 import { useAppSelector } from '../../store';
 import { ChatMessage } from '../../types';
+import { ConversationListSkeleton } from '../../components/common/ShimmerPlaceholders';
 
 export interface OwnerMessagesScreenProps {
   navigation?: any;
@@ -70,15 +72,15 @@ const getStatusDetails = (
 ): { label: string; type: ConversationItem['statusType'] } => {
   switch (status) {
     case 'completed':
-      return { label: 'Completed', type: 'completed' };
+      return { label: 'Đã hoàn tất', type: 'completed' };
     case 'pending':
-      return { label: 'Pending', type: 'pending' };
+      return { label: 'Chờ duyệt', type: 'pending' };
     case 'approved':
-      return { label: 'ĐÃ DUYỆT', type: 'approved' };
+      return { label: 'Đã duyệt', type: 'approved' };
     case 'active':
       return { label: 'Đang thuê', type: 'active' };
     case 'rejected':
-      return { label: 'REJECTED', type: 'rejected' };
+      return { label: 'Đã từ chối', type: 'rejected' };
     case 'cancelled':
       return { label: 'Đã hủy', type: 'cancelled' };
     default:
@@ -88,144 +90,59 @@ const getStatusDetails = (
 
 export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ navigation }) => {
   const currentUser = useAppSelector((state) => state.auth.user);
-  const currentUserId = currentUser?._id || '6ab13ee23bb7f33ae04d2c88';
+  const currentUserId = currentUser?._id || '';
 
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
   const [refreshing, setRefreshing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Dữ liệu dự phòng khớp với database MongoDB Atlas
-  const fallbackConversations: ConversationItem[] = useMemo(
-    () => [
-      {
-        id: '6ac4ad847256044589f824da',
-        bookingId: '6ac4ad847256044589f824da',
-        renter: {
-          id: 'renter1',
-          name: 'renter1',
-          avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
-          isVerified: false,
-        },
-        device: {
-          id: 'dev_macbook',
-          name: 'MacBook Pro 16 inch M3 Max (36...',
-          image: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800',
-        },
-        status: 'completed',
-        statusLabel: 'Completed',
-        statusType: 'completed',
-        dateFormatted: '11/10',
-        lastMessage: 'I have arrived at the handover location.',
-        unreadCount: 0,
-      },
-      {
-        id: '6acb43faf6cae125e60d7c52',
-        bookingId: '6acb43faf6cae125e60d7c52',
-        renter: {
-          id: 'cust_canon',
-          name: 'Customer',
-          avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
-          isVerified: false,
-        },
-        device: {
-          id: 'dev_canon',
-          name: 'Canon PowerShot G7 X Mark III',
-          image:
-            'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=900&q=80',
-        },
-        status: 'pending',
-        statusLabel: 'Pending',
-        statusType: 'pending',
-        dateFormatted: '11/10',
-        lastMessage: OWNER_STRINGS.MESSAGES.FALLBACK_SNIPPET,
-        unreadCount: 0,
-      },
-      {
-        id: '6acb4d37f6cae125e60d8238',
-        bookingId: '6acb4d37f6cae125e60d8238',
-        renter: {
-          id: 'hao_xiaomi_rej',
-          name: 'Đỗ Nguyên Hạo',
-          avatar:
-            'https://res.cloudinary.com/oigtlazh/image/upload/v1789998671/techshare/avatars/fj73qabjynrykcqqfehq.jpg',
-          isVerified: true,
-        },
-        device: {
-          id: 'dev_xiaomi',
-          name: 'Xiaomi 14T Pro 512GB',
-          image:
-            'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&w=900&q=80',
-        },
-        status: 'rejected',
-        statusLabel: 'REJECTED',
-        statusType: 'rejected',
-        dateFormatted: '11/10',
-        lastMessage: OWNER_STRINGS.MESSAGES.FALLBACK_SNIPPET,
-        unreadCount: 0,
-      },
-      {
-        id: '6acb4d91f6cae125e60d82c0',
-        bookingId: '6acb4d91f6cae125e60d82c0',
-        renter: {
-          id: 'hao_xiaomi_appr',
-          name: 'Đỗ Nguyên Hạo',
-          avatar:
-            'https://res.cloudinary.com/oigtlazh/image/upload/v1789998671/techshare/avatars/fj73qabjynrykcqqfehq.jpg',
-          isVerified: true,
-        },
-        device: {
-          id: 'dev_xiaomi_appr',
-          name: 'Xiaomi 14T Pro 512GB',
-          image:
-            'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&w=900&q=80',
-        },
-        status: 'approved',
-        statusLabel: 'ĐÃ DUYỆT',
-        statusType: 'approved',
-        dateFormatted: '11/10',
-        lastMessage: OWNER_STRINGS.MESSAGES.FALLBACK_SNIPPET,
-        unreadCount: 0,
-      },
-      {
-        id: '6acb40f5b3b74dbc4617a0cf',
-        bookingId: '6acb40f5b3b74dbc4617a0cf',
-        renter: {
-          id: 'cust_canon2',
-          name: 'Customer',
-          avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
-          isVerified: false,
-        },
-        device: {
-          id: 'dev_canon2',
-          name: 'Canon PowerShot G7 X Mark III',
-          image:
-            'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=900&q=80',
-        },
-        status: 'pending',
-        statusLabel: 'Pending',
-        statusType: 'pending',
-        dateFormatted: '11/10',
-        lastMessage: OWNER_STRINGS.MESSAGES.FALLBACK_SNIPPET,
-        unreadCount: 0,
-      },
-    ],
-    []
-  );
-
-  // 1. Tải danh sách hội thoại từ API GET /api/chats/conversations
-  const fetchMessages = useCallback(async () => {
+  // 1. Tải danh sách hội thoại từ API GET /api/chats/conversations (dựa trên lịch sử booking thực tế)
+  const fetchMessages = useCallback(async (isSilent = false) => {
+    if (!isSilent) setIsLoading(true);
     try {
       const data = await chatService.getConversations();
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
+        const defaultPartnerName =
+          currentUser?.role === 'owner' ? 'Khách thuê' : 'Chủ thiết bị';
+
         const mapped: ConversationItem[] = data.map((item) => {
           const statusInfo = getStatusDetails(item.bookingStatus);
+
+          let lastMessageSnippet = item.lastMessage?.text;
+          if (!lastMessageSnippet) {
+            switch (item.bookingStatus) {
+              case 'completed':
+                lastMessageSnippet = 'Đơn thuê đã hoàn tất';
+                break;
+              case 'active':
+                lastMessageSnippet = 'Thiết bị đang được thuê';
+                break;
+              case 'approved':
+                lastMessageSnippet = 'Đơn thuê đã được duyệt';
+                break;
+              case 'pending':
+                lastMessageSnippet = 'Đang chờ duyệt đơn thuê';
+                break;
+              case 'rejected':
+                lastMessageSnippet = 'Đơn thuê đã bị từ chối';
+                break;
+              case 'cancelled':
+                lastMessageSnippet = 'Đơn thuê đã hủy';
+                break;
+              default:
+                lastMessageSnippet = OWNER_STRINGS.MESSAGES.FALLBACK_SNIPPET;
+                break;
+            }
+          }
+
           return {
             id: item.bookingId,
             bookingId: item.bookingId,
             renter: {
               id: item.otherUser?._id || null,
-              name: item.otherUser?.name || 'Khách thuê',
+              name: item.otherUser?.name || defaultPartnerName,
               avatar:
                 item.otherUser?.avatar ||
                 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
@@ -243,24 +160,36 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
             statusType: statusInfo.type,
             unreadCount: item.unreadCount || 0,
             dateFormatted: formatMessageDate(item.lastActivityAt),
-            lastMessage: item.lastMessage?.text || OWNER_STRINGS.MESSAGES.FALLBACK_SNIPPET,
+            lastMessage: lastMessageSnippet,
             lastActivityAt: item.lastActivityAt,
             createdAt: item.lastActivityAt,
           };
         });
         setConversations(mapped);
       } else {
-        setConversations(fallbackConversations);
+        setConversations([]);
       }
-    } catch {
-      setConversations(fallbackConversations);
+    } catch (err) {
+      console.warn('[MessagesScreen] fetch error:', err);
+      setConversations([]);
+    } finally {
+      setIsLoading(false);
     }
-  }, [fallbackConversations]);
+  }, [currentUser?.role]);
+
+  // Tự động tải lại danh sách hội thoại khi màn hình được focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchMessages();
+    }, [fetchMessages])
+  );
 
   // 2. Kết nối Socket & Lắng nghe tin nhắn mới thời gian thực để cập nhật hội thoại
   useEffect(() => {
     fetchMessages();
-    socketService.connect(currentUserId);
+    if (currentUserId) {
+      socketService.connect(currentUserId);
+    }
 
     // Lắng nghe new_message từ Socket.IO
     const unsubNewMsg = socketService.onNewMessage((incomingMsg: ChatMessage) => {
@@ -310,7 +239,7 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchMessages();
+    await fetchMessages(true);
     setRefreshing(false);
   };
 
@@ -383,17 +312,19 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
         onPress={() => handleOpenConversation(item)}
         activeOpacity={0.7}
       >
-        {/* Avatar bên trái kèm badge thumbnail thiết bị nhỏ ở góc dưới */}
+        {/* Avatar đối tác chat (48x48 px kèm huy hiệu tích xanh xác thực eKYC ở góc dưới) */}
         <View style={styles.avatarContainer}>
           <Image source={{ uri: item.renter.avatar }} style={styles.renterAvatar} />
-          <View style={styles.deviceMiniThumbnailContainer}>
-            <Image source={{ uri: item.device.image }} style={styles.deviceMiniThumbnail} />
-          </View>
+          {item.renter.isVerified && (
+            <View style={styles.avatarVerifiedBadge}>
+              <Ionicons name="checkmark-circle" size={14} color={theme.colors.brand[500]} />
+            </View>
+          )}
         </View>
 
         {/* Nội dung tin nhắn & thông tin chi tiết */}
         <View style={styles.cardContent}>
-          {/* Hàng 1: Tên người thuê + Huy hiệu xác thực + Thời gian & Unread Badge */}
+          {/* Hàng 1: Tên đối tác + Huy hiệu xác thực + Thời gian & Unread Badge */}
           <View style={styles.topRow}>
             <View style={styles.nameRow}>
               <Text
@@ -473,15 +404,33 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
       <View style={styles.headerBar}>
         <TouchableOpacity
           style={styles.headerIconButton}
-          onPress={() => navigation?.openDrawer?.()}
+          onPress={() => {
+            if (navigation?.canGoBack?.()) {
+              navigation.goBack();
+            } else if (navigation?.openDrawer) {
+              navigation.openDrawer();
+            }
+          }}
           activeOpacity={0.7}
         >
-          <Ionicons name="menu" size={22} color={theme.colors.text.primary} />
+          <Ionicons
+            name={navigation?.canGoBack?.() ? 'arrow-back' : 'menu'}
+            size={22}
+            color={theme.colors.text.primary}
+          />
         </TouchableOpacity>
 
         <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>{OWNER_STRINGS.MESSAGES.HEADER_TITLE}</Text>
-          <Text style={styles.headerSubtitle}>{OWNER_STRINGS.MESSAGES.HEADER_SUBTITLE}</Text>
+          <Text style={styles.headerTitle}>
+            {currentUser?.role === 'owner'
+              ? OWNER_STRINGS.MESSAGES.HEADER_TITLE
+              : 'Tin nhắn'}
+          </Text>
+          <Text style={styles.headerSubtitle}>
+            {currentUser?.role === 'owner'
+              ? OWNER_STRINGS.MESSAGES.HEADER_SUBTITLE
+              : 'Trao đổi về các thiết bị và đơn đặt thuê'}
+          </Text>
         </View>
       </View>
 
@@ -490,7 +439,11 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
         <Ionicons name="search-outline" size={20} color="#94A3B8" style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
-          placeholder={OWNER_STRINGS.MESSAGES.SEARCH_PLACEHOLDER}
+          placeholder={
+            currentUser?.role === 'owner'
+              ? OWNER_STRINGS.MESSAGES.SEARCH_PLACEHOLDER
+              : 'Tìm kiếm theo tên hoặc thiết bị...'
+          }
           placeholderTextColor="#94A3B8"
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -516,7 +469,7 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
               activeTab === 'all' ? styles.filterTabTextActive : styles.filterTabTextInactive,
             ]}
           >
-            {OWNER_STRINGS.MESSAGES.TABS.ALL_CHATS}
+            {currentUser?.role === 'owner' ? OWNER_STRINGS.MESSAGES.TABS.ALL_CHATS : 'Tất cả'}
           </Text>
         </TouchableOpacity>
 
@@ -531,7 +484,7 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
               activeTab === 'renting' ? styles.filterTabTextActive : styles.filterTabTextInactive,
             ]}
           >
-            {OWNER_STRINGS.MESSAGES.TABS.RENTING}
+            {currentUser?.role === 'owner' ? OWNER_STRINGS.MESSAGES.TABS.RENTING : 'Đang thuê'}
           </Text>
         </TouchableOpacity>
 
@@ -546,7 +499,7 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
               activeTab === 'pending' ? styles.filterTabTextActive : styles.filterTabTextInactive,
             ]}
           >
-            {OWNER_STRINGS.MESSAGES.TABS.PENDING}
+            {currentUser?.role === 'owner' ? OWNER_STRINGS.MESSAGES.TABS.PENDING : 'Chờ duyệt'}
           </Text>
         </TouchableOpacity>
 
@@ -563,36 +516,43 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
                 : styles.filterTabTextInactive,
             ]}
           >
-            {OWNER_STRINGS.MESSAGES.TABS.COMPLETED}
+            {currentUser?.role === 'owner' ? OWNER_STRINGS.MESSAGES.TABS.COMPLETED : 'Đã hoàn tất'}
           </Text>
         </TouchableOpacity>
       </View>
 
       {/* 4. Danh sách các cuộc trò chuyện (Conversation List) */}
-      <FlatList
-        data={filteredConversations}
-        keyExtractor={(item) => item.id}
-        renderItem={renderConversationItem}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[theme.colors.brand[500]]}
-          />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Ionicons name="chatbubbles-outline" size={48} color="#CBD5E1" />
-            <Text style={styles.emptyText}>
-              {searchQuery.trim().length > 0
-                ? OWNER_STRINGS.MESSAGES.EMPTY_SEARCH
-                : OWNER_STRINGS.MESSAGES.EMPTY_LIST}
-            </Text>
-          </View>
-        }
-      />
+      {isLoading && conversations.length === 0 ? (
+        <ConversationListSkeleton count={5} />
+      ) : (
+        <FlatList
+          data={filteredConversations}
+          keyExtractor={(item) => item.id}
+          renderItem={renderConversationItem}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[theme.colors.brand[500]]}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Ionicons name="chatbubbles-outline" size={48} color="#CBD5E1" />
+              <Text style={styles.emptyText}>
+                {searchQuery.trim().length > 0
+                  ? OWNER_STRINGS.MESSAGES.EMPTY_SEARCH
+                  : 'Chưa có cuộc trò chuyện nào từ lịch sử đặt thuê'}
+              </Text>
+              <Text style={styles.emptySubText}>
+                Lịch sử trò chuyện sẽ tự động hiển thị theo các đơn đặt thuê của bạn.
+              </Text>
+            </View>
+          }
+        />
+      )}
     </View>
   );
 };
@@ -695,30 +655,21 @@ const styles = StyleSheet.create({
   },
   avatarContainer: {
     position: 'relative',
-    width: 52,
-    height: 52,
+    width: 48,
+    height: 48,
   },
   renterAvatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: theme.colors.surfaceMuted,
   },
-  deviceMiniThumbnailContainer: {
+  avatarVerifiedBadge: {
     position: 'absolute',
     bottom: -2,
     right: -2,
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: '#FFFFFF',
-    backgroundColor: '#1E293B',
-    overflow: 'hidden',
-  },
-  deviceMiniThumbnail: {
-    width: '100%',
-    height: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
   },
   cardContent: {
     flex: 1,
@@ -849,10 +800,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   emptyText: {
-    fontSize: 14,
-    color: theme.colors.text.muted,
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
     marginTop: 12,
     textAlign: 'center',
+  },
+  emptySubText: {
+    fontSize: 13,
+    color: theme.colors.text.muted,
+    marginTop: 6,
+    textAlign: 'center',
+    paddingHorizontal: 24,
+    lineHeight: 18,
   },
 });
 
