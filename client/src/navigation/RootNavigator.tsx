@@ -11,6 +11,7 @@ import { HomeRoute } from './HomeRoute';
 import OwnerMessagesScreen from '../screens/owner/OwnerMessagesScreen';
 import ChatDetailScreen from '../screens/chat/ChatDetailScreen';
 import NotificationScreen from '../screens/notification/NotificationScreen';
+import { BookingCreateScreen } from '../screens/booking/BookingCreateScreen';
 import { socketService } from '../services/socketService';
 import { setAuthToken } from '../config/api';
 import { theme } from '../theme/tokens';
@@ -28,11 +29,23 @@ export type RootStackParamList = {
   OwnerMessages: undefined;
   ChatDetail: { bookingId?: string } | undefined;
   Notification: undefined;
+  BookingCreate: { deviceId: string };
 };
+
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+const BookingCreateRoute = ({ route, navigation }: any) => (
+  <BookingCreateScreen
+    deviceId={route.params.deviceId}
+    onBack={() => navigation.goBack()}
+    onSuccess={() => navigation.navigate('Home')}
+    onNavigateToVerification={() => navigation.navigate('Home')}
+  />
+);
+
 export function RootNavigator() {
+
   const { isAuthenticated, user, token } = useAppSelector((state) => state.auth);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean | null>(null);
 
@@ -122,9 +135,11 @@ export function RootNavigator() {
           <Stack.Screen name="OwnerMessages" component={OwnerMessagesScreen} />
           <Stack.Screen name="ChatDetail" component={ChatDetailScreen} />
           <Stack.Screen name="Notification" component={NotificationScreen} />
+          <Stack.Screen name="BookingCreate" component={BookingCreateRoute} />
         </>
       )}
     </Stack.Navigator>
+
   );
 }
 
