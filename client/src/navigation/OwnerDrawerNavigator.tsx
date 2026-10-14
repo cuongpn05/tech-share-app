@@ -3,6 +3,7 @@ import { createDrawerNavigator } from '@react-navigation/drawer';
 import { View, Text, StyleSheet } from 'react-native';
 import { HomeRoute } from './HomeRoute';
 import OwnerDashboardScreen from '../screens/owner/OwnerDashboardScreen';
+import { PostDeviceScreen } from '../screens/device/PostDeviceScreen';
 import OwnerSidebarContent from './OwnerSidebarContent';
 import { theme } from '../theme/tokens';
 
@@ -80,10 +81,10 @@ export const OwnerDrawerNavigator: React.FC = () => {
       </Drawer.Screen>
 
       <Drawer.Screen name="OwnerListDevice">
-        {() => (
-          <OwnerPlaceholderScreen
-            title="List New Devices"
-            subtitle="Biểu mẫu đăng tải thiết bị cho thuê mới"
+        {({ navigation, route }) => (
+          <PostDeviceScreen
+            accessToken={route.params?.accessToken ?? ''}
+            navigation={navigation}
           />
         )}
       </Drawer.Screen>

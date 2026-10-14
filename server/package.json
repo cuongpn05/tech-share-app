@@ -25,7 +25,7 @@
     "@google/generative-ai": "^0.21.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
+    "dotenv": "^16.6.1",
     "expo-server-sdk": "^7.2.0",
     "express": "^4.19.2",
     "firebase": "^13.0.0",
