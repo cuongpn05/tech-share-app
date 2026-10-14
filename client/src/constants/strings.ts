@@ -816,6 +816,7 @@ export const STRINGS = {
 
   BOOKING_CREATE: {
     TITLE: 'Book Rental Device',
+    RENTAL_PERIOD: 'Rental Period',
     TOTAL_PAYMENT: 'Total payment',
     CONFIRM_BOOKING: 'Confirm Booking',
     DELIVERY_ADDRESS_LABEL: 'Delivery address',
@@ -958,17 +959,8 @@ export const STRINGS = {
     TITLE: 'Payment Breakdown',
     BASE_RENTAL: (days: number) => `Base rental (${days} ${days === 1 ? 'day' : 'days'})`,
     LONG_TERM_DISCOUNT: (pct: number) => `Long-term discount (${pct}%)`,
-    DISCOUNT_VOUCHER: 'Discount voucher',
     SECURITY_DEPOSIT: 'Security deposit (refundable)',
     TOTAL_PAYMENT: 'Total payment',
-  },
-
-  VOUCHER_INPUT: {
-    TITLE: 'Discount Voucher',
-    APPLIED_LABEL: 'Applied voucher: ',
-    PLACEHOLDER: 'Enter voucher code (e.g. SALE20)',
-    APPLY: 'Apply',
-    VALIDATE_ERROR: 'Unable to validate voucher code',
   },
 
   DEVICE_DETAIL: {
@@ -1125,6 +1117,7 @@ export const STRINGS = {
     LATER: 'Later',
     VERIFY_NOW: 'Verify Now',
   },
+
 
   ADMIN: {
     DASHBOARD: {
