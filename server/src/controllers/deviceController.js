@@ -133,4 +133,31 @@ const uploadDeviceImage = asyncHandler(async (req, res) => {
   });
 });
 
-module.exports = { getNearbyDevices, getMyDevices, createDevice, uploadDeviceImage };
+const getDeviceById = asyncHandler(async (req, res) => {
+  if (!/^[a-fA-F0-9]{24}$/.test(req.params.id)) {
+    return res.status(400).json({
+      success: false,
+      message: "ID thiết bị không hợp lệ",
+    });
+  }
+
+  const device = await Device.findOne({
+    _id: req.params.id,
+    isDeleted: false,
+  }).populate("ownerId", "name avatar rating isVerified address phone email");
+
+  if (!device) {
+    return res.status(404).json({
+      success: false,
+      message: "Không tìm thấy thiết bị",
+    });
+  }
+
+  res.status(200).json({
+    success: true,
+    data: device,
+  });
+});
+
+module.exports = { getNearbyDevices, getMyDevices, createDevice, uploadDeviceImage, getDeviceById };
+
