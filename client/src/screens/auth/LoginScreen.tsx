@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppDispatch } from '../../store';
 import { setAuth } from '../../store/slices/authSlice';
 import { apiClient } from '../../config/api';
+import { socketService } from '../../services/socketService';
 import { theme } from '../../theme/tokens';
 
 export interface LoginScreenProps {
@@ -64,6 +65,11 @@ export function LoginScreen({
       if (response.data?.success && response.data?.token && response.data?.user) {
         const { token, user } = response.data;
         dispatch(setAuth({ token, user }));
+        // Workflow 1: Kết nối Socket.IO và gia nhập room định danh cá nhân user_{userId}
+        const userId = user._id || (user as any).id;
+        if (userId) {
+          socketService.connect(userId);
+        }
         if (onLoginSuccess) {
           onLoginSuccess(user.role || 'renter');
         }

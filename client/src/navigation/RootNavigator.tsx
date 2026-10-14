@@ -8,6 +8,7 @@ import { OnboardingScreen } from '../user/OnboardingScreen';
 import OwnerDrawerNavigator from './OwnerDrawerNavigator';
 import AdminDrawerNavigator from './AdminDrawerNavigator';
 import { HomeRoute } from './HomeRoute';
+import { socketService } from '../services/socketService';
 import { theme } from '../theme/tokens';
 
 export { HomeRoute } from './HomeRoute';
@@ -40,6 +41,12 @@ export function RootNavigator() {
     };
     checkOnboarding();
   }, []);
+
+  useEffect(() => {
+    if (isAuthenticated && user?._id) {
+      socketService.connect(user._id);
+    }
+  }, [isAuthenticated, user?._id]);
 
   const handleCompleteOnboarding = async () => {
     try {

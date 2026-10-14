@@ -10,11 +10,14 @@ import {
   Platform,
   StatusBar,
   Image,
-  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../theme/tokens';
 import { OWNER_STRINGS } from '../../constants/ownerStrings';
+import { chatService } from '../../services/chatService';
+import { socketService } from '../../services/socketService';
+import { useAppSelector } from '../../store';
+import { ChatMessage } from '../../types';
 
 export interface OwnerMessagesScreenProps {
   navigation?: any;
@@ -39,18 +42,60 @@ export interface ConversationItem {
   statusType: 'completed' | 'pending' | 'rejected' | 'approved' | 'active' | 'cancelled';
   dateFormatted: string;
   lastMessage: string;
+  unreadCount: number;
+  lastActivityAt?: string;
   createdAt?: string;
 }
 
 type FilterTab = 'all' | 'renting' | 'pending' | 'completed';
 
+const formatMessageDate = (isoString?: string): string => {
+  if (!isoString) return 'Vừa xong';
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return 'Vừa xong';
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  if (isToday) {
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
+  }
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  return `${day}/${month}`;
+};
+
+const getStatusDetails = (
+  status?: string
+): { label: string; type: ConversationItem['statusType'] } => {
+  switch (status) {
+    case 'completed':
+      return { label: 'Completed', type: 'completed' };
+    case 'pending':
+      return { label: 'Pending', type: 'pending' };
+    case 'approved':
+      return { label: 'ĐÃ DUYỆT', type: 'approved' };
+    case 'active':
+      return { label: 'Đang thuê', type: 'active' };
+    case 'rejected':
+      return { label: 'REJECTED', type: 'rejected' };
+    case 'cancelled':
+      return { label: 'Đã hủy', type: 'cancelled' };
+    default:
+      return { label: (status || 'Khác').toUpperCase(), type: 'pending' };
+  }
+};
+
 export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ navigation }) => {
+  const currentUser = useAppSelector((state) => state.auth.user);
+  const currentUserId = currentUser?._id || '6ab13ee23bb7f33ae04d2c88';
+
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
   const [refreshing, setRefreshing] = useState(false);
 
-  // Dữ liệu dự phòng khớp 100% với database MongoDB Atlas
+  // Dữ liệu dự phòng khớp với database MongoDB Atlas
   const fallbackConversations: ConversationItem[] = useMemo(
     () => [
       {
@@ -72,6 +117,7 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
         statusType: 'completed',
         dateFormatted: '11/10',
         lastMessage: 'I have arrived at the handover location.',
+        unreadCount: 0,
       },
       {
         id: '6acb43faf6cae125e60d7c52',
@@ -85,13 +131,15 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
         device: {
           id: 'dev_canon',
           name: 'Canon PowerShot G7 X Mark III',
-          image: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=900&q=80',
+          image:
+            'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=900&q=80',
         },
         status: 'pending',
         statusLabel: 'Pending',
         statusType: 'pending',
         dateFormatted: '11/10',
         lastMessage: OWNER_STRINGS.MESSAGES.FALLBACK_SNIPPET,
+        unreadCount: 0,
       },
       {
         id: '6acb4d37f6cae125e60d8238',
@@ -99,19 +147,22 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
         renter: {
           id: 'hao_xiaomi_rej',
           name: 'Đỗ Nguyên Hạo',
-          avatar: 'https://res.cloudinary.com/oigtlazh/image/upload/v1789998671/techshare/avatars/fj73qabjynrykcqqfehq.jpg',
+          avatar:
+            'https://res.cloudinary.com/oigtlazh/image/upload/v1789998671/techshare/avatars/fj73qabjynrykcqqfehq.jpg',
           isVerified: true,
         },
         device: {
           id: 'dev_xiaomi',
           name: 'Xiaomi 14T Pro 512GB',
-          image: 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&w=900&q=80',
+          image:
+            'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&w=900&q=80',
         },
         status: 'rejected',
         statusLabel: 'REJECTED',
         statusType: 'rejected',
         dateFormatted: '11/10',
         lastMessage: OWNER_STRINGS.MESSAGES.FALLBACK_SNIPPET,
+        unreadCount: 0,
       },
       {
         id: '6acb4d91f6cae125e60d82c0',
@@ -119,19 +170,22 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
         renter: {
           id: 'hao_xiaomi_appr',
           name: 'Đỗ Nguyên Hạo',
-          avatar: 'https://res.cloudinary.com/oigtlazh/image/upload/v1789998671/techshare/avatars/fj73qabjynrykcqqfehq.jpg',
+          avatar:
+            'https://res.cloudinary.com/oigtlazh/image/upload/v1789998671/techshare/avatars/fj73qabjynrykcqqfehq.jpg',
           isVerified: true,
         },
         device: {
           id: 'dev_xiaomi_appr',
           name: 'Xiaomi 14T Pro 512GB',
-          image: 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&w=900&q=80',
+          image:
+            'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&w=900&q=80',
         },
         status: 'approved',
         statusLabel: 'ĐÃ DUYỆT',
         statusType: 'approved',
         dateFormatted: '11/10',
         lastMessage: OWNER_STRINGS.MESSAGES.FALLBACK_SNIPPET,
+        unreadCount: 0,
       },
       {
         id: '6acb40f5b3b74dbc4617a0cf',
@@ -145,45 +199,56 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
         device: {
           id: 'dev_canon2',
           name: 'Canon PowerShot G7 X Mark III',
-          image: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=900&q=80',
+          image:
+            'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=900&q=80',
         },
         status: 'pending',
         statusLabel: 'Pending',
         statusType: 'pending',
         dateFormatted: '11/10',
         lastMessage: OWNER_STRINGS.MESSAGES.FALLBACK_SNIPPET,
+        unreadCount: 0,
       },
     ],
     []
   );
 
-  // Tải danh sách Customer Messages trực tiếp từ MongoDB Atlas
+  // 1. Tải danh sách hội thoại từ API GET /api/chats/conversations
   const fetchMessages = useCallback(async () => {
     try {
-      const endpoints = [
-        'http://192.168.1.36:5000/api/owner/messages',
-        'http://10.0.2.2:5000/api/owner/messages',
-        'http://localhost:5000/api/owner/messages',
-      ];
-
-      let jsonResult: any = null;
-      for (const url of endpoints) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 3500);
-          const response = await fetch(url, { signal: controller.signal });
-          clearTimeout(timeoutId);
-          if (response.ok) {
-            jsonResult = await response.json();
-            break;
-          }
-        } catch {
-          // Thử endpoint tiếp theo
-        }
-      }
-
-      if (jsonResult && jsonResult.success && Array.isArray(jsonResult.data)) {
-        setConversations(jsonResult.data);
+      const data = await chatService.getConversations();
+      if (Array.isArray(data) && data.length > 0) {
+        const mapped: ConversationItem[] = data.map((item) => {
+          const statusInfo = getStatusDetails(item.bookingStatus);
+          return {
+            id: item.bookingId,
+            bookingId: item.bookingId,
+            renter: {
+              id: item.otherUser?._id || null,
+              name: item.otherUser?.name || 'Khách thuê',
+              avatar:
+                item.otherUser?.avatar ||
+                'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
+              isVerified: Boolean(item.otherUser?.isVerified),
+            },
+            device: {
+              id: item.device?._id || null,
+              name: item.device?.title || 'Thiết bị công nghệ',
+              image:
+                item.device?.image ||
+                'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800',
+            },
+            status: item.bookingStatus,
+            statusLabel: statusInfo.label,
+            statusType: statusInfo.type,
+            unreadCount: item.unreadCount || 0,
+            dateFormatted: formatMessageDate(item.lastActivityAt),
+            lastMessage: item.lastMessage?.text || OWNER_STRINGS.MESSAGES.FALLBACK_SNIPPET,
+            lastActivityAt: item.lastActivityAt,
+            createdAt: item.lastActivityAt,
+          };
+        });
+        setConversations(mapped);
       } else {
         setConversations(fallbackConversations);
       }
@@ -192,9 +257,56 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
     }
   }, [fallbackConversations]);
 
+  // 2. Kết nối Socket & Lắng nghe tin nhắn mới thời gian thực để cập nhật hội thoại
   useEffect(() => {
     fetchMessages();
-  }, [fetchMessages]);
+    socketService.connect(currentUserId);
+
+    // Lắng nghe new_message từ Socket.IO
+    const unsubNewMsg = socketService.onNewMessage((incomingMsg: ChatMessage) => {
+      setConversations((prev) => {
+        const index = prev.findIndex((c) => c.bookingId === incomingMsg.bookingId);
+        if (index === -1) {
+          fetchMessages();
+          return prev;
+        }
+
+        const target = prev[index];
+        const isFromMe = String(incomingMsg.senderId) === String(currentUserId);
+        const updatedItem: ConversationItem = {
+          ...target,
+          lastMessage:
+            incomingMsg.text ||
+            (incomingMsg.messageType === 'image'
+              ? '[Hình ảnh]'
+              : incomingMsg.messageType === 'location'
+              ? '[Vị trí GPS]'
+              : 'Tin nhắn mới'),
+          unreadCount: isFromMe ? target.unreadCount : (target.unreadCount || 0) + 1,
+          dateFormatted: formatMessageDate(incomingMsg.createdAt),
+          lastActivityAt: incomingMsg.createdAt,
+        };
+
+        // Đưa cuộc trò chuyện có tin nhắn mới nhất lên đầu danh sách
+        const withoutTarget = prev.filter((_, i) => i !== index);
+        return [updatedItem, ...withoutTarget];
+      });
+    });
+
+    // Lắng nghe messages_read khi đã xem tin
+    const unsubRead = socketService.onMessagesRead((data: { bookingId: string }) => {
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.bookingId === data.bookingId ? { ...c, unreadCount: 0 } : c
+        )
+      );
+    });
+
+    return () => {
+      unsubNewMsg();
+      unsubRead();
+    };
+  }, [fetchMessages, currentUserId]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -202,12 +314,11 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
     setRefreshing(false);
   };
 
-  const statusBarOffset = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
+  const statusBarOffset = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
 
   // Lọc danh sách theo Tab và Từ khóa tìm kiếm
   const filteredConversations = useMemo(() => {
     return conversations.filter((item) => {
-      // 1. Lọc theo tab trạng thái
       if (activeTab === 'renting') {
         if (item.status !== 'active' && item.status !== 'approved') return false;
       } else if (activeTab === 'pending') {
@@ -216,7 +327,6 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
         if (item.status !== 'completed') return false;
       }
 
-      // 2. Lọc theo ô tìm kiếm renter hoặc tên thiết bị
       if (searchQuery.trim().length > 0) {
         const query = searchQuery.toLowerCase().trim();
         const matchRenter = item.renter.name.toLowerCase().includes(query);
@@ -229,6 +339,11 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
   }, [conversations, activeTab, searchQuery]);
 
   const handleOpenConversation = (item: ConversationItem) => {
+    // Đánh dấu đã đọc trên giao diện ngay khi bấm vào
+    setConversations((prev) =>
+      prev.map((c) => (c.bookingId === item.bookingId ? { ...c, unreadCount: 0 } : c))
+    );
+
     if (navigation?.navigate) {
       navigation.navigate('ChatDetail', {
         bookingId: item.bookingId,
@@ -236,7 +351,6 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
     }
   };
 
-  // Helper render badge trạng thái
   const renderStatusBadge = (item: ConversationItem) => {
     let badgeStyle = styles.badgeCompleted;
     let textStyle = styles.badgeTextCompleted;
@@ -247,10 +361,7 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
     } else if (item.statusType === 'rejected') {
       badgeStyle = styles.badgeRejected;
       textStyle = styles.badgeTextRejected;
-    } else if (item.statusType === 'approved') {
-      badgeStyle = styles.badgeApproved;
-      textStyle = styles.badgeTextApproved;
-    } else if (item.statusType === 'active') {
+    } else if (item.statusType === 'approved' || item.statusType === 'active') {
       badgeStyle = styles.badgeApproved;
       textStyle = styles.badgeTextApproved;
     }
@@ -264,10 +375,11 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
 
   const renderConversationItem = ({ item }: { item: ConversationItem }) => {
     const hasActiveMessage = item.lastMessage !== OWNER_STRINGS.MESSAGES.FALLBACK_SNIPPET;
+    const hasUnread = Boolean(item.unreadCount && item.unreadCount > 0);
 
     return (
       <TouchableOpacity
-        style={styles.conversationCard}
+        style={[styles.conversationCard, hasUnread && styles.conversationCardUnread]}
         onPress={() => handleOpenConversation(item)}
         activeOpacity={0.7}
       >
@@ -281,10 +393,13 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
 
         {/* Nội dung tin nhắn & thông tin chi tiết */}
         <View style={styles.cardContent}>
-          {/* Hàng 1: Tên người thuê + Huy hiệu xác thực + Thời gian */}
+          {/* Hàng 1: Tên người thuê + Huy hiệu xác thực + Thời gian & Unread Badge */}
           <View style={styles.topRow}>
             <View style={styles.nameRow}>
-              <Text style={styles.renterNameText} numberOfLines={1}>
+              <Text
+                style={[styles.renterNameText, hasUnread && styles.renterNameUnread]}
+                numberOfLines={1}
+              >
                 {item.renter.name}
               </Text>
               {item.renter.isVerified && (
@@ -296,7 +411,19 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
                 />
               )}
             </View>
-            <Text style={styles.dateText}>{item.dateFormatted}</Text>
+
+            <View style={styles.topRightBox}>
+              <Text style={[styles.dateText, hasUnread && styles.dateTextUnread]}>
+                {item.dateFormatted}
+              </Text>
+              {hasUnread && (
+                <View style={styles.unreadBadge}>
+                  <Text style={styles.unreadBadgeText}>
+                    {item.unreadCount > 99 ? '99+' : item.unreadCount}
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
 
           {/* Hàng 2: Icon chip + Tên thiết bị + Badge trạng thái đơn */}
@@ -319,7 +446,11 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
           <Text
             style={[
               styles.lastMessageText,
-              hasActiveMessage ? styles.lastMessageActive : styles.lastMessageMuted,
+              hasUnread
+                ? styles.lastMessageUnread
+                : hasActiveMessage
+                ? styles.lastMessageActive
+                : styles.lastMessageMuted,
             ]}
             numberOfLines={1}
           >
@@ -455,7 +586,7 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
           <View style={styles.emptyContainer}>
             <Ionicons name="chatbubbles-outline" size={48} color="#CBD5E1" />
             <Text style={styles.emptyText}>
-              {searchQuery
+              {searchQuery.trim().length > 0
                 ? OWNER_STRINGS.MESSAGES.EMPTY_SEARCH
                 : OWNER_STRINGS.MESSAGES.EMPTY_LIST}
             </Text>
@@ -469,50 +600,46 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
 const styles = StyleSheet.create({
   screenContainer: {
     flex: 1,
-    backgroundColor: theme.colors.surface,
+    backgroundColor: theme.colors.background,
   },
   headerBar: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: theme.spacing.lg,
-    paddingVertical: 12,
+    paddingVertical: 14,
     backgroundColor: theme.colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
   headerIconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: theme.radii.lg,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...theme.shadows.card,
+    padding: 6,
+    marginRight: 10,
   },
   headerTitleContainer: {
     flex: 1,
-    marginLeft: 14,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: theme.typography.fontWeight.bold,
     color: theme.colors.text.primary,
   },
   headerSubtitle: {
-    fontSize: 12.5,
+    fontSize: 12,
     color: theme.colors.text.muted,
     marginTop: 2,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 22,
-    height: 48,
+    backgroundColor: theme.colors.surface,
     marginHorizontal: theme.spacing.lg,
-    paddingHorizontal: 14,
-    marginTop: 6,
-    marginBottom: 12,
+    marginTop: 12,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    height: 42,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   searchIcon: {
     marginRight: 8,
@@ -525,22 +652,24 @@ const styles = StyleSheet.create({
   },
   filterTabsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     paddingHorizontal: theme.spacing.lg,
-    marginBottom: 10,
+    paddingVertical: 10,
     gap: 8,
   },
   filterTab: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   filterTabActive: {
-    backgroundColor: '#0D9488', // Teal xanh đặc trưng
+    backgroundColor: theme.colors.brand[500],
+    borderColor: theme.colors.brand[500],
   },
   filterTabText: {
-    fontSize: 13,
+    fontSize: 12.5,
   },
   filterTabTextActive: {
     color: '#FFFFFF',
@@ -560,6 +689,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
     backgroundColor: theme.colors.surface,
+  },
+  conversationCardUnread: {
+    backgroundColor: '#F8FAFC',
   },
   avatarContainer: {
     position: 'relative',
@@ -608,13 +740,40 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.bold,
     color: theme.colors.text.primary,
   },
+  renterNameUnread: {
+    color: '#0F172A',
+    fontWeight: '800',
+  },
   verifiedIcon: {
     marginLeft: 4,
   },
+  topRightBox: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
   dateText: {
-    fontSize: 12.5,
+    fontSize: 12,
     color: '#94A3B8',
     fontWeight: theme.typography.fontWeight.medium,
+  },
+  dateTextUnread: {
+    color: theme.colors.brand[600],
+    fontWeight: '700',
+  },
+  unreadBadge: {
+    backgroundColor: theme.colors.brand[500],
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 3,
+  },
+  unreadBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
   },
   deviceRow: {
     flexDirection: 'row',
@@ -678,6 +837,10 @@ const styles = StyleSheet.create({
   },
   lastMessageMuted: {
     color: '#94A3B8',
+  },
+  lastMessageUnread: {
+    color: '#0F172A',
+    fontWeight: '700',
   },
   emptyContainer: {
     alignItems: 'center',

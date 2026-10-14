@@ -19,6 +19,7 @@ import { socketService } from '../../services/socketService';
 import { MessageBubble } from '../../components/chat/MessageBubble';
 import { QuickMessageBar } from '../../components/chat/QuickMessageBar';
 import { ChatInputBar } from '../../components/chat/ChatInputBar';
+import { useAppSelector } from '../../store';
 import {
   ChatMessage,
   ChatBookingInfo,
@@ -42,15 +43,16 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
 }) => {
   const effectiveBookingId = propBookingId || route?.params?.bookingId || '';
 
-  // Tài khoản hiện tại của chủ máy (owner1)
-  const currentUserId = '6ab13ee23bb7f33ae04d2c88';
+  // Lấy ID tài khoản người dùng hiện tại từ Redux Store
+  const currentUser = useAppSelector((state) => state.auth.user);
+  const currentUserId = currentUser?._id || '6ab13ee23bb7f33ae04d2c88';
 
   const [booking, setBooking] = useState<ChatBookingInfo | null>(null);
   const [otherUser, setOtherUser] = useState<ChatOtherUser | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isSending, setIsSending] = useState(false);
 
-  // 1. Tải lịch sử chat từ API MongoDB
+  // 1. Tải lịch sử chat từ API MongoDB (GET /api/chats/:bookingId)
   const loadChatHistory = useCallback(async () => {
     if (!effectiveBookingId) return;
     try {
@@ -65,7 +67,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
     }
   }, [effectiveBookingId]);
 
-  // 2. Kết nối Socket & Lắng nghe tin nhắn mới thời gian thực
+  // 2. Kết nối Socket & Lắng nghe tin nhắn mới + Read Receipts thời gian thực
   useEffect(() => {
     loadChatHistory();
 
@@ -73,28 +75,56 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
       chatService.markChatAsRead(effectiveBookingId);
     }
 
+    // Kết nối socket cá nhân nếu chưa kết nối
     socketService.connect(currentUserId);
 
+    // Gia nhập room chat của đơn thuê
     if (effectiveBookingId) {
       socketService.joinChat(effectiveBookingId);
     }
 
-    const unsubscribe = socketService.onNewMessage((incomingMsg: ChatMessage) => {
+    // Lắng nghe tin nhắn mới từ đối phương
+    const unsubscribeNewMsg = socketService.onNewMessage((incomingMsg: ChatMessage) => {
       if (incomingMsg.bookingId !== effectiveBookingId) return;
+
+      // Đánh dấu đã đọc ngay lập tức vì đang ở trong màn hình chat
       chatService.markChatAsRead(effectiveBookingId);
+
       setMessages((prev) => {
         if (prev.some((m) => m._id === incomingMsg._id)) return prev;
+        // Tránh trùng nếu tin nhắn là do chính mình gửi và đã được cập nhật bởi optimistic UI
+        if (incomingMsg.senderId === currentUserId) {
+          const hasTemp = prev.some((m) => m.isSending && m.text === incomingMsg.text);
+          if (hasTemp) return prev;
+        }
         return [incomingMsg, ...prev];
       });
     });
 
+    // Lắng nghe sự kiện đối phương đã đọc tin nhắn để cập nhật trạng thái 'read'
+    const unsubscribeReadReceipt = socketService.onMessagesRead(
+      (data: { bookingId: string; readBy: string }) => {
+        if (data.bookingId === effectiveBookingId) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.senderId === currentUserId && m.status !== 'read'
+                ? { ...m, status: 'read' }
+                : m
+            )
+          );
+        }
+      }
+    );
+
+    // Rời phòng & Dọn dẹp kết nối khi rời màn hình
     return () => {
-      unsubscribe();
+      unsubscribeNewMsg();
+      unsubscribeReadReceipt();
       if (effectiveBookingId) {
         socketService.leaveChat(effectiveBookingId);
       }
     };
-  }, [effectiveBookingId, loadChatHistory]);
+  }, [effectiveBookingId, loadChatHistory, currentUserId]);
 
   // 3. Cơ chế gửi tin với Optimistic UI
   const dispatchMessage = async (
@@ -131,19 +161,19 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
         locationData,
       });
 
-      // Thay thế tin nhắn tạm bằng tin nhắn chính thức từ DB
+      // Hoán đổi tin nhắn tạm thành tin nhắn chính thức từ DB
       setMessages((prev) =>
         prev.map((m) => (m._id === tempId ? savedMessage : m))
       );
     } catch (err: any) {
       setMessages((prev) => prev.filter((m) => m._id !== tempId));
-      Alert.alert('Lỗi', err.message || 'Gửi tin nhắn thất bại');
+      Alert.alert('Lỗi', err.message || 'Gửi tin nhắn thất bại. Vui lòng thử lại.');
     } finally {
       setIsSending(false);
     }
   };
 
-  const statusBarOffset = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
+  const statusBarOffset = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
 
   const handleBack = () => {
     if (onBack) {
@@ -255,17 +285,20 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
         onSelectTemplate={(tpl) => dispatchMessage('template', tpl)}
       />
 
-      {/* Thanh nhập tin nhắn & đính kèm */}
+      {/* Thanh nhập tin nhắn đa phương tiện & đính kèm */}
       <ChatInputBar
         onSendText={(text) => dispatchMessage('text', text)}
         onSendImage={async (uri) => {
           try {
+            setIsSending(true);
             const uploadedUrl = await chatService.uploadChatImage(uri);
             if (uploadedUrl) {
-              dispatchMessage('image', undefined, uploadedUrl);
+              await dispatchMessage('image', undefined, uploadedUrl);
             }
           } catch (err: any) {
-            Alert.alert('Lỗi', 'Không thể tải ảnh lên');
+            Alert.alert('Lỗi', 'Không thể tải ảnh lên: ' + (err.message || 'Lỗi mạng'));
+          } finally {
+            setIsSending(false);
           }
         }}
         onSendLocation={(loc) => dispatchMessage('location', undefined, undefined, loc)}

@@ -12,10 +12,22 @@ const { getIO } = require('../socket');
 const getConversations = async (req, res) => {
   try {
     const currentUserId = req.auth?.id || req.auth?.userId || req.auth?._id;
+    if (!currentUserId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const userIdObj = mongoose.Types.ObjectId.isValid(currentUserId)
+      ? new mongoose.Types.ObjectId(currentUserId)
+      : currentUserId;
 
     // Tìm các đơn đặt thuê mà user hiện tại tham gia (với tư cách renter hoặc owner)
     const bookings = await Booking.find({
-      $or: [{ renterId: currentUserId }, { ownerId: currentUserId }],
+      $or: [
+        { renterId: currentUserId },
+        { ownerId: currentUserId },
+        { renterId: userIdObj },
+        { ownerId: userIdObj },
+      ],
     })
       .populate('renterId', 'name avatar role phone isVerified')
       .populate('ownerId', 'name avatar role phone isVerified')
@@ -25,7 +37,9 @@ const getConversations = async (req, res) => {
 
     const conversations = await Promise.all(
       bookings.map(async (b) => {
-        const isRenter = b.renterId?._id?.toString() === currentUserId.toString();
+        const isRenter =
+          b.renterId?._id?.toString() === currentUserId.toString() ||
+          b.renterId?.toString() === currentUserId.toString();
         const otherUser = isRenter ? b.ownerId : b.renterId;
 
         // Lấy tin nhắn mới nhất trong đơn
@@ -36,7 +50,7 @@ const getConversations = async (req, res) => {
         // Đếm tin nhắn chưa đọc gửi tới user hiện tại
         const unreadCount = await Message.countDocuments({
           bookingId: b._id,
-          receiverId: currentUserId,
+          $or: [{ receiverId: currentUserId }, { receiverId: userIdObj }],
           status: { $ne: 'read' },
         });
 
@@ -51,10 +65,18 @@ const getConversations = async (req, res) => {
         if (lastMsg) {
           lastMessageData = {
             _id: lastMsg._id.toString(),
-            text: lastMsg.content || (lastMsg.type === 'image' ? '[Hình ảnh]' : '[Vị trí]'),
+            text:
+              lastMsg.content ||
+              (lastMsg.type === 'image'
+                ? '[Hình ảnh]'
+                : lastMsg.type === 'location'
+                ? '[Vị trí]'
+                : '[Tin nhắn]'),
             senderId: lastMsg.senderId.toString(),
             isFromMe: lastMsg.senderId.toString() === currentUserId.toString(),
-            createdAt: lastMsg.createdAt ? lastMsg.createdAt.toISOString() : new Date().toISOString(),
+            createdAt: lastMsg.createdAt
+              ? lastMsg.createdAt.toISOString()
+              : new Date().toISOString(),
             status: lastMsg.status || 'sent',
           };
         } else {
@@ -64,9 +86,11 @@ const getConversations = async (req, res) => {
             lastMessageData = {
               _id: 'default_msg',
               text: 'I have arrived at the handover location.',
-              senderId: otherUser._id.toString(),
+              senderId: otherUser._id ? otherUser._id.toString() : 'renter1',
               isFromMe: false,
-              createdAt: b.createdAt ? new Date(b.createdAt).toISOString() : new Date().toISOString(),
+              createdAt: b.createdAt
+                ? new Date(b.createdAt).toISOString()
+                : new Date().toISOString(),
               status: 'sent',
             };
           }
@@ -78,7 +102,7 @@ const getConversations = async (req, res) => {
           bookingStatus: b.status,
           otherUser: otherUser
             ? {
-                _id: otherUser._id.toString(),
+                _id: otherUser._id ? otherUser._id.toString() : '',
                 name: otherUser.name || 'Người dùng',
                 avatar:
                   otherUser.avatar ||
@@ -101,13 +125,11 @@ const getConversations = async (req, res) => {
       })
     );
 
-    // Sắp xếp: Ưu tiên cuộc hội thoại có tin nhắn mới, sau đó theo thời gian gần nhất
+    // Sắp xếp: Ưu tiên cuộc hội thoại có tin nhắn mới nhất lên đầu danh sách theo thời gian thực
     conversations.sort((a, b) => {
-      const aHasMsg = Boolean(a.lastMessage);
-      const bHasMsg = Boolean(b.lastMessage);
-      if (aHasMsg && !bHasMsg) return -1;
-      if (!aHasMsg && bHasMsg) return 1;
-      return new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime();
+      const aTime = a.lastActivityAt ? new Date(a.lastActivityAt).getTime() : 0;
+      const bTime = b.lastActivityAt ? new Date(b.lastActivityAt).getTime() : 0;
+      return bTime - aTime;
     });
 
     return res.status(200).json({
@@ -147,12 +169,15 @@ const getChatHistory = async (req, res) => {
     }
 
     const otherUser = isRenter ? booking.ownerId : booking.renterId;
+    const userIdObj = mongoose.Types.ObjectId.isValid(currentUserId)
+      ? new mongoose.Types.ObjectId(currentUserId)
+      : currentUserId;
 
     // Đánh dấu đã đọc các tin nhắn gửi đến currentUserId
     await Message.updateMany(
       {
         bookingId: booking._id,
-        receiverId: currentUserId,
+        $or: [{ receiverId: currentUserId }, { receiverId: userIdObj }],
         status: { $ne: 'read' },
       },
       { $set: { status: 'read' } }
@@ -282,21 +307,21 @@ const sendMessage = async (req, res) => {
       status: newMessage.status || 'sent',
     };
 
-    // Phát sự kiện realtime qua Socket.IO tới room chat và room người nhận
+    // 4. Phân phối Real-time qua Socket.IO tới room chat và room người nhận
     const io = getIO();
     if (io) {
       io.to(`chat_${bookingId}`).emit('new_message', savedMessageResponse);
       io.to(`user_${receiverId}`).emit('new_message', savedMessageResponse);
     }
 
-    // Gửi thông báo đẩy (Push Notification)
+    // 4. Push Notification nền
     const sender = await User.findById(currentUserId).select('name');
     createAndSendNotification({
       userId: receiverId,
       title: `${sender?.name || 'Ai đó'} đã gửi tin nhắn`,
       body:
         messageContent ||
-        (messageType === 'image' ? 'Đã gửi một hình ảnh' : 'Đã chia sẻ vị trí'),
+        (messageType === 'image' ? 'Đã gửi một hình ảnh' : 'Đã chia sẻ vị trí GPS'),
       type: 'message',
       relatedId: bookingId,
       data: { screen: 'ChatDetail', bookingId: bookingId.toString() },
@@ -316,6 +341,43 @@ const uploadChatImage = async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'No image uploaded' });
+    }
+
+    // Nếu có cấu hình Cloudinary ENV, upload trực tiếp lên Cloudinary API
+    if (
+      process.env.CLOUDINARY_CLOUD_NAME &&
+      process.env.CLOUDINARY_API_KEY &&
+      process.env.CLOUDINARY_API_SECRET
+    ) {
+      try {
+        const crypto = require('crypto');
+        const timestamp = Math.round(new Date().getTime() / 1000);
+        const signature = crypto
+          .createHash('sha1')
+          .update(`timestamp=${timestamp}${process.env.CLOUDINARY_API_SECRET}`)
+          .digest('hex');
+
+        const formData = new FormData();
+        const blob = new Blob([req.file.buffer], { type: req.file.mimetype || 'image/jpeg' });
+        formData.append('file', blob);
+        formData.append('api_key', process.env.CLOUDINARY_API_KEY);
+        formData.append('timestamp', String(timestamp));
+        formData.append('signature', signature);
+
+        const cldRes = await fetch(
+          `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload`,
+          { method: 'POST', body: formData }
+        );
+        const cldJson = await cldRes.json();
+        if (cldJson.secure_url) {
+          return res.status(200).json({
+            success: true,
+            data: { url: cldJson.secure_url },
+          });
+        }
+      } catch (cldErr) {
+        console.warn('[Chat Controller] Cloudinary upload fallback to data URI:', cldErr.message);
+      }
     }
 
     // Chuyển buffer thành Base64 Data URI để render ngay lập tức trên app
@@ -341,10 +403,14 @@ const markChatMessagesAsRead = async (req, res) => {
     const { bookingId } = req.params;
     const currentUserId = req.auth?.id || req.auth?.userId || req.auth?._id;
 
+    const userIdObj = mongoose.Types.ObjectId.isValid(currentUserId)
+      ? new mongoose.Types.ObjectId(currentUserId)
+      : currentUserId;
+
     await Message.updateMany(
       {
         bookingId,
-        receiverId: currentUserId,
+        $or: [{ receiverId: currentUserId }, { receiverId: userIdObj }],
         status: { $ne: 'read' },
       },
       { $set: { status: 'read' } }
