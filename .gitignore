@@ -53,6 +53,7 @@ scratch_bundle.js
 *.db-shm
 *.db-wal
 *.sqlite
+/server/uploads/
 
 # Local migration and integration reports
 /MIGRATION_PLAN.md

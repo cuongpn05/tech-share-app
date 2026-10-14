@@ -36,6 +36,13 @@ const errorHandler = (err, req, res, next) => {
     message = `${field} đã tồn tại trong hệ thống`;
   }
 
+  if (err.name === 'MulterError') {
+    statusCode = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+    message = err.code === 'LIMIT_FILE_SIZE'
+      ? 'Image must be 5 MB or smaller.'
+      : 'Invalid image upload.';
+  }
+
   res.status(statusCode).json({
     success: false,
     message,

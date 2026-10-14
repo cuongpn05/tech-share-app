@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ImageUploadGrid } from '../../components/device/ImageUploadGrid';
 import { STRINGS } from '../../constants/strings';
 import { devicePostService } from '../../services/devicePostService';
+import { useAppSelector } from '../../store';
 import { colors } from '../../theme/colors';
 import type { Device } from '../../types';
 import { SpecsInputForm } from './SpecsInputForm';
@@ -49,7 +50,9 @@ function SectionTitle({ title, description }: { title: string; description?: str
   );
 }
 
-export function PostDeviceScreen({ accessToken = '', navigation }: PostDeviceScreenProps) {
+export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', navigation }: PostDeviceScreenProps) {
+  const sessionAccessToken = useAppSelector((state) => state.auth.token);
+  const accessToken = suppliedAccessToken || sessionAccessToken || '';
   const insets = useSafeAreaInsets();
   const topInset = Math.max(insets.top, Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 20);
   const [deviceLocation, setDeviceLocation] = useState<DeviceLocation | null>(null);

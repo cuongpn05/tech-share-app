@@ -1,4 +1,4 @@
-import { apiClient } from '../config/api';
+import { API_BASE_URL, apiClient } from '../config/api';
 import type { Device } from '../types';
 
 export type CreateDevicePayload = {
@@ -46,6 +46,9 @@ export const devicePostService = {
     const url: unknown = response.data?.data?.url;
     if (typeof url !== 'string' || !url) {
       throw new Error('The server did not return an uploaded image URL.');
+    }
+    if (url.startsWith('/')) {
+      return `${API_BASE_URL.replace(/\/api\/?$/, '')}${url}`;
     }
     return url;
   },
