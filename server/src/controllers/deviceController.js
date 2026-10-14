@@ -69,5 +69,23 @@ const getNearbyDevices = asyncHandler(async (req, res) => {
   });
 });
 
-
-module.exports = { getNearbyDevices };
+ const getMyDevices = async (req, res) => {
+  try {
+    const devices = await Device.find({
+      ownerId: req.auth.id,
+      isDeleted: false,
+    }).sort({ createdAt: -1 });
+    res.status(200).json({
+      success: true,
+      message: "Lấy danh sách thiết bị thành công",
+      data: devices,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Không thể lấy danh sách thiết bị",
+      error: error.message,
+    });
+  }
+};
+module.exports = { getNearbyDevices ,getMyDevices };
