@@ -8,6 +8,11 @@ import { OnboardingScreen } from '../user/OnboardingScreen';
 import OwnerDrawerNavigator from './OwnerDrawerNavigator';
 import AdminDrawerNavigator from './AdminDrawerNavigator';
 import { HomeRoute } from './HomeRoute';
+import OwnerMessagesScreen from '../screens/owner/OwnerMessagesScreen';
+import ChatDetailScreen from '../screens/chat/ChatDetailScreen';
+import NotificationScreen from '../screens/notification/NotificationScreen';
+import { socketService } from '../services/socketService';
+import { setAuthToken } from '../config/api';
 import { theme } from '../theme/tokens';
 
 export { HomeRoute } from './HomeRoute';
@@ -20,12 +25,15 @@ export type RootStackParamList = {
   Owner: undefined;
   Admin: undefined;
   Home: undefined;
+  OwnerMessages: undefined;
+  ChatDetail: { bookingId?: string } | undefined;
+  Notification: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
-  const { isAuthenticated, user } = useAppSelector((state) => state.auth);
+  const { isAuthenticated, user, token } = useAppSelector((state) => state.auth);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -40,6 +48,16 @@ export function RootNavigator() {
     };
     checkOnboarding();
   }, []);
+
+  useEffect(() => {
+    if (isAuthenticated && token) {
+      setAuthToken(token);
+    }
+    const uid = user?._id || (user as any)?.id;
+    if (isAuthenticated && uid) {
+      socketService.connect(uid);
+    }
+  }, [isAuthenticated, user, token]);
 
   const handleCompleteOnboarding = async () => {
     try {
@@ -101,6 +119,9 @@ export function RootNavigator() {
               <Stack.Screen name="Admin" component={AdminDrawerNavigator} />
             </>
           )}
+          <Stack.Screen name="OwnerMessages" component={OwnerMessagesScreen} />
+          <Stack.Screen name="ChatDetail" component={ChatDetailScreen} />
+          <Stack.Screen name="Notification" component={NotificationScreen} />
         </>
       )}
     </Stack.Navigator>

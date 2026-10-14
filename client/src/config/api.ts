@@ -11,12 +11,25 @@ const getBaseUrl = () => {
   }
 
   if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:5001/api';
+    return 'http://10.0.2.2:5000/api';
   }
-  return 'http://localhost:5001/api';
+  return 'http://localhost:5000/api';
 };
 
 export const API_BASE_URL = getBaseUrl();
+
+let currentToken: string | null = null;
+
+export const setAuthToken = (token: string | null) => {
+  currentToken = token;
+  if (token) {
+    apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  } else {
+    delete apiClient.defaults.headers.common['Authorization'];
+  }
+};
+
+export const getAuthToken = () => currentToken;
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -25,3 +38,16 @@ export const apiClient = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// Interceptor tự động gán token xác thực cho mọi HTTP request
+apiClient.interceptors.request.use(
+  async (config) => {
+    if (currentToken && !config.headers.Authorization) {
+      config.headers.Authorization = `Bearer ${currentToken}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+export default apiClient;

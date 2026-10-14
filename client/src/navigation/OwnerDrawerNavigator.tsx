@@ -4,6 +4,8 @@ import { View, Text, StyleSheet } from 'react-native';
 import { HomeRoute } from './HomeRoute';
 import OwnerDashboardScreen from '../screens/owner/OwnerDashboardScreen';
 import { PostDeviceScreen } from '../screens/device/PostDeviceScreen';
+import OwnerMessagesScreen from '../screens/owner/OwnerMessagesScreen';
+import NotificationScreen from '../screens/notification/NotificationScreen';
 import OwnerSidebarContent from './OwnerSidebarContent';
 import { theme } from '../theme/tokens';
 
@@ -62,14 +64,7 @@ export const OwnerDrawerNavigator: React.FC = () => {
         )}
       </Drawer.Screen>
 
-      <Drawer.Screen name="OwnerMessages">
-        {() => (
-          <OwnerPlaceholderScreen
-            title="Customer Messages"
-            subtitle="Hộp thoại tin nhắn trực tiếp với khách thuê"
-          />
-        )}
-      </Drawer.Screen>
+      <Drawer.Screen name="OwnerMessages" component={OwnerMessagesScreen} />
 
       <Drawer.Screen name="OwnerDeviceInventory">
         {() => (
@@ -81,9 +76,9 @@ export const OwnerDrawerNavigator: React.FC = () => {
       </Drawer.Screen>
 
       <Drawer.Screen name="OwnerListDevice">
-        {({ navigation, route }) => (
+        {({ navigation, route }: any) => (
           <PostDeviceScreen
-            accessToken={route.params?.accessToken ?? ''}
+            accessToken={route?.params?.accessToken ?? ''}
             navigation={navigation}
           />
         )}
@@ -111,14 +106,7 @@ export const OwnerDrawerNavigator: React.FC = () => {
         {({ navigation }) => <HomeRoute onReturnToOwner={() => navigation.navigate('OwnerDashboard')} />}
       </Drawer.Screen>
 
-      <Drawer.Screen name="OwnerNotifications">
-        {() => (
-          <OwnerPlaceholderScreen
-            title="System Notifications"
-            subtitle="Thông báo hệ thống và cập nhật trạng thái đơn thuê"
-          />
-        )}
-      </Drawer.Screen>
+      <Drawer.Screen name="OwnerNotifications" component={NotificationScreen} />
     </Drawer.Navigator>
   );
 };

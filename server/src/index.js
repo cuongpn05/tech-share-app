@@ -1,7 +1,9 @@
 require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
+const http = require('http');
 const mongoose = require('mongoose');
 const { app } = require('./app');
 const { connectDB } = require('./config/db');
+const { initSocket } = require('./socket');
 
 async function startServer() {
   const port = Number(process.env.PORT || 5001);
@@ -10,7 +12,9 @@ async function startServer() {
   }
   await connectDB();
   return new Promise((resolve, reject) => {
-    const server = app.listen(port, '0.0.0.0');
+    const server = http.createServer(app);
+    initSocket(server);
+    server.listen(port, '0.0.0.0');
     const onError = error => {
       server.off('listening', onListening);
       reject(error);
@@ -30,7 +34,7 @@ if (require.main === module) {
     if (error.code === 'EADDRINUSE') {
       console.error(`Port ${process.env.PORT || 5001} is already in use. Stop the other server or change PORT and the client API URL.`);
     } else {
-      console.error('Backend startup failed; check PORT and target database configuration.');
+      console.error('Backend startup failed; check PORT and target database configuration.', error);
     }
     await mongoose.disconnect();
     process.exitCode = 1;
