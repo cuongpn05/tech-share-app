@@ -1,54 +1,136 @@
 const jwt = require('jsonwebtoken');
+const Account = require('../models/Account');
 const User = require('../models/User');
+const Role = require('../models/Role');
 
-/**
- * Middleware xác thực người dùng.
- * Trong môi trường dev chưa hoàn thiện login, tự động fallback về tài khoản owner1
- * để đảm bảo toàn bộ tính năng hoạt động trơn tru.
- */
 const requireAuth = async (req, res, next) => {
   try {
+    let token;
     const authHeader = req.headers.authorization;
+
     if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
+      token = authHeader.split(' ')[1];
+    }
+
+    if (!token) {
+      // Fallback cho môi trường development nếu chưa đăng nhập
+      if (process.env.NODE_ENV !== 'production') {
+        const owner = await User.findOne({
+          $or: [{ name: 'owner1' }, { role: 'owner' }],
+        }).lean();
+
+        if (owner) {
+          const fallbackId = owner._id.toString();
+          const fallbackRole = owner.role || 'owner';
+          req.account = {
+            _id: owner.accountId || fallbackId,
+            username: owner.username || owner.name || 'owner1',
+            email: owner.email || 'owner@techshare.vn',
+            lastLogin: new Date(),
+          };
+          req.user = owner;
+          req.userRole = fallbackRole;
+          req.auth = {
+            id: fallbackId,
+            userId: fallbackId,
+            _id: fallbackId,
+            role: fallbackRole,
+            name: owner.name,
+          };
+          return next();
+        }
+      }
+
+      return res.status(401).json({
+        success: false,
+        message: 'Bạn chưa đăng nhập hoặc phiên đăng nhập đã hết hạn.',
+      });
+    }
+
+    const secret = process.env.JWT_SECRET || 'techshare_mma301_super_secret_jwt_key_2026';
+    let decoded;
+    try {
+      decoded = jwt.verify(token, secret);
+    } catch (err) {
       try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'techshare_secret_key');
-        req.auth = decoded;
-        return next();
+        decoded = jwt.verify(token, 'techshare_secret_key');
       } catch {
-        // Token không hợp lệ -> fallback dev bên dưới
+        return res.status(401).json({
+          success: false,
+          message: 'Token không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập lại.',
+        });
       }
     }
 
-    // Dev Fallback: Tự động gán tài khoản owner1 nếu chưa đăng nhập
-    const owner = await User.findOne({
-      $or: [{ name: 'owner1' }, { role: 'owner' }],
-    }).lean();
-
-    if (owner) {
-      req.auth = {
-        id: owner._id.toString(),
-        userId: owner._id.toString(),
-        _id: owner._id.toString(),
-        role: 'owner',
-        name: owner.name,
-      };
-    } else {
-      req.auth = {
-        id: '6ab13ee23bb7f33ae04d2c88',
-        userId: '6ab13ee23bb7f33ae04d2c88',
-        _id: '6ab13ee23bb7f33ae04d2c88',
-        role: 'owner',
-        name: 'owner1',
-      };
+    const account = await Account.findById(decoded.accountId || decoded.id).populate('roleId');
+    if (!account) {
+      return res.status(401).json({
+        success: false,
+        message: 'Tài khoản không tồn tại trên hệ thống.',
+      });
     }
 
-    return next();
-  } catch (err) {
-    return next();
+    if (account.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'Tài khoản đã bị tạm khóa. Vui lòng liên hệ quản trị viên.',
+      });
+    }
+
+    let user = await User.findOne({ accountId: account._id });
+    if (!user && account.email) {
+      user = await User.findOne({ email: account.email });
+    }
+
+    let roleCode = 'renter';
+    if (account.roleId && account.roleId.code) {
+      roleCode = account.roleId.code;
+    } else if (typeof account.roleId === 'string') {
+      const roleDoc = await Role.findById(account.roleId);
+      if (roleDoc && roleDoc.code) roleCode = roleDoc.code;
+    }
+
+    req.account = account;
+    req.user = user || {
+      _id: account._id,
+      accountId: account._id,
+      name: account.username,
+      email: account.email,
+      role: roleCode,
+    };
+    req.userRole = roleCode;
+    req.auth = {
+      id: (user ? user._id : account._id).toString(),
+      userId: (user ? user._id : account._id).toString(),
+      _id: (user ? user._id : account._id).toString(),
+      role: roleCode,
+      name: (user && user.name) || account.username,
+    };
+
+    next();
+  } catch (error) {
+    console.error('requireAuth error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi xác thực người dùng.',
+      error: error.message,
+    });
   }
+};
+
+const requireRole = (...allowedRoles) => {
+  return (req, res, next) => {
+    if (!req.userRole || !allowedRoles.includes(req.userRole)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Bạn không có quyền truy cập chức năng này.',
+      });
+    }
+    next();
+  };
 };
 
 module.exports = {
   requireAuth,
+  requireRole,
 };

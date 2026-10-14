@@ -1,0 +1,103 @@
+{
+  "copiedUnchanged": [
+    "client/src/components/home/CategoryBar.tsx",
+    "client/src/components/home/SectionHeader.tsx",
+    "client/src/constants/strings.ts",
+    "client/src/constants/theme.ts",
+    "client/src/hooks/useHomeLocation.ts",
+    "client/src/store/slices/deviceSlice.ts",
+    "client/src/theme/colors.ts",
+    "client/verify-device-requests.cjs",
+    "server/src/middlewares/asyncHandler.js",
+    "server/src/middlewares/errorHandler.js",
+    "server/src/models/Device.js",
+    "server/src/models/User.js"
+  ],
+  "reusedWithAdjustments": [
+    "client/App.tsx",
+    "client/src/components/device/DeviceCard.tsx",
+    "client/src/components/home/PromoBanner.tsx",
+    "client/src/components/navigation/BottomTabNavigator.tsx",
+    "client/src/components/navigation/HeaderActions.tsx",
+    "client/src/navigation/RootNavigator.tsx",
+    "client/src/screens/home/HomeScreen.tsx",
+    "client/src/services/deviceService.ts",
+    "client/src/store/index.ts",
+    "client/src/types/index.ts",
+    "client/verify-device-service.cjs",
+    "server/src/config/db.js",
+    "server/src/controllers/deviceController.js",
+    "server/src/index.js",
+    "server/src/routes/deviceRoutes.js",
+    "client/src/config/api.ts"
+  ],
+  "createdNew": [
+    "client/verify-home-location.cjs",
+    "client/verify-iteration-1-ui.cjs",
+    "server/src/app.js",
+    "server/src/utils/verify-iteration-1-readonly.mjs",
+    "server/src/utils/verify-iteration-1.mjs",
+    "docs/ITERATION_1_REPORT.md",
+    "docs/iteration-1-files.json"
+  ],
+  "modifiedExistingTarget": [
+    "client/App.tsx"
+  ],
+  "preservedConfiguration": [
+    "package.json",
+    "client/package.json",
+    "server/package.json",
+    "client/package-lock.json",
+    "server/package-lock.json",
+    "client/app.json",
+    "client/babel.config.js",
+    "client/tsconfig.json"
+  ],
+  "databaseOperations": "Read-only; autoIndex=false, autoCreate=false; no live Login, seed, DDL or CRUD writes.",
+  "portConflictFix": {
+    "port": 5001,
+    "changed": [
+      "server/src/index.js",
+      "server/.env",
+      "client/.env",
+      "client/src/config/api.ts",
+      "server/src/utils/verify-iteration-1.mjs"
+    ],
+    "databaseConfigurationUnchanged": true
+  },
+  "removedAuthenticationOnboarding": {
+    "files": [
+      "client/src/screens/auth/LoginScreen.tsx",
+      "client/src/screens/OnboardingScreen.tsx",
+      "client/src/store/slices/authSlice.ts",
+      "server/src/routes/authRoutes.js",
+      "server/src/models/Account.js",
+      "server/src/models/EkycRequest.js"
+    ],
+    "verification": "Each file was untracked and exactly matched the reconstructed migration version; no subsequent changes detected.",
+    "dependencies": "Auth-only runtime imports removed. Pre-existing scaffold manifest dependencies retained; no packages installed or removed."
+  },
+  "scope": {
+    "owner": "Phan Nhật Cường",
+    "features": [
+      "#4 View Device Categories",
+      "#5 View Nearby Devices"
+    ],
+    "initialRoute": "Owner",
+    "authStateCreated": false,
+    "privateRoutesEnabled": false
+  },
+  "gitSync": {
+    "branch": "develop",
+    "head": "f61d5c2",
+    "upstream": "origin/develop",
+    "method": "fast-forward + manual backed-up local integration",
+    "stash": "166b4f17187f9fc8930d55eed80312b1517162d6",
+    "backup": ".integration-backups/20261013-231942",
+    "initialRoute": "Owner",
+    "homeEntry": "Owner drawer RenterMode",
+    "restoredAllOriginalDirtyFiles": true,
+    "envUnchanged": true,
+    "remoteAccountEkycModelsRetainedForDashboards": true
+  }
+}
