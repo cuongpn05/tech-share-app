@@ -62,4 +62,27 @@ export const deviceService = {
       throw error;
     }
   },
+
+  /**
+   * Lấy chi tiết thiết bị theo ID
+   */
+  async getDeviceById(
+    id: string,
+    options?: { throwOnError?: boolean },
+  ): Promise<Device | null> {
+    try {
+      const response = await apiClient.get(`/devices/${id}`);
+      if (response.data && response.data.data) {
+        return response.data.data;
+      }
+      if (response.data) {
+        return response.data;
+      }
+    } catch (error) {
+      console.error("[deviceService] Không thể lấy chi tiết thiết bị:", error);
+      if (options?.throwOnError) throw error;
+    }
+    return null;
+  },
 };
+
