@@ -321,11 +321,10 @@ const sendMessage = async (req, res) => {
       status: newMessage.status || 'sent',
     };
 
-    // 4. Phân phối Real-time qua Socket.IO tới room chat và room người nhận
+    // 4. Phân phối Real-time qua Socket.IO tới room chat và room người nhận (ghép to() để deduplicate socket)
     const io = getIO();
     if (io) {
-      io.to(`chat_${bookingId}`).emit('new_message', savedMessageResponse);
-      io.to(`user_${receiverId}`).emit('new_message', savedMessageResponse);
+      io.to(`chat_${bookingId}`).to(`user_${receiverId}`).emit('new_message', savedMessageResponse);
       io.to(`user_${receiverId}`).emit('new_notification', {
         _id: `notif_${Date.now()}`,
         userId: receiverId.toString(),

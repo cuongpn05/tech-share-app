@@ -14,11 +14,13 @@ const DEFAULT_QUICK_MESSAGES = [
 interface QuickMessageBarProps {
   onSelectTemplate: (template: string) => void;
   templates?: readonly string[];
+  disabled?: boolean;
 }
 
 export const QuickMessageBar: React.FC<QuickMessageBarProps> = ({
   onSelectTemplate,
   templates = DEFAULT_QUICK_MESSAGES,
+  disabled = false,
 }) => {
   return (
     <View style={styles.container}>
@@ -30,8 +32,9 @@ export const QuickMessageBar: React.FC<QuickMessageBarProps> = ({
         {templates.map((tpl, index) => (
           <TouchableOpacity
             key={`tpl-${index}`}
-            style={styles.pill}
+            style={[styles.pill, disabled && { opacity: 0.5 }]}
             onPress={() => onSelectTemplate(tpl)}
+            disabled={disabled}
             activeOpacity={0.75}
           >
             <Ionicons

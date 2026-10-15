@@ -126,7 +126,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
       // Gia nhập room chat của đơn thuê & đánh dấu đang xem phòng này
       socketService.joinChat(effectiveBookingId);
 
-      // Lắng nghe tin nhắn mới từ đối phương
+      // Lắng nghe tin nhắn mới từ đối phương & socket
       const unsubscribeNewMsg = socketService.onNewMessage((incomingMsg: ChatMessage) => {
         if (incomingMsg.bookingId !== effectiveBookingId) return;
 
@@ -134,12 +134,47 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
         chatService.markChatAsRead(effectiveBookingId);
 
         setMessages((prev) => {
+          // 1. Tránh lặp nếu tin nhắn này đã có mặt trong danh sách theo _id chính thức
           if (prev.some((m) => m._id === incomingMsg._id)) return prev;
-          // Tránh trùng nếu tin nhắn là do chính mình gửi và đã được cập nhật bởi optimistic UI
-          if (incomingMsg.senderId === currentUserId) {
-            const hasTemp = prev.some((m) => m.isSending && m.text === incomingMsg.text);
-            if (hasTemp) return prev;
+
+          const isFromMe =
+            Boolean(currentUserId) &&
+            String(incomingMsg.senderId).trim() === String(currentUserId).trim();
+
+          if (isFromMe) {
+            // Tin nhắn do chính mình gửi:
+            // Tìm tin nhắn tạm đang gửi (isSending hoặc bắt đầu bằng temp-)
+            const tempIndex = prev.findIndex(
+              (m) =>
+                m._id.startsWith('temp-') ||
+                m.isSending ||
+                (m.text === incomingMsg.text && m.messageType === incomingMsg.messageType)
+            );
+
+            if (tempIndex !== -1) {
+              // Hoán đổi tin nhắn tạm thành tin nhắn chính thức từ DB
+              const next = [...prev];
+              next[tempIndex] = incomingMsg;
+              return next;
+            }
+
+            // Nếu không còn tin nhắn tạm, kiểm tra xem đã có tin nhắn cùng nội dung vừa gửi trong vòng 10 giây (tránh race condition giữa HTTP và Socket)
+            const hasDuplicateContent = prev.some(
+              (m) =>
+                String(m.senderId).trim() === String(currentUserId).trim() &&
+                m.text === incomingMsg.text &&
+                m.messageType === incomingMsg.messageType &&
+                Math.abs(new Date(m.createdAt).getTime() - new Date(incomingMsg.createdAt).getTime()) < 10000
+            );
+
+            if (hasDuplicateContent) {
+              return prev;
+            }
+
+            return [incomingMsg, ...prev];
           }
+
+          // Tin nhắn từ đối phương
           return [incomingMsg, ...prev];
         });
       });
@@ -216,9 +251,29 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
       });
 
       // Hoán đổi tin nhắn tạm thành tin nhắn chính thức từ DB
-      setMessages((prev) =>
-        prev.map((m) => (m._id === tempId ? savedMessage : m))
-      );
+      setMessages((prev) => {
+        // 1. Nếu tin nhắn tạm tempId vẫn còn (socket chưa hoán đổi), thay thế nó bằng savedMessage
+        if (prev.some((m) => m._id === tempId)) {
+          return prev.map((m) => (m._id === tempId ? savedMessage : m));
+        }
+
+        // 2. Nếu socket đã hoán đổi trước đó và _id đã tồn tại, không thêm lại
+        if (prev.some((m) => m._id === savedMessage._id)) {
+          return prev;
+        }
+
+        // 3. Nếu còn bất kỳ tin nhắn tạm nào có cùng nội dung
+        const lingeringIndex = prev.findIndex(
+          (m) => (m._id.startsWith('temp-') || m.isSending) && m.text === savedMessage.text
+        );
+        if (lingeringIndex !== -1) {
+          const next = [...prev];
+          next[lingeringIndex] = savedMessage;
+          return next;
+        }
+
+        return [savedMessage, ...prev];
+      });
     } catch (err: any) {
       setMessages((prev) => prev.filter((m) => m._id !== tempId));
       Alert.alert('Lỗi', err.message || 'Gửi tin nhắn thất bại. Vui lòng thử lại.');
@@ -404,6 +459,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
               {/* Thanh mẫu tin nhắn nhanh */}
               <QuickMessageBar
                 onSelectTemplate={(tpl) => dispatchMessage('template', tpl)}
+                disabled={isSending}
               />
 
               {/* Thanh nhập tin nhắn đa phương tiện & đính kèm */}
