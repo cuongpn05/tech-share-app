@@ -7,12 +7,17 @@ import {
   Image,
   Dimensions,
   TouchableOpacity,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
 } from 'react-native';
 import { colors } from '../../theme/colors';
 import { STRINGS } from '../../constants/strings';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const BANNER_CARD_WIDTH = SCREEN_WIDTH - 32; // 16px padding on each side
+
+const BANNER_GAP = 12;
+const AUTO_SCROLL_INTERVAL_MS = 4000;
 
 export interface PromoBannerItem {
   id: string;
@@ -56,19 +61,19 @@ interface PromoBannerProps {
 
 export function PromoBanner({ onPressBanner }: PromoBannerProps) {
   const [activeIndex, setActiveIndex] = useState(0);
-  const scrollRef = useRef(null as any);
-  const timerRef = useRef(null as any);
+  const scrollRef = useRef<ScrollView | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const startAutoScroll = () => {
     stopAutoScroll();
     timerRef.current = setInterval(() => {
       const nextIndex = (activeIndex + 1) % PROMO_BANNERS.length;
       scrollRef.current?.scrollTo({
-        x: nextIndex * (BANNER_CARD_WIDTH + 12),
+        x: nextIndex * (BANNER_CARD_WIDTH + BANNER_GAP),
         animated: true,
       });
       setActiveIndex(nextIndex);
-    }, 4000);
+    }, AUTO_SCROLL_INTERVAL_MS);
   };
 
   const stopAutoScroll = () => {
@@ -78,15 +83,15 @@ export function PromoBanner({ onPressBanner }: PromoBannerProps) {
     }
   };
 
-  // Auto-scroll logic
+  // Đổi banner thì khởi động lại timer; cleanup tránh timer chạy sau khi rời màn hình.
   useEffect(() => {
     startAutoScroll();
     return () => stopAutoScroll();
   }, [activeIndex]);
 
-  const handleScroll = (event: any) => {
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const offsetX = event.nativeEvent.contentOffset.x;
-    const index = Math.round(offsetX / (BANNER_CARD_WIDTH + 12));
+    const index = Math.round(offsetX / (BANNER_CARD_WIDTH + BANNER_GAP));
     if (index >= 0 && index < PROMO_BANNERS.length && index !== activeIndex) {
       setActiveIndex(index);
     }
@@ -99,7 +104,7 @@ export function PromoBanner({ onPressBanner }: PromoBannerProps) {
         horizontal
         showsHorizontalScrollIndicator={false}
         pagingEnabled={false}
-        snapToInterval={BANNER_CARD_WIDTH + 12}
+        snapToInterval={BANNER_CARD_WIDTH + BANNER_GAP}
         decelerationRate="fast"
         contentContainerStyle={styles.scrollContent}
         onScroll={handleScroll}
@@ -141,12 +146,12 @@ export function PromoBanner({ onPressBanner }: PromoBannerProps) {
 
       {/* Indicator dots */}
       <View style={styles.indicatorContainer}>
-        {PROMO_BANNERS.map((_, i) => (
+        {PROMO_BANNERS.map((_, bannerIndex) => (
           <View
-            key={i}
+            key={bannerIndex}
             style={[
               styles.indicatorDot,
-              i === activeIndex && styles.indicatorDotActive,
+              bannerIndex === activeIndex && styles.indicatorDotActive,
             ]}
           />
         ))}

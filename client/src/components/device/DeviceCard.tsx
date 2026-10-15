@@ -39,21 +39,27 @@ const resolveImageUri = (url?: string): string => {
   return url;
 };
 
-export function DeviceCard({ device, onPress, width, onToggleFavorite, isFavorite = false }: DeviceCardProps) {
-  const rawImages: unknown = device.images || (device as any).image || (device as any).imageUrl;
-  const rawUrl =
-    Array.isArray(rawImages) && rawImages.length > 0
-      ? rawImages[0]
-      : typeof rawImages === 'string' && rawImages.trim()
-        ? rawImages
-        : undefined;
+// Một số dữ liệu cũ có image/imageUrl; giữ fallback này mà không dùng any.
+type DeviceImageData = Pick<Device, 'images'> & {
+  image?: unknown;
+  imageUrl?: unknown;
+};
 
-  const finalUri = resolveImageUri(rawUrl);
+function getDeviceImageUrl(device: DeviceImageData): string | undefined {
+  const images: unknown = device.images || device.image || device.imageUrl;
+  if (Array.isArray(images) && images.length > 0) return images[0];
+  if (typeof images === 'string' && images.trim()) return images;
+  return undefined;
+}
+
+export function DeviceCard({ device, onPress, width, onToggleFavorite, isFavorite = false }: DeviceCardProps) {
+  const imageUrl = getDeviceImageUrl(device);
+  const imageUri = resolveImageUri(imageUrl);
 
   console.log('[DeviceCard IMAGE DEBUG]', {
-    name: device.title || (device as any).name,
+    name: device.title || device.name,
     images: device.images,
-    finalUri,
+    finalUri: imageUri,
   });
 
   const isAvailable = device.status === 'available';
@@ -69,7 +75,7 @@ export function DeviceCard({ device, onPress, width, onToggleFavorite, isFavorit
       {/* Device image & status badge */}
       <View style={styles.imageContainer}>
         <Image
-          source={{ uri: finalUri }}
+          source={{ uri: imageUri }}
           style={styles.image}
           resizeMode="cover"
         />
