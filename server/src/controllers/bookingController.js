@@ -257,7 +257,7 @@ const getMyBookings = async (req, res) => {
     }
 
     const bookings = await Booking.find(query)
-      .populate('deviceId', 'name images brand category pricePerDay dailyRate depositAmount depositValue')
+      .populate('deviceId', 'name images brand model category pricePerDay dailyRate depositAmount depositValue')
       .populate('ownerId', 'name avatar phone email')
       .sort({ createdAt: -1 });
 
@@ -265,6 +265,59 @@ const getMyBookings = async (req, res) => {
   } catch (error) {
     console.error('Error getting my bookings:', error);
     res.status(500).json({ success: false, message: 'Lỗi máy chủ khi lấy danh sách đơn' });
+  }
+};
+
+// @desc    Cancel a booking
+// @route   PUT /api/bookings/:id/cancel
+// @access  Private
+const cancelBooking = async (req, res) => {
+  try {
+    const bookingId = req.params.id;
+    const { reason } = req.body;
+    const userId = (req.auth && (req.auth.id || req.auth._id)) || (req.user && req.user._id);
+
+    const booking = await Booking.findOne({ _id: bookingId, renterId: userId });
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy đơn thuê' });
+    }
+
+    if (booking.status !== 'pending') {
+      return res.status(400).json({ success: false, message: 'Chỉ có thể hủy đơn đang chờ duyệt' });
+    }
+
+    booking.status = 'cancelled';
+    booking.cancelReason = reason || 'Người thuê đã hủy đơn';
+    booking.timeline.push({
+      status: 'cancelled',
+      note: `Người thuê đã hủy đơn. Lý do: ${reason || 'Không có'}`,
+    });
+
+    await booking.save();
+
+    // Bắn thông báo chi tiết cho chủ máy khi khách hủy đơn
+    if (booking.ownerId) {
+      const renter = await User.findById(userId).select('name');
+      const renterName = renter?.name || 'Khách thuê';
+      const dev = await Device.findById(booking.deviceId).select('name');
+      const deviceName = dev?.name || 'thiết bị';
+      createAndSendNotification({
+        userId: booking.ownerId,
+        title: 'Đơn thuê đã bị hủy ⚠️',
+        body: `Khách thuê ${renterName} đã hủy đơn thuê "${deviceName}" (#${booking.bookingCode}). Lịch thiết bị đã được mở lại.`,
+        type: 'order',
+        relatedId: booking._id,
+        data: {
+          bookingId: booking._id.toString(),
+          status: 'cancelled',
+        },
+      }).catch((err) => console.error('❌ Lỗi gửi thông báo cho chủ máy:', err.message));
+    }
+
+    res.status(200).json({ success: true, data: booking });
+  } catch (error) {
+    console.error('Error cancelling booking:', error);
+    res.status(500).json({ success: false, message: 'Lỗi máy chủ khi hủy đơn' });
   }
 };
 
@@ -293,5 +346,6 @@ module.exports = {
   createBooking,
   getDeviceBusyDates,
   getMyBookings,
+  cancelBooking,
   getBookingById,
 };
