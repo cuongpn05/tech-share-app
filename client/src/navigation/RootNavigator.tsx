@@ -12,9 +12,11 @@ import OwnerMessagesScreen from '../screens/owner/OwnerMessagesScreen';
 import ChatDetailScreen from '../screens/chat/ChatDetailScreen';
 import NotificationScreen from '../screens/notification/NotificationScreen';
 import { BookingCreateScreen } from '../screens/booking/BookingCreateScreen';
+import { MyBookingsScreen } from '../screens/booking/MyBookingsScreen';
 import { socketService } from '../services/socketService';
 import { setAuthToken } from '../config/api';
 import { theme } from '../theme/tokens';
+import { ScreenType } from '../types';
 
 export { HomeRoute } from './HomeRoute';
 
@@ -25,11 +27,13 @@ export type RootStackParamList = {
   Login: undefined;
   Owner: undefined;
   Admin: undefined;
-  Home: undefined;
+  Home: { initialTab?: ScreenType } | undefined;
   OwnerMessages: undefined;
   ChatDetail: { bookingId?: string; otherBookings?: any[] } | undefined;
   Notification: undefined;
   BookingCreate: { deviceId: string };
+  MyBookings: undefined;
+  BookingDetail: { bookingId: string };
 };
 
 
@@ -39,8 +43,17 @@ const BookingCreateRoute = ({ route, navigation }: any) => (
   <BookingCreateScreen
     deviceId={route.params.deviceId}
     onBack={() => navigation.goBack()}
-    onSuccess={() => navigation.navigate('Home')}
+    onSuccess={() => navigation.navigate('Home', { initialTab: 'bookings' })}
     onNavigateToVerification={() => navigation.navigate('Home')}
+  />
+);
+
+const MyBookingsRoute = ({ navigation }: any) => (
+  <MyBookingsScreen
+    onNavigateToBookingDetail={(bookingId) => navigation.navigate('BookingDetail', { bookingId })}
+    onNavigateToDeviceDetail={(deviceId) => navigation.navigate('BookingCreate', { deviceId })}
+    onNavigateToBookingCreate={(deviceId) => navigation.navigate('BookingCreate', { deviceId })}
+    onNavigateToHome={() => navigation.navigate('Home')}
   />
 );
 
@@ -136,6 +149,7 @@ export function RootNavigator() {
           <Stack.Screen name="ChatDetail" component={ChatDetailScreen} />
           <Stack.Screen name="Notification" component={NotificationScreen} />
           <Stack.Screen name="BookingCreate" component={BookingCreateRoute} />
+          <Stack.Screen name="MyBookings" component={MyBookingsRoute} />
         </>
       )}
     </Stack.Navigator>

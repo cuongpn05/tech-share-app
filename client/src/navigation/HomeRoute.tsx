@@ -2,9 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HomeScreen } from '../screens/home/HomeScreen';
+import { MyBookingsScreen } from '../screens/booking/MyBookingsScreen';
 import { BottomTabNavigator } from '../components/navigation/BottomTabNavigator';
 import { chatService } from '../services/chatService';
 import { socketService } from '../services/socketService';
+import { ScreenType } from '../types';
 
 export interface HomeRouteProps {
   navigation?: any;
@@ -20,6 +22,13 @@ export function HomeRoute({
   const insets = useSafeAreaInsets();
   const onReturnToOwner = propOnReturnToOwner || route?.params?.onReturnToOwner;
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [activeTab, setActiveTab] = useState<ScreenType>(route?.params?.initialTab || 'home');
+
+  useEffect(() => {
+    if (route?.params?.initialTab) {
+      setActiveTab(route.params.initialTab);
+    }
+  }, [route?.params?.initialTab]);
 
   const loadUnreadCount = useCallback(async () => {
     try {
@@ -63,18 +72,44 @@ export function HomeRoute({
 
   return (
     <View style={{ flex: 1 }}>
-      <HomeScreen
-        showOwnerDashboard={!!onReturnToOwner}
-        onNavigateToOwnerDashboard={onReturnToOwner}
-        onNavigateToChat={handleNavigateToChat}
-        onNavigateToNotifications={handleNavigateToNotifications}
-        unreadMessages={unreadMessages}
-        unreadNotifications={unreadMessages}
-      />
+      {activeTab === 'bookings' ? (
+        <MyBookingsScreen
+          onNavigateToBookingDetail={(bookingId) => {
+            if (navigation?.navigate) {
+              navigation.navigate('BookingDetail', { bookingId });
+            }
+          }}
+          onNavigateToDeviceDetail={(deviceId) => {
+            if (navigation?.navigate) {
+              navigation.navigate('BookingCreate', { deviceId });
+            }
+          }}
+          onNavigateToBookingCreate={(deviceId) => {
+            if (navigation?.navigate) {
+              navigation.navigate('BookingCreate', { deviceId });
+            }
+          }}
+          onNavigateToHome={() => setActiveTab('home')}
+        />
+      ) : (
+        <HomeScreen
+          showOwnerDashboard={!!onReturnToOwner}
+          onNavigateToOwnerDashboard={onReturnToOwner}
+          onNavigateToChat={handleNavigateToChat}
+          onNavigateToNotifications={handleNavigateToNotifications}
+          onNavigateToDeviceDetail={(deviceId) => {
+            if (navigation?.navigate) {
+              navigation.navigate('BookingCreate', { deviceId });
+            }
+          }}
+          unreadMessages={unreadMessages}
+          unreadNotifications={unreadMessages}
+        />
+      )}
       <BottomTabNavigator
-        activeTab="home"
-        enabledTabs={['home']}
-        onTabPress={() => {}}
+        activeTab={activeTab}
+        enabledTabs={['home', 'bookings']}
+        onTabPress={(tab) => setActiveTab(tab)}
         safeAreaBottom={insets.bottom}
       />
     </View>
