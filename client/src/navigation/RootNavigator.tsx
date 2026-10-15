@@ -26,7 +26,7 @@ export type RootStackParamList = {
   Admin: undefined;
   Home: undefined;
   OwnerMessages: undefined;
-  ChatDetail: { bookingId?: string } | undefined;
+  ChatDetail: { bookingId?: string; otherBookings?: any[] } | undefined;
   Notification: undefined;
 };
 

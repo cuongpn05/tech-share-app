@@ -35,12 +35,25 @@ const getConversations = async (req, res) => {
       .sort({ updatedAt: -1 })
       .lean();
 
-    const conversations = await Promise.all(
+    const rawConversations = await Promise.all(
       bookings.map(async (b) => {
-        const isRenter =
-          b.renterId?._id?.toString() === currentUserId.toString() ||
-          b.renterId?.toString() === currentUserId.toString();
+        const renterIdStr = (b.renterId?._id || b.renterId || '').toString();
+        const ownerIdStr = (b.ownerId?._id || b.ownerId || '').toString();
+        const currentUserIdStr = currentUserId.toString();
+
+        // 1. Chặn chat với chính mình nếu renter === owner
+        if (renterIdStr && ownerIdStr && renterIdStr === ownerIdStr) {
+          return null;
+        }
+
+        const isRenter = renterIdStr === currentUserIdStr;
         const otherUser = isRenter ? b.ownerId : b.renterId;
+        const otherUserIdStr = (otherUser?._id || otherUser || '').toString();
+
+        // 2. Chặn nếu đối phương trùng với tài khoản hiện tại
+        if (otherUserIdStr && otherUserIdStr === currentUserIdStr) {
+          return null;
+        }
 
         // Lấy tin nhắn mới nhất trong đơn
         const lastMsg = await Message.findOne({ bookingId: b._id })
@@ -110,6 +123,8 @@ const getConversations = async (req, res) => {
       })
     );
 
+    const conversations = rawConversations.filter(Boolean);
+
     // Sắp xếp: Ưu tiên cuộc hội thoại có tin nhắn mới nhất lên đầu danh sách theo thời gian thực
     conversations.sort((a, b) => {
       const aTime = a.lastActivityAt ? new Date(a.lastActivityAt).getTime() : 0;
@@ -151,6 +166,15 @@ const getChatHistory = async (req, res) => {
 
     if (!isRenter && !isOwner && !isAdmin) {
       return res.status(403).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const renterIdStr = (booking.renterId?._id || booking.renterId || '').toString();
+    const ownerIdStr = (booking.ownerId?._id || booking.ownerId || '').toString();
+    if (renterIdStr && ownerIdStr && renterIdStr === ownerIdStr) {
+      return res.status(400).json({
+        success: false,
+        message: 'Không thể thực hiện cuộc trò chuyện với chính mình',
+      });
     }
 
     const otherUser = isRenter ? booking.ownerId : booking.renterId;
@@ -250,6 +274,17 @@ const sendMessage = async (req, res) => {
     }
 
     const receiverId = isRenter ? booking.ownerId : booking.renterId;
+
+    // Chặn chat với chính mình
+    if (
+      String(currentUserId) === String(receiverId) ||
+      String(booking.renterId) === String(booking.ownerId)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'Không thể thực hiện cuộc trò chuyện với chính mình',
+      });
+    }
     const { text, content, messageType = 'text', mediaUrl = '', locationData } = req.body;
     const messageContent = (text !== undefined ? text : content) || '';
 
