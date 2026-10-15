@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -32,12 +32,20 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   const [inputText, setInputText] = useState('');
   const [showActionModal, setShowActionModal] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   const handleSend = () => {
     const trimmed = inputText.trim();
-    if (!trimmed || isSending) return;
-    onSendText(trimmed);
+    if (!trimmed || isSending || isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setInputText('');
+    try {
+      onSendText(trimmed);
+    } finally {
+      setTimeout(() => {
+        isSubmittingRef.current = false;
+      }, 500);
+    }
   };
 
   const handlePickImage = async (fromCamera = false) => {
