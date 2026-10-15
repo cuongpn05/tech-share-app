@@ -76,13 +76,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           isFromMe ? styles.bubbleFromMe : styles.bubbleFromOther,
         ]}
       >
-        {/* 1. Tin nhắn Template / Mẫu nhanh */}
-        {message.messageType === 'template' && (
-          <View style={styles.templateBadge}>
-            <Ionicons name="flash" size={12} color="#0D9488" style={{ marginRight: 4 }} />
-            <Text style={styles.templateBadgeText}>Mẫu tin nhắn nhanh</Text>
-          </View>
-        )}
+
 
         {/* 2. Tin nhắn Hình ảnh */}
         {message.messageType === 'image' && message.mediaUrl ? (
@@ -224,21 +218,7 @@ const styles = StyleSheet.create({
   statusBox: {
     marginLeft: 2,
   },
-  templateBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#CCFBF1',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-    marginBottom: 6,
-  },
-  templateBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#0F766E',
-  },
+
   mediaImage: {
     width: 220,
     height: 160,
