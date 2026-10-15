@@ -73,36 +73,36 @@ export function CategoryBar({ selectedCategory, onSelectCategory }: CategoryBarP
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {CATEGORIES.map(cat => {
-          const isActive = selectedCategory === cat.id;
+        {CATEGORIES.map(category => {
+          const isSelected = selectedCategory === category.id;
 
           return (
             <TouchableOpacity
-              key={cat.id}
+              key={category.id}
               accessibilityRole="button"
-              accessibilityLabel={cat.name}
-              accessibilityState={{ selected: isActive }}
-              style={[styles.categoryItem, isActive && styles.categoryItemActive]}
-              onPress={() => onSelectCategory(cat.id)}
+              accessibilityLabel={category.name}
+              accessibilityState={{ selected: isSelected }}
+              style={[styles.categoryItem, isSelected && styles.categoryItemActive]}
+              onPress={() => onSelectCategory(category.id)}
               activeOpacity={0.75}
             >
               <View
                 style={[
                   styles.iconCircle,
-                  isActive ? styles.iconCircleActive : styles.iconCircleInactive,
+                  isSelected ? styles.iconCircleActive : styles.iconCircleInactive,
                 ]}
               >
                 <Ionicons
-                  name={cat.icon}
+                  name={category.icon}
                   size={20}
-                  color={isActive ? '#FFFFFF' : colors.light.primary}
+                  color={isSelected ? '#FFFFFF' : colors.light.primary}
                 />
               </View>
               <Text
-                style={[styles.categoryName, isActive && styles.categoryNameActive]}
+                style={[styles.categoryName, isSelected && styles.categoryNameActive]}
                 numberOfLines={1}
               >
-                {cat.name}
+                {category.name}
               </Text>
             </TouchableOpacity>
           );
