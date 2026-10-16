@@ -72,7 +72,7 @@ const getConversations = async (req, res) => {
         const deviceImage =
           deviceObj.images?.[0] ||
           deviceObj.image ||
-          'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800';
+          '';
 
         let lastMessageData = null;
         if (lastMsg) {
@@ -102,9 +102,7 @@ const getConversations = async (req, res) => {
             ? {
                 _id: otherUser._id ? otherUser._id.toString() : '',
                 name: otherUser.name || 'Người dùng',
-                avatar:
-                  otherUser.avatar ||
-                  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
+                avatar: otherUser.avatar || '',
                 phone: otherUser.phone || '',
                 isVerified: Boolean(otherUser.isVerified),
                 role: otherUser.role || 'user',
@@ -302,7 +300,7 @@ const sendMessage = async (req, res) => {
     const sender = await User.findById(currentUserId).select('name avatar role');
     const device = booking.deviceId ? await Device.findById(booking.deviceId).select('name title') : null;
     const senderDisplayName = sender?.name || 'Người dùng';
-    const senderDisplayAvatar = sender?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400';
+    const senderDisplayAvatar = sender?.avatar || '';
     const deviceDisplayTitle = device?.name || device?.title || 'Thiết bị';
 
     const savedMessageResponse = {

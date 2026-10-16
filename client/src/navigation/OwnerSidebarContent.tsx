@@ -15,6 +15,8 @@ import { theme } from '../theme/tokens';
 import { OWNER_STRINGS } from '../constants/ownerStrings';
 import { chatService } from '../services/chatService';
 import { socketService } from '../services/socketService';
+import { apiClient } from '../config/api';
+import { useAppSelector } from '../store';
 
 export interface OwnerSidebarContentProps {
   navigation?: any;
@@ -33,12 +35,14 @@ interface MenuItem {
 export const OwnerSidebarContent: React.FC<OwnerSidebarContentProps> = ({
   navigation,
   activeRoute = 'OwnerDashboard',
-  pendingCount = 2,
+  pendingCount: propPendingCount,
 }) => {
+  const currentUser = useAppSelector((state) => state.auth.user);
   const statusBarOffset = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [pendingBookings, setPendingBookings] = useState(propPendingCount ?? 0);
 
-  const loadUnreadCount = useCallback(async () => {
+  const loadSidebarData = useCallback(async () => {
     try {
       const convs = await chatService.getConversations();
       if (Array.isArray(convs)) {
@@ -46,21 +50,31 @@ export const OwnerSidebarContent: React.FC<OwnerSidebarContentProps> = ({
         setUnreadMessages(total);
       }
     } catch {}
-  }, []);
+
+    try {
+      const userId = currentUser?._id || (currentUser as any)?.id;
+      const res = await apiClient.get('/owner/dashboard', {
+        params: userId ? { userId } : {},
+      });
+      if (res.data?.success && res.data?.data) {
+        setPendingBookings(res.data.data.pendingBookingsCount || 0);
+      }
+    } catch {}
+  }, [currentUser]);
 
   useEffect(() => {
-    loadUnreadCount();
+    loadSidebarData();
     const unsub = socketService.onNewMessage(() => {
-      loadUnreadCount();
+      loadSidebarData();
     });
     const unsubRead = socketService.onMessagesRead(() => {
-      loadUnreadCount();
+      loadSidebarData();
     });
     return () => {
       unsub();
       unsubRead();
     };
-  }, [loadUnreadCount]);
+  }, [loadSidebarData]);
 
   const menuItems: MenuItem[] = [
     {
@@ -80,7 +94,7 @@ export const OwnerSidebarContent: React.FC<OwnerSidebarContentProps> = ({
       title: OWNER_STRINGS.SIDEBAR.PENDING_BOOKINGS,
       icon: 'receipt-outline',
       routeName: 'OwnerPendingBookings',
-      badge: pendingCount,
+      badge: pendingBookings > 0 ? pendingBookings : undefined,
     },
     {
       id: 'messages',
@@ -148,26 +162,43 @@ export const OwnerSidebarContent: React.FC<OwnerSidebarContentProps> = ({
 
   return (
     <View style={[styles.container, { paddingTop: statusBarOffset + theme.spacing.lg }]}>
-      {/* 1. Header Profile (owner1) */}
+      {/* 1. Header Profile */}
       <View style={styles.profileSection}>
-        <Image
-          source={{
-            uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
-          }}
-          style={styles.avatar}
-        />
+        {currentUser?.avatar ? (
+          <Image
+            source={{ uri: currentUser.avatar }}
+            style={styles.avatar}
+          />
+        ) : (
+          <View
+            style={[
+              styles.avatar,
+              {
+                backgroundColor: theme.colors.brand[50],
+                justifyContent: 'center',
+                alignItems: 'center',
+              },
+            ]}
+          >
+            <Ionicons name="person" size={24} color={theme.colors.brand[500]} />
+          </View>
+        )}
         <View style={styles.profileDetails}>
           <View style={styles.nameRow}>
-            <Text style={styles.usernameText}>{OWNER_STRINGS.PROFILE.DEFAULT_USERNAME}</Text>
-            <Ionicons
-              name="checkmark-circle"
-              size={18}
-              color={theme.colors.brand[500]}
-              style={styles.verifiedIcon}
-            />
+            <Text style={styles.usernameText}>
+              {currentUser?.name || currentUser?.username || 'Owner'}
+            </Text>
+            {currentUser?.isVerified ? (
+              <Ionicons
+                name="checkmark-circle"
+                size={18}
+                color={theme.colors.brand[500]}
+                style={styles.verifiedIcon}
+              />
+            ) : null}
           </View>
           <Text style={styles.emailText} numberOfLines={1}>
-            {OWNER_STRINGS.PROFILE.DEFAULT_EMAIL}
+            {currentUser?.email || ''}
           </Text>
         </View>
       </View>

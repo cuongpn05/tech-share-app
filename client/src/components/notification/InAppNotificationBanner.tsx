@@ -122,9 +122,7 @@ export const InAppNotificationBanner: React.FC = () => {
         id: msg._id,
         bookingId: msg.bookingId,
         senderName: msg.senderName || 'Tin nhắn mới',
-        senderAvatar:
-          msg.senderAvatar ||
-          'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
+        senderAvatar: msg.senderAvatar || '',
         text: snippet,
       });
     });
@@ -142,9 +140,7 @@ export const InAppNotificationBanner: React.FC = () => {
         id: notif._id || `notif_${Date.now()}`,
         bookingId: bId,
         senderName: notif.data?.senderName || notif.title || 'TechShare',
-        senderAvatar:
-          notif.data?.senderAvatar ||
-          'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
+        senderAvatar: notif.data?.senderAvatar || '',
         text: notif.body || 'Bạn có tin nhắn mới',
       });
     });
@@ -211,10 +207,16 @@ export const InAppNotificationBanner: React.FC = () => {
         onPress={handlePress}
         activeOpacity={0.9}
       >
-        <Image
-          source={{ uri: activeBanner.senderAvatar }}
-          style={styles.avatar}
-        />
+        {activeBanner.senderAvatar ? (
+          <Image
+            source={{ uri: activeBanner.senderAvatar }}
+            style={styles.avatar}
+          />
+        ) : (
+          <View style={[styles.avatar, styles.avatarPlaceholder]}>
+            <Ionicons name="chatbubble-ellipses" size={20} color="#0D9488" />
+          </View>
+        )}
 
         <View style={styles.content}>
           <View style={styles.topRow}>
@@ -274,6 +276,11 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     backgroundColor: '#334155',
     marginRight: 12,
+  },
+  avatarPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1E293B',
   },
   content: {
     flex: 1,

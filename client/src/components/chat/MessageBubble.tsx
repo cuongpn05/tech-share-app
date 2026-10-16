@@ -57,14 +57,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       {/* 2. Không bao giờ hiện avatar của chính mình; 3. Quy tắc gom cụm (Cluster Rule) - chỉ hiện ở tin cuối cụm */}
       {!isFromMe && (
         showAvatar ? (
-          <Image
-            source={{
-              uri:
-                otherUserAvatar ||
-                'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
-            }}
-            style={styles.avatar}
-          />
+          otherUserAvatar ? (
+            <Image
+              source={{ uri: otherUserAvatar }}
+              style={styles.avatar}
+            />
+          ) : (
+            <View style={[styles.avatar, styles.avatarPlaceholder]}>
+              <Ionicons name="person" size={16} color="#64748B" />
+            </View>
+          )
         ) : (
           <View style={styles.avatarSpacer} />
         )
@@ -167,6 +169,10 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     marginRight: 8,
     backgroundColor: '#E2E8F0',
+  },
+  avatarPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   avatarSpacer: {
     width: 28,
