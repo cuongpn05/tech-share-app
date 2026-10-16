@@ -322,14 +322,16 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
         </TouchableOpacity>
 
         <View style={styles.avatarWrapper}>
-          <Image
-            source={{
-              uri:
-                otherUser?.avatar ||
-                'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
-            }}
-            style={styles.avatar}
-          />
+          {otherUser?.avatar ? (
+            <Image
+              source={{ uri: otherUser.avatar }}
+              style={styles.avatar}
+            />
+          ) : (
+            <View style={[styles.avatar, styles.avatarPlaceholder]}>
+              <Ionicons name="person" size={20} color="#64748B" />
+            </View>
+          )}
           <View style={styles.onlineBadge} />
         </View>
 
@@ -373,14 +375,16 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
           {/* Banner thông tin thiết bị đang thuê */}
           {booking?.device && (
             <View style={styles.deviceBanner}>
-              <Image
-                source={{
-                  uri:
-                    booking.device.image ||
-                    'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800',
-                }}
-                style={styles.bannerImage}
-              />
+              {booking.device.image ? (
+                <Image
+                  source={{ uri: booking.device.image }}
+                  style={styles.bannerImage}
+                />
+              ) : (
+                <View style={[styles.bannerImage, styles.bannerPlaceholder]}>
+                  <Ionicons name="hardware-chip-outline" size={20} color="#64748B" />
+                </View>
+              )}
               <View style={styles.bannerDetails}>
                 <Text style={styles.bannerTitle} numberOfLines={1}>
                   {booking.device.title}
@@ -598,6 +602,11 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     backgroundColor: '#E2E8F0',
   },
+  avatarPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E2E8F0',
+  },
   onlineBadge: {
     position: 'absolute',
     bottom: -1,
@@ -645,6 +654,11 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 8,
     backgroundColor: '#F1F5F9',
+  },
+  bannerPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E2E8F0',
   },
   bannerDetails: {
     marginLeft: 12,

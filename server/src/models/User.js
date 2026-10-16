@@ -14,7 +14,7 @@ const userSchema = new mongoose.Schema({
   address: { type: String, default: '' },
   avatar: {
     type: String,
-    default: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
+    default: '',
   },
 
   // 1. Nhóm Tín nhiệm & Định danh (Issue #7, #8)

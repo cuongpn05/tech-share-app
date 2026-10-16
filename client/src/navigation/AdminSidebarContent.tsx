@@ -13,6 +13,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/tokens';
 import { ADMIN_STRINGS } from '../constants/adminStrings';
 
+import { useAppDispatch, useAppSelector } from '../store';
+import { clearAuth } from '../store/slices/authSlice';
+
 export interface AdminSidebarContentProps {
   navigation?: any;
   activeRoute?: string;
@@ -68,16 +71,23 @@ export const AdminSidebarContent: React.FC<AdminSidebarContentProps> = ({
   navigation,
   activeRoute = 'AdminDashboard',
 }) => {
+  const dispatch = useAppDispatch();
+  const currentUser = useAppSelector((state) => state.auth.user);
+  const displayName = currentUser?.name || currentUser?.username || 'Administrator';
+  const displayEmail = currentUser?.email || '';
+  const displayAvatar = currentUser?.avatar;
+
   const handleNavigate = (routeName: string) => {
     if (navigation?.navigate) {
       navigation.navigate(routeName);
     }
   };
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     if (navigation?.closeDrawer) {
       navigation.closeDrawer();
     }
+    dispatch(clearAuth());
   };
 
   return (
@@ -85,22 +95,29 @@ export const AdminSidebarContent: React.FC<AdminSidebarContentProps> = ({
       {/* 1. PROFILE HEADER */}
       <View style={styles.header}>
         <View style={styles.profileRow}>
-          {/* Avatar phụ nữ xanh tím như trong ảnh thiết kế */}
           <View style={styles.avatarContainer}>
-            <Image
-              source={{
-                uri: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
-              }}
-              style={styles.avatarImage}
-            />
+            {displayAvatar ? (
+              <Image
+                source={{ uri: displayAvatar }}
+                style={styles.avatarImage}
+              />
+            ) : (
+              <Ionicons
+                name="shield-checkmark"
+                size={26}
+                color={theme.colors.purple}
+              />
+            )}
           </View>
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>
-              {ADMIN_STRINGS.SIDEBAR.PROFILE.NAME}
+            <Text style={styles.profileName} numberOfLines={1}>
+              {displayName}
             </Text>
-            <Text style={styles.profileEmail}>
-              {ADMIN_STRINGS.SIDEBAR.PROFILE.EMAIL}
-            </Text>
+            {displayEmail ? (
+              <Text style={styles.profileEmail} numberOfLines={1}>
+                {displayEmail}
+              </Text>
+            ) : null}
           </View>
         </View>
       </View>

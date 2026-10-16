@@ -259,17 +259,13 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
             renter: {
               id: item.otherUser?._id || null,
               name: item.otherUser?.name || defaultPartnerName,
-              avatar:
-                item.otherUser?.avatar ||
-                'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
+              avatar: item.otherUser?.avatar || '',
               isVerified: Boolean(item.otherUser?.isVerified),
             },
             device: {
               id: item.device?._id || null,
-              name: item.device?.title || 'Thiết bị công nghệ',
-              image:
-                item.device?.image ||
-                'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800',
+              name: item.device?.title || 'Thiết bị',
+              image: item.device?.image || '',
             },
             status: item.bookingStatus,
             statusLabel: statusInfo.label,
@@ -521,7 +517,22 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
       >
         {/* Avatar đối tác chat (48x48 px kèm huy hiệu tích xanh xác thực eKYC ở góc dưới) */}
         <View style={styles.avatarContainer}>
-          <Image source={{ uri: item.renter.avatar }} style={styles.renterAvatar} />
+          {item.renter.avatar ? (
+            <Image source={{ uri: item.renter.avatar }} style={styles.renterAvatar} />
+          ) : (
+            <View
+              style={[
+                styles.renterAvatar,
+                {
+                  backgroundColor: theme.colors.brand[50],
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                },
+              ]}
+            >
+              <Ionicons name="person" size={20} color={theme.colors.brand[500]} />
+            </View>
+          )}
           {item.renter.isVerified && (
             <View style={styles.avatarVerifiedBadge}>
               <Ionicons name="checkmark-circle" size={14} color={theme.colors.brand[500]} />
