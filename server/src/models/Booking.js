@@ -1,200 +1,154 @@
 const mongoose = require('mongoose');
 
-const bookingSchema = new mongoose.Schema(
-  {
-    bookingCode: {
-      type: String,
-      unique: true,
-      sparse: true,
-      index: true,
-    },
-    deviceId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Device',
-      required: [true, 'Device reference is required'],
-      index: true,
-    },
-    renterId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: [true, 'Renter reference is required'],
-      index: true,
-    },
-    ownerId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: [true, 'Owner reference is required'],
-      index: true,
-    },
+const bookingSchema = new mongoose.Schema({
+  bookingCode: { type: String, unique: true, sparse: true, index: true },
+  deviceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Device', required: true, index: true },
+  renterId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  ownerId:  { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
 
-    startDate: {
-      type: Date,
-      required: [true, 'Start date is required'],
-    },
-    endDate: {
-      type: Date,
-      required: [true, 'End date is required'],
-    },
-    totalDays: {
-      type: Number,
-      required: [true, 'Total rental days is required'],
-      min: [1, 'Rental duration must be at least 1 day'],
-    },
+  // 1. Thời gian thuê
+  startDate: { type: Date, required: true },
+  endDate: { type: Date, required: true },
 
-    pricePerDayAtBooking: {
-      type: Number,
-      required: [true, 'Daily rental price at booking is required'],
-    },
-    rentalFee: {
-      type: Number,
-      required: [true, 'Rental fee is required'],
-    },
-    discountPercent: {
-      type: Number,
-      default: 0,
-    },
-    depositFee: {
-      type: Number,
-      required: [true, 'Deposit fee is required'],
-      default: 0,
-    },
-    totalAmount: {
-      type: Number,
-      required: [true, 'Total amount is required'],
-    },
-
-    deliveryMethod: {
-      type: String,
-      enum: ['pickup', 'delivery'],
-      default: 'pickup',
-    },
-    deliveryAddress: {
-      type: String,
-      default: '',
-    },
-
-    status: {
-      type: String,
-      enum: ['pending', 'approved', 'rejected', 'active', 'completed', 'cancelled'],
-      default: 'pending',
-      index: true,
-    },
-    paymentStatus: {
-      type: String,
-      enum: ['unpaid', 'deposit_held', 'paid', 'refunded', 'disputed'],
-      default: 'unpaid',
-    },
-    rejectReason: {
-      type: String,
-      default: '',
-    },
-    cancelReason: {
-      type: String,
-      default: '',
-    },
-
-    qrToken: {
-      type: String,
-      unique: true,
-      sparse: true,
-    },
-
-    handoverPhotos: {
-      beforeRental: [{ type: String }],
-      afterRental: [{ type: String }],
-    },
-    conditionNotes: {
-      before: { type: String, default: '' },
-      after: { type: String, default: '' },
-    },
-
-    timeline: [
-      {
-        status: { type: String, required: true },
-        timestamp: { type: Date, default: Date.now },
-        note: { type: String, default: '' },
-      },
-    ],
-
-    extensionRequest: {
-      requestedEndDate: { type: Date },
-      requestedDays: { type: Number, default: 0 },
-      additionalFee: { type: Number, default: 0 },
-      status: {
-        type: String,
-        enum: ['none', 'pending', 'approved', 'rejected'],
-        default: 'none',
-      },
-    },
-
-    disputeStatus: {
-      type: String,
-      enum: ['none', 'pending', 'resolved'],
-      default: 'none',
-    },
-    disputeNote: {
-      type: String,
-      default: '',
-    },
-    reminder6hSent: {
-      type: Boolean,
-      default: false,
-    },
-    reminder2hSent: {
-      type: Boolean,
-      default: false,
-    },
-    isReviewed: {
-      type: Boolean,
-      default: false,
-      index: true,
-    },
-    reviewId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Review',
-    },
+  // 2. Trạng thái Đơn & Thanh toán
+  status: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected', 'active', 'completed', 'cancelled', 'disputed'],
+    default: 'pending',
+    index: true,
   },
-  {
-    timestamps: true,
-    toJSON: {
-      virtuals: true,
-      transform: (doc, ret) => {
-        delete ret.__v;
-        return ret;
-      },
+  paymentStatus: {
+    type: String,
+    enum: ['unpaid', 'deposit_held', 'paid', 'refunded', 'disputed'],
+    default: 'unpaid',
+  },
+  statusReason: { type: String, default: '' }, // Lý do hủy hoặc từ chối đơn
+
+  // 3. Nhóm Chi tiết Tài chính (Gom 7 trường tiền tệ)
+  pricing: {
+    pricePerDayAtBooking: { type: Number, required: true },
+    rentalFee: { type: Number, required: true },
+    discountPercent: { type: Number, default: 0 },
+    depositFee: { type: Number, required: true, default: 0 },
+    voucherCode: { type: String, default: '' },
+    voucherDiscount: { type: Number, default: 0 },
+    totalAmount: { type: Number, required: true },
+  },
+
+  // 4. Nhóm Giao nhận
+  delivery: {
+    method: { type: String, enum: ['pickup', 'delivery'], default: 'pickup' },
+    address: { type: String, default: '' },
+  },
+
+  // 5. Nhóm Bàn giao QR & Ảnh đối soát Trước/Sau
+  handover: {
+    qrToken: { type: String },
+    beforePhotos: [{ type: String }],
+    afterPhotos: [{ type: String }],
+    beforeNote: { type: String, default: '' },
+    afterNote: { type: String, default: '' },
+  },
+
+  // 6. Nhóm Yêu cầu Gia hạn Thuê
+  extensionRequest: {
+    requestedEndDate: { type: Date },
+    requestedDays: { type: Number, default: 0 },
+    additionalFee: { type: Number, default: 0 },
+    status: { type: String, enum: ['none', 'pending', 'approved', 'rejected'], default: 'none' },
+  },
+
+  // 7. Sơ đồ Tiến trình Timeline & Ẩn lịch sử (UC-R26, UC-R28)
+  timeline: [
+    {
+      status: { type: String, required: true },
+      timestamp: { type: Date, default: Date.now },
+      note: { type: String, default: '' },
+      _id: false,
     },
-    toObject: { virtuals: true },
-  }
-);
-
-// Virtual aliases for backward compatibility
-bookingSchema.virtual('device').get(function () {
-  return this.deviceId;
-}).set(function (val) {
-  this.deviceId = val;
-});
-bookingSchema.virtual('renter').get(function () {
-  return this.renterId;
-}).set(function (val) {
-  this.renterId = val;
-});
-bookingSchema.virtual('owner').get(function () {
-  return this.ownerId;
-}).set(function (val) {
-  this.ownerId = val;
-});
-bookingSchema.virtual('dailyRate').get(function () {
-  return this.pricePerDayAtBooking;
-});
-bookingSchema.virtual('depositValue').get(function () {
-  return this.depositFee;
+  ],
+  isHiddenByRenter: { type: Boolean, default: false },
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true },
 });
 
-// Indexes
-bookingSchema.index({ deviceId: 1, status: 1, startDate: 1 });
-bookingSchema.index({ renterId: 1, status: 1 });
-bookingSchema.index({ ownerId: 1, status: 1 });
+// --- VIRTUAL GETTERS & SETTERS 2 CHIỀU CHO CẢ APP & WEB ---
+bookingSchema.virtual('totalDays').get(function () {
+  if (!this.startDate || !this.endDate) return 1;
+  return Math.max(1, Math.ceil((new Date(this.endDate) - new Date(this.startDate)) / (1000 * 60 * 60 * 24)));
+});
 
-const Booking = mongoose.models.Booking || mongoose.model('Booking', bookingSchema);
+// Mapping nhóm pricing <-> trường phẳng
+['pricePerDayAtBooking', 'rentalFee', 'discountPercent', 'depositFee', 'voucherCode', 'voucherDiscount', 'totalAmount'].forEach((field) => {
+  bookingSchema.virtual(field)
+    .get(function () { return this.pricing?.[field]; })
+    .set(function (v) { this.set(`pricing.${field}`, v); });
+});
 
-module.exports = Booking;
+// Mapping tương thích thêm cho pricePerDay / depositValue
+bookingSchema.virtual('pricePerDay')
+  .get(function () { return this.pricing?.pricePerDayAtBooking; })
+  .set(function (v) { this.set('pricing.pricePerDayAtBooking', v); });
+
+bookingSchema.virtual('depositValue')
+  .get(function () { return this.pricing?.depositFee; })
+  .set(function (v) { this.set('pricing.depositFee', v); });
+
+bookingSchema.virtual('device').get(function () { return this.deviceId; });
+bookingSchema.virtual('renter').get(function () { return this.renterId; });
+bookingSchema.virtual('owner').get(function () { return this.ownerId; });
+
+// Mapping nhóm delivery <-> trường phẳng
+bookingSchema.virtual('deliveryMethod')
+  .get(function () { return this.delivery?.method ?? 'pickup'; })
+  .set(function (v) { this.set('delivery.method', v); });
+
+bookingSchema.virtual('deliveryAddress')
+  .get(function () { return this.delivery?.address ?? ''; })
+  .set(function (v) { this.set('delivery.address', v); });
+
+// Mapping nhóm handover <-> trường phẳng của App
+bookingSchema.virtual('qrToken')
+  .get(function () { return this.handover?.qrToken; })
+  .set(function (v) { this.set('handover.qrToken', v); });
+
+bookingSchema.virtual('handoverPhotos')
+  .get(function () {
+    return {
+      beforeRental: this.handover?.beforePhotos ?? [],
+      afterRental: this.handover?.afterPhotos ?? [],
+    };
+  })
+  .set(function (v) {
+    if (v?.beforeRental) this.set('handover.beforePhotos', v.beforeRental);
+    if (v?.afterRental) this.set('handover.afterPhotos', v.afterRental);
+  });
+
+bookingSchema.virtual('conditionNotes')
+  .get(function () {
+    return {
+      before: this.handover?.beforeNote ?? '',
+      after: this.handover?.afterNote ?? '',
+    };
+  })
+  .set(function (v) {
+    if (v?.before !== undefined) this.set('handover.beforeNote', v.before);
+    if (v?.after !== undefined) this.set('handover.afterNote', v.after);
+  });
+
+bookingSchema.virtual('rejectReason')
+  .get(function () { return this.status === 'rejected' ? this.statusReason : ''; })
+  .set(function (v) { if (v) this.statusReason = v; });
+
+bookingSchema.virtual('cancelReason')
+  .get(function () { return this.status === 'cancelled' ? this.statusReason : ''; })
+  .set(function (v) { if (v) this.statusReason = v; });
+
+bookingSchema.index({ deviceId: 1, status: 1, startDate: 1, endDate: 1 });
+bookingSchema.index({ renterId: 1, status: 1, createdAt: -1 });
+bookingSchema.index({ ownerId: 1, status: 1, createdAt: -1 });
+bookingSchema.index({ 'handover.qrToken': 1 }, { unique: true, sparse: true });
+
+module.exports = mongoose.models.Booking || mongoose.model('Booking', bookingSchema, 'bookings');
