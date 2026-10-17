@@ -10,13 +10,15 @@ import {
   Image,
   Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/tokens';
 import { OWNER_STRINGS } from '../constants/ownerStrings';
 import { chatService } from '../services/chatService';
 import { socketService } from '../services/socketService';
 import { apiClient } from '../config/api';
-import { useAppSelector } from '../store';
+import { useAppDispatch, useAppSelector } from '../store';
+import { clearAuth } from '../store/slices/authSlice';
 
 export interface OwnerSidebarContentProps {
   navigation?: any;
@@ -38,7 +40,12 @@ export const OwnerSidebarContent: React.FC<OwnerSidebarContentProps> = ({
   pendingCount: propPendingCount,
 }) => {
   const currentUser = useAppSelector((state) => state.auth.user);
-  const statusBarOffset = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
+  const insets = useSafeAreaInsets();
+  const topInset = Math.max(
+    insets.top,
+    Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 20
+  );
+  const bottomInset = Math.max(insets.bottom, theme.spacing.lg);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [pendingBookings, setPendingBookings] = useState(propPendingCount ?? 0);
 
@@ -149,21 +156,34 @@ export const OwnerSidebarContent: React.FC<OwnerSidebarContentProps> = ({
     }
   };
 
+  const dispatch = useAppDispatch();
+
   const handleSignOut = () => {
     Alert.alert(
       OWNER_STRINGS.SIDEBAR.SIGN_OUT,
       'Bạn có chắc chắn muốn đăng xuất khỏi phiên làm việc chủ thiết bị không?',
       [
         { text: 'Hủy', style: 'cancel' },
-        { text: 'Đăng xuất', style: 'destructive', onPress: () => console.log('Owner signed out') },
+        {
+          text: 'Đăng xuất',
+          style: 'destructive',
+          onPress: () => {
+            navigation?.closeDrawer?.();
+            dispatch(clearAuth());
+          },
+        },
       ]
     );
   };
 
   return (
-    <View style={[styles.container, { paddingTop: statusBarOffset + theme.spacing.lg }]}>
+    <View style={[styles.container, { paddingTop: topInset + theme.spacing.md, paddingBottom: bottomInset }]}>
       {/* 1. Header Profile */}
-      <View style={styles.profileSection}>
+      <TouchableOpacity
+        style={styles.profileSection}
+        onPress={() => handleMenuPress({ routeName: 'Profile' } as any)}
+        activeOpacity={0.7}
+      >
         {currentUser?.avatar ? (
           <Image
             source={{ uri: currentUser.avatar }}
@@ -201,7 +221,8 @@ export const OwnerSidebarContent: React.FC<OwnerSidebarContentProps> = ({
             {currentUser?.email || ''}
           </Text>
         </View>
-      </View>
+        <Ionicons name="chevron-forward" size={18} color={theme.colors.text.muted} />
+      </TouchableOpacity>
 
       <View style={styles.divider} />
 
@@ -278,7 +299,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.surface,
     paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing.lg,
   },
   profileSection: {
     flexDirection: 'row',

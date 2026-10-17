@@ -10,6 +10,9 @@ router.post('/login', authController.login);
 // Endpoint lấy thông tin profile từ token
 router.get('/me', requireAuth, authController.getMe);
 
+// Endpoint cập nhật thông tin cá nhân
+router.put('/me', requireAuth, authController.updateMe);
+
 // Endpoint upload avatar lên Cloudinary và lưu vào database
 router.post('/avatar', requireAuth, uploadFlexibleImage, authController.updateAvatar);
 router.patch('/avatar', requireAuth, uploadFlexibleImage, authController.updateAvatar);

@@ -2,6 +2,7 @@ import React from 'react';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { View, Text, StyleSheet } from 'react-native';
 import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen';
+import ProfileScreen from '../screens/user/ProfileScreen';
 import AdminSidebarContent from './AdminSidebarContent';
 import { theme } from '../theme/tokens';
 
@@ -50,6 +51,9 @@ export const AdminDrawerNavigator: React.FC = () => {
       </Drawer.Screen>
       <Drawer.Screen name="VouchersPromotions">
         {() => <PlaceholderScreen title="Vouchers & Promotions" />}
+      </Drawer.Screen>
+      <Drawer.Screen name="Profile">
+        {({ navigation }) => <ProfileScreen navigation={navigation} onBack={() => navigation.navigate('AdminDashboard')} />}
       </Drawer.Screen>
     </Drawer.Navigator>
   );

@@ -100,16 +100,42 @@ export interface UserAddress {
   fullAddress: string;
 }
 
+export interface UserTrust {
+  isVerified?: boolean;
+  score?: number;
+  badges?: string[];
+}
+
+export interface UserWallet {
+  balance?: number;
+  escrowBalance?: number;
+}
+
+export interface UserPushConfig {
+  expoPushToken?: string;
+  fcmTokens?: string[];
+  biometricEnabled?: boolean;
+}
+
 export interface User {
   _id: string;
+  accountId?: string;
   name: string;
   username?: string;
   email?: string;
   phone?: string;
   avatar?: string;
   role?: UserRole;
-  address?: UserAddress;
+  address?: UserAddress | string;
   location?: GeoPoint;
+  trust?: UserTrust;
+  badges?: string[];
+  wallet?: UserWallet;
+  pushConfig?: UserPushConfig;
+  biometricEnabled?: boolean;
+  wishlist?: string[];
+  referralCode?: string;
+  referredBy?: string | null;
   favoriteDevices?: string[];
   rating?: number;
   ownerRating?: number;
@@ -118,10 +144,8 @@ export interface User {
   trustScore?: number;
   walletBalance?: number;
   walletEscrowBalance?: number;
-  badges?: string[];
-  referralCode?: string;
-  referredBy?: string;
   isVerified?: boolean;
+  isActive?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }

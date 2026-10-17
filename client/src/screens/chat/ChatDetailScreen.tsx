@@ -14,6 +14,7 @@ import {
   Modal,
   ScrollView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../theme/tokens';
@@ -282,7 +283,11 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
     }
   };
 
-  const statusBarOffset = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
+  const insets = useSafeAreaInsets();
+  const topInset = Math.max(
+    insets.top,
+    Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 20
+  );
 
   const handleBack = () => {
     if (onBack) {
@@ -311,7 +316,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
       />
 
       {/* Header Bar */}
-      <View style={[styles.header, { paddingTop: statusBarOffset + 10 }]}>
+      <View style={[styles.header, { paddingTop: topInset }]}>
         <TouchableOpacity
           onPress={handleBack}
           style={styles.backButton}
@@ -581,25 +586,32 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: '#FFFFFF',
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: 12,
+    backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: '#F1F5F9',
     gap: 12,
   },
   backButton: {
-    padding: 4,
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
   },
   avatarWrapper: {
     position: 'relative',
-    width: 36,
-    height: 36,
+    width: 38,
+    height: 38,
   },
   avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: '#E2E8F0',
   },
   avatarPlaceholder: {
@@ -622,15 +634,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   userName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
+    fontSize: 17,
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.primary,
   },
   userRole: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
-    color: '#64748B',
-    marginTop: 1,
+    color: theme.colors.text.muted,
+    marginTop: 2,
   },
   callButton: {
     width: 38,

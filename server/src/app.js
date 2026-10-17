@@ -8,6 +8,7 @@ const ownerRoutes = require('./routes/ownerRoutes');
 const authRoutes = require('./routes/authRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
+const aiRoutes= require("./routes/aiRoutes")
 const morgan = require('morgan');
 const { notFound, errorHandler } = require('./middlewares/errorHandler');
 const app = express();
@@ -21,12 +22,14 @@ app.get('/api/health', (req, res) => {
   const connected = mongoose.connection.readyState === 1;
   res.status(connected ? 200 : 503).json({ status: connected ? 'ONLINE' : 'OFFLINE', database: connected ? 'Connected' : 'Disconnected', uptime: process.uptime(), timestamp: new Date().toISOString() });
 });
+app.use("/api/ai", aiRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/devices', deviceRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/owner', ownerRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/bookings', bookingRoutes);
+
 app.use(notFound);
 app.use(errorHandler);
 

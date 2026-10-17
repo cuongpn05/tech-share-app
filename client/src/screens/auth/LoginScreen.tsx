@@ -5,12 +5,14 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
-  ScrollView,
   KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
   Platform,
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppDispatch } from '../../store';
 import { setAuth } from '../../store/slices/authSlice';
 import { apiClient, setAuthToken } from '../../config/api';
@@ -30,6 +32,7 @@ export function LoginScreen({
   onNavigateToForgotPassword,
   onLoginSuccess,
 }: LoginScreenProps) {
+  const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
 
   const [identifier, setIdentifier] = useState('');
@@ -65,12 +68,12 @@ export function LoginScreen({
       if (response.data?.success && response.data?.token && response.data?.user) {
         const { token, user } = response.data;
         setAuthToken(token);
-        dispatch(setAuth({ token, user }));
         // Workflow 1: Kết nối Socket.IO và gia nhập room định danh cá nhân user_{userId}
         const userId = user._id || (user as any).id;
         if (userId) {
           socketService.connect(userId);
         }
+        dispatch(setAuth({ token, user }));
         if (onLoginSuccess) {
           onLoginSuccess(user.role || 'renter');
         }
@@ -96,140 +99,159 @@ export function LoginScreen({
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.rootContainer}
     >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.cardContainer}>
-          {/* Logo & Header */}
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <View style={styles.screenWrapper}>
+          {/* Back or Close button if navigated from guest flow */}
+          {navigation?.canGoBack?.() && (
+            <TouchableOpacity
+              style={[styles.closeBtn, { top: Math.max(insets.top, 16) + 8 }]}
+              onPress={() => navigation.goBack()}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="close" size={24} color={theme.colors.text.secondary} />
+            </TouchableOpacity>
+          )}
+
+          {/* Logo & Header đặt ngoài khung */}
           <View style={styles.header}>
             <View style={styles.logoBadge}>
               <Ionicons name="hardware-chip-outline" size={32} color="#ffffff" />
             </View>
             <Text style={styles.brandTitle}>TechShare</Text>
             <Text style={styles.brandSubtitle}>
-              Smart Technology Equipment Rental Platform
+              A platform for sharing and renting tech devices
             </Text>
           </View>
 
-          {/* Error alert box */}
-          {errorMessage ? (
-            <View style={styles.alertError}>
-              <Ionicons name="alert-circle-outline" size={20} color={theme.colors.red} />
-              <Text style={styles.alertErrorText}>{errorMessage}</Text>
+          {/* Khung viền riêng cho Form đăng nhập */}
+          <View style={styles.cardFrame}>
+            {/* Tiêu đề bên trong khung form */}
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>Log In</Text>
+              <Text style={styles.cardSubtitle}>Welcome back to the community</Text>
             </View>
-          ) : null}
 
-          {/* Login form: Username/Email */}
-          <View style={styles.formGroup}>
-            <Text style={styles.inputLabel}>Username or Email</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons
-                name="person-outline"
-                size={18}
-                color={theme.colors.text.subtle}
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.inputField}
-                placeholder="e.g. renter1 or email@techshare.vn"
-                placeholderTextColor={theme.colors.text.subtle}
-                value={identifier}
-                onChangeText={(text) => {
-                  setIdentifier(text);
-                  if (errorMessage) setErrorMessage(null);
-                }}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
+            {/* Error alert box */}
+            {errorMessage ? (
+              <View style={styles.alertError}>
+                <Ionicons name="alert-circle-outline" size={20} color={theme.colors.red} />
+                <Text style={styles.alertErrorText}>{errorMessage}</Text>
+              </View>
+            ) : null}
+
+            {/* Login form: Username/Email */}
+            <View style={styles.formGroup}>
+              <Text style={styles.inputLabel}>Username or email</Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons
+                  name="mail-outline"
+                  size={18}
+                  color={theme.colors.text.subtle}
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={styles.inputField}
+                  placeholder="Enter username or email"
+                  placeholderTextColor={theme.colors.text.subtle}
+                  value={identifier}
+                  onChangeText={(text) => {
+                    setIdentifier(text);
+                    if (errorMessage) setErrorMessage(null);
+                  }}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
             </View>
-          </View>
 
-          {/* Login form: Password */}
-          <View style={styles.formGroup}>
-            <Text style={styles.inputLabel}>Password</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons
-                name="lock-closed-outline"
-                size={18}
-                color={theme.colors.text.subtle}
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.inputField}
-                placeholder="Enter your password"
-                placeholderTextColor={theme.colors.text.subtle}
-                value={password}
-                onChangeText={(text) => {
-                  setPassword(text);
-                  if (errorMessage) setErrorMessage(null);
-                }}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-              />
+            {/* Login form: Password */}
+            <View style={styles.formGroup}>
+              <Text style={styles.inputLabel}>Password</Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={18}
+                  color={theme.colors.text.subtle}
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={styles.inputField}
+                  placeholder="Nhập mật khẩu"
+                  placeholderTextColor={theme.colors.text.subtle}
+                  value={password}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    if (errorMessage) setErrorMessage(null);
+                  }}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.eyeButton}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={20}
+                    color={theme.colors.text.muted}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Remember me & Forgot password */}
+            <View style={styles.optionsRow}>
               <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
-                style={styles.eyeButton}
+                style={styles.rememberMeContainer}
+                onPress={() => setRememberMe(!rememberMe)}
+                activeOpacity={0.8}
+              >
+                <View
+                  style={[
+                    styles.checkbox,
+                    rememberMe && styles.checkboxChecked,
+                  ]}
+                >
+                  {rememberMe ? (
+                    <Ionicons name="checkmark" size={14} color="#ffffff" />
+                  ) : null}
+                </View>
+                <Text style={styles.rememberMeText}>Remember me</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => {
+                  if (onNavigateToForgotPassword) onNavigateToForgotPassword();
+                  else if (navigation?.navigate) navigation.navigate('ForgotPassword');
+                }}
                 activeOpacity={0.7}
               >
-                <Ionicons
-                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                  size={20}
-                  color={theme.colors.text.muted}
-                />
+                <Text style={styles.forgotPasswordText}>Quên mật khẩu?</Text>
               </TouchableOpacity>
             </View>
-          </View>
 
-          {/* Remember me & Forgot password */}
-          <View style={styles.optionsRow}>
+            {/* Sign In button */}
             <TouchableOpacity
-              style={styles.rememberMeContainer}
-              onPress={() => setRememberMe(!rememberMe)}
-              activeOpacity={0.8}
+              style={[styles.btnSubmit, loading && styles.btnSubmitDisabled]}
+              onPress={handleLogin}
+              disabled={loading}
+              activeOpacity={0.85}
             >
-              <View
-                style={[
-                  styles.checkbox,
-                  rememberMe && styles.checkboxChecked,
-                ]}
-              >
-                {rememberMe ? (
-                  <Ionicons name="checkmark" size={14} color="#ffffff" />
-                ) : null}
-              </View>
-              <Text style={styles.rememberMeText}>Remember me</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => {
-                if (onNavigateToForgotPassword) onNavigateToForgotPassword();
-                else if (navigation?.navigate) navigation.navigate('ForgotPassword');
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+              {loading ? (
+                <ActivityIndicator color="#ffffff" size="small" />
+              ) : (
+                <View style={styles.btnSubmitContent}>
+                  <Text style={styles.btnSubmitText}>ĐĂNG NHẬP</Text>
+                  <Ionicons name="arrow-forward" size={18} color="#ffffff" style={styles.btnArrowIcon} />
+                </View>
+              )}
             </TouchableOpacity>
           </View>
 
-          {/* Sign In button */}
-          <TouchableOpacity
-            style={[styles.btnSubmit, loading && styles.btnSubmitDisabled]}
-            onPress={handleLogin}
-            disabled={loading}
-            activeOpacity={0.85}
-          >
-            {loading ? (
-              <ActivityIndicator color="#ffffff" size="small" />
-            ) : (
-              <Text style={styles.btnSubmitText}>SIGN IN</Text>
-            )}
-          </TouchableOpacity>
-
-          {/* Navigate to Register screen */}
+          {/* Navigate to Register screen (nằm ngoài khung như trong ảnh) */}
           <View style={styles.footerRow}>
-            <Text style={styles.footerText}>Don't have an account?</Text>
+            <Text style={styles.footerText}>Chưa có tài khoản?</Text>
             <TouchableOpacity
               onPress={() => {
                 if (onNavigateToRegister) onNavigateToRegister();
@@ -237,11 +259,11 @@ export function LoginScreen({
               }}
               activeOpacity={0.7}
             >
-              <Text style={styles.registerLink}>Sign up</Text>
+              <Text style={styles.registerLink}>Đăng ký ngay</Text>
             </TouchableOpacity>
           </View>
         </View>
-      </ScrollView>
+      </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
   );
 }
@@ -249,45 +271,66 @@ export function LoginScreen({
 const styles = StyleSheet.create({
   rootContainer: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: '#F8FAFC',
   },
-  scrollContent: {
-    flexGrow: 1,
+  screenWrapper: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: theme.spacing.md,
+    paddingHorizontal: 20,
   },
-  cardContainer: {
+  cardFrame: {
     width: '100%',
-    maxWidth: 440,
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radii['2xl'],
-    paddingVertical: 36,
-    paddingHorizontal: 28,
+    maxWidth: 420,
+    backgroundColor: '#ffffff',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 24,
+    paddingVertical: 26,
+    paddingHorizontal: 22,
     ...theme.shadows.card,
+  },
+  cardHeader: {
+    marginBottom: 20,
+  },
+  cardTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
+    marginBottom: 4,
+  },
+  cardSubtitle: {
+    fontSize: 13,
+    color: theme.colors.text.muted,
+  },
+  closeBtn: {
+    position: 'absolute',
+    left: 20,
+    zIndex: 10,
+    padding: 8,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 28,
+    marginBottom: 20,
   },
   logoBadge: {
-    width: 64,
-    height: 64,
+    width: 60,
+    height: 60,
     borderRadius: theme.radii.full,
     backgroundColor: theme.colors.brand[500],
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 10,
     ...theme.shadows.card,
   },
   brandTitle: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: '700',
     color: theme.colors.text.primary,
-    marginBottom: 6,
+    marginBottom: 4,
   },
   brandSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: theme.colors.text.muted,
     textAlign: 'center',
   },
@@ -310,21 +353,21 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   formGroup: {
-    marginBottom: 18,
+    marginBottom: 16,
   },
   inputLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: theme.colors.text.secondary,
+    color: theme.colors.text.primary,
     marginBottom: 8,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.background,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: theme.colors.border.light,
-    borderRadius: theme.radii.md,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
     paddingHorizontal: 14,
     height: 48,
   },
@@ -344,7 +387,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 24,
+    marginTop: 2,
+    marginBottom: 20,
   },
   rememberMeContainer: {
     flexDirection: 'row',
@@ -377,7 +421,7 @@ const styles = StyleSheet.create({
   btnSubmit: {
     height: 48,
     backgroundColor: theme.colors.brand[500],
-    borderRadius: theme.radii.full,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     ...theme.shadows.card,
@@ -385,17 +429,25 @@ const styles = StyleSheet.create({
   btnSubmitDisabled: {
     opacity: 0.65,
   },
+  btnSubmitContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   btnSubmitText: {
     color: '#ffffff',
     fontSize: 15,
     fontWeight: '700',
     letterSpacing: 0.5,
   },
+  btnArrowIcon: {
+    marginLeft: 6,
+  },
   footerRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 22,
+    marginTop: 20,
     gap: 6,
   },
   footerText: {
