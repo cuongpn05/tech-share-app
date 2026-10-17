@@ -185,7 +185,45 @@ const getMe = async (req, res) => {
   }
 };
 
+/**
+ * Cập nhật thông tin user hiện tại
+ */
+const updateMe = async (req, res) => {
+  try {
+    const { name, phone, address, avatar, biometricEnabled } = req.body;
+    const userId = req.user._id;
+
+    const updateData = {};
+    if (name !== undefined) updateData.name = String(name).trim();
+    if (phone !== undefined) updateData.phone = String(phone).trim();
+    if (address !== undefined) updateData.address = String(address).trim();
+    if (avatar !== undefined) updateData.avatar = String(avatar).trim();
+    if (biometricEnabled !== undefined) {
+      updateData['pushConfig.biometricEnabled'] = Boolean(biometricEnabled);
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $set: updateData },
+      { new: true }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Cập nhật thông tin thành công',
+      user: updatedUser,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi cập nhật thông tin.',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   login,
   getMe,
+  updateMe,
 };

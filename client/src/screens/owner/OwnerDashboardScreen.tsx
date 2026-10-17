@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../../config/api';
+import { API_BASE_URL, apiClient } from '../../config/api';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -12,6 +12,7 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, {
   Path,
@@ -24,6 +25,9 @@ import Svg, {
 } from 'react-native-svg';
 import { theme } from '../../theme/tokens';
 import { OWNER_STRINGS } from '../../constants/ownerStrings';
+import { chatService } from '../../services/chatService';
+import { socketService } from '../../services/socketService';
+import { useAppSelector } from '../../store';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -79,91 +83,113 @@ interface OwnerChartData {
 }
 
 export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navigation }) => {
+  const currentUser = useAppSelector((state) => state.auth.user);
   const [selectedTimeframe, setSelectedTimeframe] = useState<'week' | 'month'>('week');
   const [refreshing, setRefreshing] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
-  // Dữ liệu mặc định khởi tạo chuẩn theo thiết kế (Ảnh 1 & 2)
+  const loadUnreadCount = useCallback(async () => {
+    try {
+      const convs = await chatService.getConversations();
+      if (Array.isArray(convs)) {
+        const total = convs.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+        setUnreadCount(total);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    loadUnreadCount();
+    const unsub = socketService.onNewMessage(() => {
+      loadUnreadCount();
+    });
+    const unsubRead = socketService.onMessagesRead(() => {
+      loadUnreadCount();
+    });
+    return () => {
+      unsub();
+      unsubRead();
+    };
+  }, [loadUnreadCount]);
+
+  // Khởi tạo trạng thái mặc định rỗng/0, toàn bộ số liệu được kéo trực tiếp từ MongoDB Atlas
   const [profile, setProfile] = useState<OwnerProfileData>({
-    id: '6ab13ee23bb7f33ae04d2c88',
-    username: OWNER_STRINGS.PROFILE.DEFAULT_USERNAME,
-    email: OWNER_STRINGS.PROFILE.DEFAULT_EMAIL,
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
-    rating: '4.9',
-    reviewsCount: 28,
-    trustScore: 100,
-    badge: OWNER_STRINGS.PROFILE.TOP_OWNER_BADGE,
+    id: '',
+    username: '',
+    email: '',
+    avatar: '',
+    rating: '0.0',
+    reviewsCount: 0,
+    trustScore: 0,
+    badge: '',
   });
 
   const [kpis, setKpis] = useState<OwnerKpisData>({
-    netRevenue: 35110000,
-    netRevenueFormatted: OWNER_STRINGS.METRICS.DEFAULT_NET_REVENUE,
-    totalRentals: 94,
-    totalRentalsFormatted: OWNER_STRINGS.METRICS.DEFAULT_TOTAL_RENTALS,
+    netRevenue: 0,
+    netRevenueFormatted: '0 đ',
+    totalRentals: 0,
+    totalRentalsFormatted: '0 orders',
     activeRentals: 0,
-    activeRentalsFormatted: OWNER_STRINGS.METRICS.DEFAULT_ACTIVE_RENTALS,
+    activeRentalsFormatted: '0 devices',
     occupancyRate: 0,
-    occupancyRateFormatted: OWNER_STRINGS.METRICS.DEFAULT_OCCUPANCY_RATE,
+    occupancyRateFormatted: '0%',
   });
 
   const [wallet, setWallet] = useState<OwnerWalletData>({
-    availableBalance: 28088000,
-    availableBalanceFormatted: OWNER_STRINGS.WALLET.DEFAULT_AVAILABLE,
-    escrowHolding: 15000000,
-    escrowHoldingFormatted: OWNER_STRINGS.WALLET.DEFAULT_ESCROW,
-    monthlyRevenue: 35110000,
-    monthlyRevenueFormatted: OWNER_STRINGS.WALLET.DEFAULT_MONTHLY,
-    monthlyTrend: OWNER_STRINGS.WALLET.DEFAULT_TREND,
+    availableBalance: 0,
+    availableBalanceFormatted: '0 đ',
+    escrowHolding: 0,
+    escrowHoldingFormatted: '0 đ',
+    monthlyRevenue: 0,
+    monthlyRevenueFormatted: '0 đ',
+    monthlyTrend: '',
   });
 
   const [chart, setChart] = useState<OwnerChartData>({
     title: OWNER_STRINGS.CHART.TITLE,
-    peakFormatted: OWNER_STRINGS.CHART.PEAK_PREFIX,
-    peakValue: 18700000,
-    yMax: 22100000,
-    yLabels: ['22.1M', '16.5M', '11.0M', '5.5M', '0'],
-    dataPoints: [
-      { day: 'Mon', revenue: 3200000, label: '3.2M' },
-      { day: 'Tue', revenue: 18700000, label: '18.7M' },
-      { day: 'Wed', revenue: 5100000, label: '5.1M' },
-      { day: 'Thu', revenue: 12400000, label: '12.4M' },
-      { day: 'Fri', revenue: 8200000, label: '8.2M' },
-      { day: 'Sat', revenue: 15300000, label: '15.3M' },
-      { day: 'Sun', revenue: 10500000, label: '10.5M' },
-    ],
+    peakFormatted: 'Peak: 0 đ',
+    peakValue: 0,
+    yMax: 0,
+    yLabels: ['0', '0', '0', '0', '0'],
+    dataPoints: [],
   });
 
   // Tải dữ liệu từ Backend API MongoDB Atlas
   const fetchDashboardData = useCallback(async () => {
     try {
-      const endpoints = [`${API_BASE_URL}/owner/dashboard`];
+      const userId = currentUser?._id || (currentUser as any)?.id;
+      const res = await apiClient.get('/owner/dashboard', {
+        params: userId ? { userId } : {},
+      });
 
-      let jsonResult: any = null;
-      for (const url of endpoints) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 3500);
-          const response = await fetch(url, { signal: controller.signal });
-          clearTimeout(timeoutId);
-          if (response.ok) {
-            jsonResult = await response.json();
-            break;
-          }
-        } catch {
-          // Thử tiếp endpoint dự phòng
-        }
-      }
-
-      if (jsonResult && jsonResult.success && jsonResult.data) {
-        const d = jsonResult.data;
+      if (res.data?.success && res.data?.data) {
+        const d = res.data.data;
         if (d.profile) setProfile(d.profile);
         if (d.kpis) setKpis(d.kpis);
         if (d.wallet) setWallet(d.wallet);
         if (d.chart) setChart(d.chart);
+        return;
       }
-    } catch (err) {
-      console.log('[OwnerDashboard] Dùng dữ liệu bộ nhớ dự phòng:', err);
+    } catch {
+      try {
+        const userId = currentUser?._id || (currentUser as any)?.id;
+        const query = userId ? `?userId=${userId}` : '';
+        const response = await fetch(`${API_BASE_URL}/owner/dashboard${query}`);
+        if (response.ok) {
+          const jsonResult = await response.json();
+          if (jsonResult && jsonResult.success && jsonResult.data) {
+            const d = jsonResult.data;
+            if (d.profile) setProfile(d.profile);
+            if (d.kpis) setKpis(d.kpis);
+            if (d.wallet) setWallet(d.wallet);
+            if (d.chart) setChart(d.chart);
+          }
+        }
+      } catch (err) {
+        console.warn('[OwnerDashboard] Lỗi khi tải dữ liệu từ server:', err);
+      }
     }
-  }, []);
+  }, [currentUser]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -175,7 +201,12 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
     setRefreshing(false);
   };
 
-  const statusBarOffset = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
+  const insets = useSafeAreaInsets();
+  const topInset = Math.max(
+    insets.top,
+    Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 20
+  );
+  const bottomInset = Math.max(insets.bottom, 24);
 
   // Tính toán kích thước SVG Chart
   const chartCardWidth = SCREEN_WIDTH - theme.spacing.lg * 2;
@@ -188,13 +219,24 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
   const bottomPadding = 30;
   const plotHeight = svgHeight - topPadding - bottomPadding;
 
-  const yMax = chart.yMax || 22100000;
-  const points = chart.dataPoints;
+  const yMax = chart.yMax > 0 ? chart.yMax : 1;
+  const points =
+    chart.dataPoints && chart.dataPoints.length > 0
+      ? chart.dataPoints
+      : [
+          { day: 'Mon', revenue: 0, label: '0' },
+          { day: 'Tue', revenue: 0, label: '0' },
+          { day: 'Wed', revenue: 0, label: '0' },
+          { day: 'Thu', revenue: 0, label: '0' },
+          { day: 'Fri', revenue: 0, label: '0' },
+          { day: 'Sat', revenue: 0, label: '0' },
+          { day: 'Sun', revenue: 0, label: '0' },
+        ];
 
-  // Tọa độ các điểm vẽ biểu đồ
+  // Tọa độ các điểm vẽ biểu đồ (100% dựa vào dữ liệu thực tế từ DB)
   const coords = points.map((p, index) => {
-    const x = leftAxisWidth + (index / (points.length - 1)) * plotWidth;
-    const ratio = Math.min(1, Math.max(0, p.revenue / yMax));
+    const x = leftAxisWidth + (index / Math.max(1, points.length - 1)) * plotWidth;
+    const ratio = chart.yMax > 0 ? Math.min(1, Math.max(0, p.revenue / chart.yMax)) : 0;
     const y = topPadding + (1 - ratio) * plotHeight;
     return { x, y, ...p };
   });
@@ -220,10 +262,13 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
   };
 
   const linePath = createSmoothPath(coords);
-  const areaPath = `${linePath} L ${coords[coords.length - 1].x} ${topPadding + plotHeight} L ${coords[0].x} ${topPadding + plotHeight} Z`;
+  const areaPath =
+    coords.length > 0
+      ? `${linePath} L ${coords[coords.length - 1].x} ${topPadding + plotHeight} L ${coords[0].x} ${topPadding + plotHeight} Z`
+      : '';
 
   return (
-    <View style={[styles.screenContainer, { paddingTop: statusBarOffset }]}>
+    <View style={[styles.screenContainer, { paddingTop: topInset }]}>
       <StatusBar
         barStyle="dark-content"
         backgroundColor={theme.colors.background}
@@ -232,11 +277,13 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
       {/* 1. Header Navigation Bar */}
       <View style={styles.headerBar}>
         <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Menu"
           style={styles.headerIconButton}
           onPress={() => navigation?.openDrawer?.()}
           activeOpacity={0.7}
         >
-          <Ionicons name="menu" size={22} color={theme.colors.text.primary} />
+          <Ionicons name="menu-outline" size={24} color={theme.colors.text.primary} />
         </TouchableOpacity>
 
         <View style={styles.headerTitleContainer}>
@@ -250,12 +297,13 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
           activeOpacity={0.7}
         >
           <Ionicons name="notifications-outline" size={20} color={theme.colors.text.primary} />
+          {unreadCount > 0 && <View style={styles.notifBadgeDot} />}
         </TouchableOpacity>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomInset + 16 }]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -264,12 +312,27 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
           />
         }
       >
-        {/* 2. Thẻ Profile người dùng (owner1) */}
+        {/* 2. Thẻ Profile người dùng */}
         <View style={styles.profileCard}>
-          <Image source={{ uri: profile.avatar }} style={styles.profileAvatar} />
+          {profile.avatar ? (
+            <Image source={{ uri: profile.avatar }} style={styles.profileAvatar} />
+          ) : (
+            <View
+              style={[
+                styles.profileAvatar,
+                {
+                  backgroundColor: theme.colors.brand[50],
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                },
+              ]}
+            >
+              <Ionicons name="person" size={26} color={theme.colors.brand[500]} />
+            </View>
+          )}
 
           <View style={styles.profileInfo}>
-            <Text style={styles.profileUsername}>{profile.username}</Text>
+            <Text style={styles.profileUsername}>{profile.username || 'Chủ thiết bị'}</Text>
 
             <View style={styles.badgesRow}>
               {/* Rating badge */}
@@ -287,9 +350,11 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
             </View>
 
             {/* Top Owner Pill */}
-            <View style={styles.topOwnerPill}>
-              <Text style={styles.topOwnerText}>{profile.badge}</Text>
-            </View>
+            {profile.badge ? (
+              <View style={styles.topOwnerPill}>
+                <Text style={styles.topOwnerText}>{profile.badge}</Text>
+              </View>
+            ) : null}
           </View>
         </View>
 
@@ -514,7 +579,9 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
               </View>
               <View style={styles.monthlyValueRow}>
                 <Text style={styles.monthlyAmountText}>{wallet.monthlyRevenueFormatted}</Text>
-                <Text style={styles.monthlyTrendText}>{wallet.monthlyTrend}</Text>
+                {wallet.monthlyTrend ? (
+                  <Text style={styles.monthlyTrendText}>{wallet.monthlyTrend}</Text>
+                ) : null}
               </View>
             </View>
           </View>
@@ -538,15 +605,14 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   headerIconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: theme.radii.lg,
-    backgroundColor: theme.colors.surface,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
     alignItems: 'center',
     justifyContent: 'center',
-    ...theme.shadows.card,
   },
   headerTitleContainer: {
     flex: 1,
@@ -860,6 +926,17 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.bold,
     color: theme.colors.brand[500],
     marginLeft: 4,
+  },
+  notifBadgeDot: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: '#EF4444',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
   },
 });
 

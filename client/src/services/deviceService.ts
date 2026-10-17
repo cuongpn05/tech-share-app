@@ -18,48 +18,165 @@ export interface GetDevicesParams {
 
 export interface DevicePage {
   data: Device[];
-  pagination: { page: number; limit: number; totalItems: number; totalPages: number; hasNextPage: boolean };
+  pagination: {
+    page: number;
+    limit: number;
+    totalItems: number;
+    totalPages: number;
+    hasNextPage: boolean;
+  };
 }
 
+// Kiểm tra dữ liệu trước khi Redux dùng để hiển thị và phân trang.
+function validateNearbyResponse(
+  responseBody: DevicePage & { success: boolean },
+  requestedPage: number,
+): void {
+  const pagination = responseBody?.pagination;
+  if (
+    responseBody?.success !== true ||
+    !Array.isArray(responseBody.data) ||
+    !pagination
+  ) {
+    throw new Error("Invalid nearby device response");
+  }
+
+  const isValidPagination =
+    Number.isInteger(pagination.page) &&
+    pagination.page === requestedPage &&
+    pagination.limit === 10 &&
+    Number.isInteger(pagination.totalItems) &&
+    pagination.totalItems >= 0 &&
+    Number.isInteger(pagination.totalPages) &&
+    pagination.totalPages >= 0 &&
+    typeof pagination.hasNextPage === "boolean";
+  if (!isValidPagination) {
+    throw new Error("Invalid nearby device response");
+  }
+
+  const hasInvalidDevice = responseBody.data.some(
+    (device) =>
+      !device ||
+      typeof device._id !== "string" ||
+      !device._id ||
+      typeof device.name !== "string" ||
+      !device.name.trim(),
+  );
+  if (responseBody.data.length > 10 || hasInvalidDevice) {
+    throw new Error("Invalid nearby device response");
+  }
+}
 
 export const deviceService = {
+  async getDevices(
+    params?: Pick<GetDevicesParams, "limit">,
+  ): Promise<Device[]> {
+    const response = await apiClient.get<{ success: boolean; data: Device[] }>(
+      "/devices",
+      {
+        params: { limit: params?.limit },
+      },
+    );
+
+    if (response.data?.success !== true || !Array.isArray(response.data.data)) {
+      throw new Error("Invalid available devices response");
+    }
+
+    return response.data.data;
+  },
+
   async getNearbyDevicesPage(params: GetDevicesParams): Promise<DevicePage> {
-    if (!Number.isFinite(params.latitude) || !Number.isFinite(params.longitude)) {
+    if (
+      !Number.isFinite(params.latitude) ||
+      !Number.isFinite(params.longitude)
+    ) {
       throw new Error("Nearby devices require your location");
     }
-    const query = {
-      lat: params.latitude, lng: params.longitude, radius: params.radius ?? HOME_NEARBY_RADIUS_METERS,
+    const requestParams = {
+      lat: params.latitude,
+      lng: params.longitude,
+      radius: params.radius ?? HOME_NEARBY_RADIUS_METERS,
       category: params.category !== "all" ? params.category : undefined,
       q: (params.q || params.search || "").trim() || undefined,
-      page: params.page || 1, limit: 10,
+      page: params.page || 1,
+      limit: 10,
     };
-    const debug = typeof __DEV__ !== 'undefined' && __DEV__;
-    if (debug) console.log('[HOME NEARBY] request URL/params:', apiClient.getUri({ url: '/devices/nearby', params: query }), query);
+    const debug = typeof __DEV__ !== "undefined" && __DEV__;
+    if (debug)
+      console.log(
+        "[HOME NEARBY] request URL/params:",
+        apiClient.getUri({ url: "/devices/nearby", params: requestParams }),
+        requestParams,
+      );
     try {
-      const response = await apiClient.get<DevicePage & { success: boolean }>("/devices/nearby", { params: query });
-      const body = response.data;
+      const response = await apiClient.get<DevicePage & { success: boolean }>(
+        "/devices/nearby",
+        { params: requestParams },
+      );
+      const responseBody = response.data;
       if (debug) {
-        console.log('[HOME NEARBY] HTTP:', response.status);
-        console.log('[HOME NEARBY] response shape:', Object.keys(body || {}));
-        console.log('[HOME NEARBY] received:', body?.data?.length);
-        console.log('[HOME NEARBY] pagination:', body?.pagination);
+        console.log("[HOME NEARBY] HTTP:", response.status);
+        console.log(
+          "[HOME NEARBY] response shape:",
+          Object.keys(responseBody || {}),
+        );
+        console.log("[HOME NEARBY] received:", responseBody?.data?.length);
+        console.log("[HOME NEARBY] pagination:", responseBody?.pagination);
       }
-      const pagination = body?.pagination;
-      if (body?.success !== true || !Array.isArray(body.data) || !pagination ||
-          !Number.isInteger(pagination.page) || pagination.page !== query.page ||
-          pagination.limit !== 10 || !Number.isInteger(pagination.totalItems) ||
-          !Number.isInteger(pagination.totalPages) || pagination.totalItems < 0 || pagination.totalPages < 0 || typeof pagination.hasNextPage !== 'boolean' ||
-          body.data.length > 10 || body.data.some(d => !d || typeof d._id !== 'string' || !d._id || typeof d.name !== 'string' || !d.name.trim())) {
-        throw new Error("Invalid nearby device response");
+      validateNearbyResponse(responseBody, requestParams.page);
+      if (debug) {
+        const invalidLocationCount = responseBody.data.filter((device) => {
+          const coordinates = device.location?.coordinates;
+          return (
+            !coordinates ||
+            coordinates.length !== 2 ||
+            !Number.isFinite(coordinates[0]) ||
+            !Number.isFinite(coordinates[1]) ||
+            Math.abs(coordinates[0]) > 180 ||
+            Math.abs(coordinates[1]) > 90
+          );
+        }).length;
+        console.log(
+          "[HOME NEARBY] invalid location count:",
+          invalidLocationCount,
+        );
       }
-      if (debug) console.log('[HOME NEARBY] invalid location count:', body.data.filter(d => {
-        const c = d.location?.coordinates;
-        return !c || c.length !== 2 || !Number.isFinite(c[0]) || !Number.isFinite(c[1]) || Math.abs(c[0]) > 180 || Math.abs(c[1]) > 90;
-      }).length);
-      return body;
-    } catch (error: any) {
-      if (debug) console.log('[HOME NEARBY] HTTP:', error?.response?.status || error?.code || 'NETWORK_ERROR');
+      return responseBody;
+    } catch (error: unknown) {
+      if (debug) {
+        const requestError = error as {
+          response?: { status?: number };
+          code?: string;
+        } | null;
+        const errorCode =
+          requestError?.response?.status ||
+          requestError?.code ||
+          "NETWORK_ERROR";
+        console.log("[HOME NEARBY] HTTP:", errorCode);
+      }
       throw error;
     }
+  },
+
+  /**
+   * Lấy chi tiết thiết bị theo ID
+   */
+  async getDeviceById(
+    id: string,
+    options?: { throwOnError?: boolean },
+  ): Promise<Device | null> {
+    try {
+      const response = await apiClient.get(`/devices/${id}`);
+      if (response.data && response.data.data) {
+        return response.data.data;
+      }
+      if (response.data) {
+        return response.data;
+      }
+    } catch (error) {
+      console.error("[deviceService] Không thể lấy chi tiết thiết bị:", error);
+      if (options?.throwOnError) throw error;
+    }
+    return null;
   },
 };

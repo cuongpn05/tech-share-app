@@ -15,23 +15,23 @@ export const ADMIN_STRINGS = {
   KPIS: {
     RENTAL_VOLUME: {
       LABEL: 'Gross Rental Volume',
-      DEFAULT_VALUE: '51,330,000 VND',
-      TREND: '+18.4% this month',
+      DEFAULT_VALUE: '0 VND',
+      TREND: '',
     },
     USERS: {
       LABEL: 'Users',
-      DEFAULT_VALUE: '18 Accounts',
-      SUBTITLE: '3 Verified • 11 Active',
+      DEFAULT_VALUE: '0 Accounts',
+      SUBTITLE: '0 Verified • 0 Active',
     },
     DEVICES: {
       LABEL: 'Total Devices',
-      DEFAULT_VALUE: '102 Units',
-      SUBTITLE: '2 Rented • 98 Available',
+      DEFAULT_VALUE: '0 Units',
+      SUBTITLE: '0 Rented • 0 Available',
     },
     ORDERS: {
       LABEL: 'Rental Orders',
-      DEFAULT_VALUE: '21 Orders',
-      SUBTITLE: '9 Active • 12 Completed',
+      DEFAULT_VALUE: '0 Orders',
+      SUBTITLE: '0 Active • 0 Completed',
     },
   },
   ACTION_ITEMS: {
@@ -46,7 +46,7 @@ export const ADMIN_STRINGS = {
   SIDEBAR: {
     PROFILE: {
       NAME: 'Administrator',
-      EMAIL: 'admin@techshare.vn',
+      EMAIL: '',
     },
     SECTION_HEADER: 'SYSTEM ADMINISTRATION',
     MENU: {

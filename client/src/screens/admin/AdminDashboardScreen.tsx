@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../../config/api';
+import { API_BASE_URL, apiClient } from '../../config/api';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -6,11 +6,11 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   Platform,
   StatusBar,
   RefreshControl,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../theme/tokens';
 import { ADMIN_STRINGS } from '../../constants/adminStrings';
@@ -57,18 +57,18 @@ interface DashboardData {
 
 const DEFAULT_DASHBOARD_DATA: DashboardData = {
   kpis: {
-    rentalVolume: 51330000,
-    rentalVolumeFormatted: ADMIN_STRINGS.KPIS.RENTAL_VOLUME.DEFAULT_VALUE,
-    rentalVolumeTrend: ADMIN_STRINGS.KPIS.RENTAL_VOLUME.TREND,
-    totalUsers: 18,
-    verifiedUsers: 3,
-    activeUsers: 11,
-    totalDevices: 102,
-    rentedDevices: 2,
-    availableDevices: 98,
-    totalOrders: 21,
-    activeOrders: 9,
-    completedOrders: 12,
+    rentalVolume: 0,
+    rentalVolumeFormatted: '0 VND',
+    rentalVolumeTrend: '',
+    totalUsers: 0,
+    verifiedUsers: 0,
+    activeUsers: 0,
+    totalDevices: 0,
+    rentedDevices: 0,
+    availableDevices: 0,
+    totalOrders: 0,
+    activeOrders: 0,
+    completedOrders: 0,
   },
   actionItems: {
     pendingDisputes: 0,
@@ -76,12 +76,7 @@ const DEFAULT_DASHBOARD_DATA: DashboardData = {
     isSmooth: true,
     message: ADMIN_STRINGS.ACTION_ITEMS.STATUS_OK,
   },
-  categoryBreakdown: [
-    { id: 'cameras', name: ADMIN_STRINGS.CATEGORIES.CAMERAS, percentage: 45 },
-    { id: 'laptops', name: ADMIN_STRINGS.CATEGORIES.LAPTOPS, percentage: 30 },
-    { id: 'smartphones', name: ADMIN_STRINGS.CATEGORIES.SMARTPHONES, percentage: 15 },
-    { id: 'gaming', name: ADMIN_STRINGS.CATEGORIES.GAMING, percentage: 10 },
-  ],
+  categoryBreakdown: [],
 };
 
 const CATEGORY_STYLES: Record<
@@ -112,25 +107,23 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navi
 
   // Gọi API lấy dữ liệu trực tiếp từ MongoDB Atlas
   const fetchDashboardData = useCallback(async () => {
-    const apiEndpoints = [`${API_BASE_URL}/admin/dashboard`];
-
-    for (const url of apiEndpoints) {
+    try {
+      const response = await apiClient.get('/admin/dashboard');
+      if (response.data?.success && response.data?.data) {
+        setData(response.data.data);
+        return;
+      }
+    } catch {
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3500);
-
-        const response = await fetch(url, { signal: controller.signal });
-        clearTimeout(timeoutId);
-
-        if (response.ok) {
-          const result = await response.json();
+        const res = await fetch(`${API_BASE_URL}/admin/dashboard`);
+        if (res.ok) {
+          const result = await res.json();
           if (result && result.success && result.data) {
             setData(result.data);
-            return;
           }
         }
-      } catch {
-        // Thử URL tiếp theo nếu URL trước timeout hoặc lỗi
+      } catch (err) {
+        console.warn('Error fetching admin dashboard:', err);
       }
     }
   }, []);
@@ -152,21 +145,30 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navi
     }
   };
 
+  const insets = useSafeAreaInsets();
+  const topInset = Math.max(
+    insets.top,
+    Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 20
+  );
+  const bottomInset = Math.max(insets.bottom, 24);
+
   const { kpis, actionItems, categoryBreakdown } = data;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor={theme.colors.background} />
+    <View style={[styles.safeArea, { paddingTop: topInset }]}>
+      <StatusBar barStyle="dark-content" backgroundColor={theme.colors.background} translucent={true} />
 
       {/* 1. TOP HEADER BAR */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Menu"
             style={styles.menuButton}
             onPress={handleOpenDrawer}
             activeOpacity={0.7}
           >
-            <Ionicons name="menu" size={24} color={theme.colors.text.primary} />
+            <Ionicons name="menu-outline" size={24} color={theme.colors.text.primary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{ADMIN_STRINGS.HEADER.TITLE}</Text>
         </View>
@@ -174,7 +176,7 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navi
 
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomInset + 16 }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -209,12 +211,14 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navi
             <Text style={styles.kpiValue} numberOfLines={1} adjustsFontSizeToFit>
               {kpis.rentalVolumeFormatted}
             </Text>
-            <View style={styles.trendRow}>
-              <Ionicons name="trending-up" size={14} color={theme.colors.green} />
-              <Text style={styles.trendText}>
-                {kpis.rentalVolumeTrend}
-              </Text>
-            </View>
+            {kpis.rentalVolumeTrend ? (
+              <View style={styles.trendRow}>
+                <Ionicons name="trending-up" size={14} color={theme.colors.green} />
+                <Text style={styles.trendText}>
+                  {kpis.rentalVolumeTrend}
+                </Text>
+              </View>
+            ) : null}
           </View>
 
           {/* Card 2: Users */}
@@ -300,49 +304,56 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navi
         </View>
 
         <View style={styles.categoriesCard}>
-          {categoryBreakdown.map((cat, index) => {
-            const styleConfig = CATEGORY_STYLES[cat.id] || {
-              color: theme.colors.brand[500],
-              icon: 'cube-outline',
-            };
+          {categoryBreakdown.length === 0 ? (
+            <View style={styles.emptyCategoriesContainer}>
+              <Ionicons name="pie-chart-outline" size={32} color={theme.colors.text.muted} />
+              <Text style={styles.emptyCategoriesText}>Chưa có dữ liệu danh mục thiết bị</Text>
+            </View>
+          ) : (
+            categoryBreakdown.map((cat, index) => {
+              const styleConfig = CATEGORY_STYLES[cat.id] || {
+                color: theme.colors.brand[500],
+                icon: 'cube-outline',
+              };
 
-            return (
-              <View
-                key={cat.id}
-                style={[
-                  styles.categoryRow,
-                  index === categoryBreakdown.length - 1 && styles.categoryRowLast,
-                ]}
-              >
-                {/* Category Icon & Name */}
-                <View style={styles.categoryLeft}>
-                  <Ionicons
-                    name={styleConfig.icon}
-                    size={18}
-                    color={styleConfig.color}
-                    style={styles.categoryIcon}
-                  />
-                  <Text style={styles.categoryName}>{cat.name}</Text>
+              return (
+                <View
+                  key={cat.id}
+                  style={[
+                    styles.categoryRow,
+                    index === categoryBreakdown.length - 1 && styles.categoryRowLast,
+                  ]}
+                >
+                  {/* Category Icon & Name */}
+                  <View style={styles.categoryLeft}>
+                    <Ionicons
+                      name={styleConfig.icon}
+                      size={18}
+                      color={styleConfig.color}
+                      style={styles.categoryIcon}
+                    />
+                    <Text style={styles.categoryName}>{cat.name}</Text>
+                  </View>
+
+                  {/* Progress Bar Track & Fill */}
+                  <View style={styles.progressTrack}>
+                    <View
+                      style={[
+                        styles.progressFill,
+                        { width: `${cat.percentage}%`, backgroundColor: styleConfig.color },
+                      ]}
+                    />
+                  </View>
+
+                  {/* Percentage */}
+                  <Text style={styles.percentageText}>{cat.percentage}%</Text>
                 </View>
-
-                {/* Progress Bar Track & Fill */}
-                <View style={styles.progressTrack}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      { width: `${cat.percentage}%`, backgroundColor: styleConfig.color },
-                    ]}
-                  />
-                </View>
-
-                {/* Percentage */}
-                <Text style={styles.percentageText}>{cat.percentage}%</Text>
-              </View>
-            );
-          })}
+              );
+            })
+          )}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -350,14 +361,13 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: theme.colors.background,
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
+    paddingVertical: 12,
     backgroundColor: theme.colors.background,
   },
   headerLeft: {
@@ -366,19 +376,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   menuButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: theme.colors.surface,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: theme.colors.border.light,
+    borderColor: '#E2E8F0',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: theme.spacing.md,
-    ...theme.shadows.card,
+    marginRight: 12,
   },
   headerTitle: {
-    fontSize: theme.typography.fontSize['2xl'],
+    fontSize: 19,
     fontWeight: theme.typography.fontWeight.bold,
     color: theme.colors.text.primary,
   },
@@ -520,6 +529,16 @@ const styles = StyleSheet.create({
     color: theme.colors.text.primary,
     width: 38,
     textAlign: 'right',
+  },
+  emptyCategoriesContainer: {
+    paddingVertical: theme.spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyCategoriesText: {
+    marginTop: theme.spacing.sm,
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.muted,
   },
 });
 

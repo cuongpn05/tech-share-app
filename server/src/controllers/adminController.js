@@ -9,6 +9,7 @@ const Role = require('../models/Role');
 /**
  * Controller cung cấp dữ liệu phân tích và số liệu KPI cho Admin Dashboard
  * GET /api/admin/dashboard (hoặc /api/admin/analytics)
+ * Dữ liệu 100% được truy vấn từ MongoDB Atlas, không dùng dữ liệu dự phòng/giả lập.
  */
 const getDashboardStats = async (req, res) => {
   try {
@@ -29,7 +30,9 @@ const getDashboardStats = async (req, res) => {
       pendingEkycCount,
     ] = await Promise.all([
       Account.countDocuments(),
-      User.countDocuments({ isVerified: true }),
+      User.countDocuments({
+        $or: [{ 'trust.isVerified': true }, { isVerified: true }],
+      }),
       Account.countDocuments({ isActive: true }),
 
       Device.countDocuments({ isDeleted: { $ne: true } }),
@@ -42,7 +45,19 @@ const getDashboardStats = async (req, res) => {
 
       Booking.aggregate([
         { $match: { status: 'completed' } },
-        { $group: { _id: null, total: { $sum: '$rentalFee' } } },
+        {
+          $group: {
+            _id: null,
+            total: {
+              $sum: {
+                $ifNull: [
+                  '$pricing.totalAmount',
+                  { $ifNull: ['$pricing.rentalFee', '$rentalFee'] },
+                ],
+              },
+            },
+          },
+        },
       ]),
 
       Device.aggregate([
@@ -54,91 +69,74 @@ const getDashboardStats = async (req, res) => {
       EkycRequest.countDocuments({ status: 'pending' }),
     ]);
 
-    // 2. Tính toán Gross Rental Volume
-    const rawRevenue = revenueResult.length > 0 && revenueResult[0].total ? revenueResult[0].total : 0;
-    // Nếu trong DB chưa có đơn hoàn tất, dùng dữ liệu mẫu mặc định 51,330,000 VND
-    const rentalVolume = rawRevenue > 0 ? rawRevenue : 51330000;
-    const formattedVolume = new Intl.NumberFormat('vi-VN').format(rentalVolume) + ' VND';
+    // 2. Tính toán Gross Rental Volume thực tế từ DB
+    const rawRevenue =
+      revenueResult.length > 0 && revenueResult[0].total
+        ? Number(revenueResult[0].total)
+        : 0;
+    const formattedVolume =
+      new Intl.NumberFormat('vi-VN').format(rawRevenue) + ' VND';
 
-    // 3. Chuẩn hóa số liệu Người dùng
-    const totalUsers = totalUsersCount > 0 ? totalUsersCount : 18;
-    const verifiedUsers = verifiedUsersCount > 0 ? verifiedUsersCount : 3;
-    const activeUsers = activeUsersCount > 0 ? activeUsersCount : 11;
+    // 3. Số liệu Người dùng thực tế
+    const totalUsers = totalUsersCount;
+    const verifiedUsers = verifiedUsersCount;
+    const activeUsers = activeUsersCount;
 
-    // 4. Chuẩn hóa số liệu Thiết bị
-    const totalDevices = totalDevicesCount > 0 ? totalDevicesCount : 102;
-    const rentedDevices = rentedDevicesCount > 0 ? rentedDevicesCount : 2;
-    const availableDevices = availableDevicesCount > 0 ? availableDevicesCount : 98;
+    // 4. Số liệu Thiết bị thực tế
+    const totalDevices = totalDevicesCount;
+    const rentedDevices = rentedDevicesCount;
+    const availableDevices = availableDevicesCount;
 
-    // 5. Chuẩn hóa số liệu Đơn thuê
-    const totalOrders = totalOrdersCount > 0 ? totalOrdersCount : 21;
-    const activeOrders = activeOrdersCount > 0 ? activeOrdersCount : 9;
-    const completedOrders = completedOrdersCount > 0 ? completedOrdersCount : 12;
+    // 5. Số liệu Đơn thuê thực tế
+    const totalOrders = totalOrdersCount;
+    const activeOrders = activeOrdersCount;
+    const completedOrders = completedOrdersCount;
 
-    // 6. Tính toán phân bổ 4 danh mục
-    const categoryCounts = {
-      cameras: 0,
-      laptops: 0,
-      smartphones: 0,
-      gaming: 0,
-    };
+    // 6. Tính toán phân bổ danh mục theo dữ liệu thực tế từ DB
+    const categoryCounts = {};
+    let totalCategorized = 0;
 
     categoryGroupResult.forEach((item) => {
       if (!item._id) return;
-      const cat = item._id.toLowerCase();
-      if (cat === 'camera') categoryCounts.cameras += item.count;
-      else if (cat === 'laptop') categoryCounts.laptops += item.count;
-      else if (cat === 'smartphone') categoryCounts.smartphones += item.count;
-      else if (cat === 'gaming' || cat === 'drone') categoryCounts.gaming += item.count;
-      else categoryCounts.cameras += item.count;
+      const cat = String(item._id).trim();
+      categoryCounts[cat] = (categoryCounts[cat] || 0) + item.count;
+      totalCategorized += item.count;
     });
 
-    const totalCategorized =
-      categoryCounts.cameras +
-      categoryCounts.laptops +
-      categoryCounts.smartphones +
-      categoryCounts.gaming;
+    const categoryNamesMap = {
+      camera: 'Cameras & Lenses',
+      cameras: 'Cameras & Lenses',
+      laptop: 'Graphic Laptops',
+      laptops: 'Graphic Laptops',
+      smartphone: 'Smartphones',
+      smartphones: 'Smartphones',
+      gaming: 'Gaming & Drones',
+      drone: 'Gaming & Drones',
+    };
 
     let categoryBreakdown = [];
     if (totalCategorized > 0) {
-      categoryBreakdown = [
-        {
-          id: 'cameras',
-          name: 'Cameras & Lenses',
-          percentage: Math.round((categoryCounts.cameras / totalCategorized) * 100),
-        },
-        {
-          id: 'laptops',
-          name: 'Graphic Laptops',
-          percentage: Math.round((categoryCounts.laptops / totalCategorized) * 100),
-        },
-        {
-          id: 'smartphones',
-          name: 'Smartphones',
-          percentage: Math.round((categoryCounts.smartphones / totalCategorized) * 100),
-        },
-        {
-          id: 'gaming',
-          name: 'Gaming & Drones',
-          percentage: Math.round((categoryCounts.gaming / totalCategorized) * 100),
-        },
-      ];
-    } else {
-      categoryBreakdown = [
-        { id: 'cameras', name: 'Cameras & Lenses', percentage: 45 },
-        { id: 'laptops', name: 'Graphic Laptops', percentage: 30 },
-        { id: 'smartphones', name: 'Smartphones', percentage: 15 },
-        { id: 'gaming', name: 'Gaming & Drones', percentage: 10 },
-      ];
+      categoryBreakdown = Object.keys(categoryCounts).map((catKey) => {
+        const lowerKey = catKey.toLowerCase();
+        const displayName = categoryNamesMap[lowerKey] || catKey;
+        const count = categoryCounts[catKey];
+        const percentage = Math.round((count / totalCategorized) * 100);
+        return {
+          id: lowerKey,
+          name: displayName,
+          percentage,
+          count,
+        };
+      });
     }
 
     return res.status(200).json({
       success: true,
       data: {
         kpis: {
-          rentalVolume,
+          rentalVolume: rawRevenue,
           rentalVolumeFormatted: formattedVolume,
-          rentalVolumeTrend: '+18.4% this month',
+          rentalVolumeTrend: '',
           totalUsers,
           verifiedUsers,
           activeUsers,
@@ -155,8 +153,8 @@ const getDashboardStats = async (req, res) => {
           isSmooth: pendingDisputesCount === 0 && pendingEkycCount === 0,
           message:
             pendingDisputesCount === 0 && pendingEkycCount === 0
-              ? 'System operating smoothly • No pending disputes or verification requests'
-              : `Attention: ${pendingDisputesCount} pending disputes • ${pendingEkycCount} eKYC requests`,
+              ? 'Hệ thống vận hành ổn định • Không có tranh chấp hoặc yêu cầu xác minh chờ xử lý'
+              : `Cần chú ý: ${pendingDisputesCount} tranh chấp chờ xử lý • ${pendingEkycCount} yêu cầu eKYC`,
         },
         categoryBreakdown,
         lastUpdated: new Date().toISOString(),

@@ -7,6 +7,30 @@ const positiveInteger = (value, fallback) => {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 };
 
+const getAvailableDevices = asyncHandler(async (req, res) => {
+  const rawLimit = req.query.limit;
+  const requestedLimit = rawLimit === undefined ? 100 : Number(rawLimit);
+  if (rawLimit !== undefined &&
+      (typeof rawLimit !== "string" || !/^\d+$/.test(rawLimit) ||
+        !Number.isSafeInteger(requestedLimit) || requestedLimit < 1)) {
+    return res.status(400).json({ success: false, message: "limit must be a positive integer" });
+  }
+  const limit = Math.min(requestedLimit, 100);
+  const devices = await Device.find({
+    status: "available",
+    moderationStatus: "approved",
+    isDeleted: false,
+  })
+    .sort({ createdAt: -1, _id: 1 })
+    .limit(limit);
+
+  return res.status(200).json({
+    success: true,
+    count: devices.length,
+    data: devices,
+  });
+});
+
 const getNearbyDevices = asyncHandler(async (req, res) => {
   if (req.query.radius !== undefined && req.query.maxDistance !== undefined &&
       req.query.radius !== req.query.maxDistance) {
@@ -133,4 +157,37 @@ const uploadDeviceImage = asyncHandler(async (req, res) => {
   });
 });
 
-module.exports = { getNearbyDevices, getMyDevices, createDevice, uploadDeviceImage };
+const getDeviceById = asyncHandler(async (req, res) => {
+  if (!/^[a-fA-F0-9]{24}$/.test(req.params.id)) {
+    return res.status(400).json({
+      success: false,
+      message: "ID thiết bị không hợp lệ",
+    });
+  }
+
+  const device = await Device.findOne({
+    _id: req.params.id,
+    isDeleted: false,
+  }).populate("ownerId", "name avatar rating isVerified address phone email");
+
+  if (!device) {
+    return res.status(404).json({
+      success: false,
+      message: "Không tìm thấy thiết bị",
+    });
+  }
+
+  res.status(200).json({
+    success: true,
+    data: device,
+  });
+});
+
+module.exports = {
+  getAvailableDevices,
+  getNearbyDevices,
+  getMyDevices,
+  createDevice,
+  uploadDeviceImage,
+  getDeviceById,
+};

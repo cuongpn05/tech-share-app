@@ -9,9 +9,13 @@ import {
   StatusBar,
   Image,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/tokens';
 import { ADMIN_STRINGS } from '../constants/adminStrings';
+
+import { useAppDispatch, useAppSelector } from '../store';
+import { clearAuth } from '../store/slices/authSlice';
 
 export interface AdminSidebarContentProps {
   navigation?: any;
@@ -68,41 +72,67 @@ export const AdminSidebarContent: React.FC<AdminSidebarContentProps> = ({
   navigation,
   activeRoute = 'AdminDashboard',
 }) => {
+  const insets = useSafeAreaInsets();
+  const topInset = Math.max(
+    insets.top,
+    Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 20
+  );
+  const bottomInset = Math.max(insets.bottom, 16);
+
+  const dispatch = useAppDispatch();
+  const currentUser = useAppSelector((state) => state.auth.user);
+  const displayName = currentUser?.name || currentUser?.username || 'Administrator';
+  const displayEmail = currentUser?.email || '';
+  const displayAvatar = currentUser?.avatar;
+
   const handleNavigate = (routeName: string) => {
     if (navigation?.navigate) {
       navigation.navigate(routeName);
     }
   };
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     if (navigation?.closeDrawer) {
       navigation.closeDrawer();
     }
+    dispatch(clearAuth());
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: topInset + 12, paddingBottom: bottomInset }]}>
       {/* 1. PROFILE HEADER */}
       <View style={styles.header}>
-        <View style={styles.profileRow}>
-          {/* Avatar phụ nữ xanh tím như trong ảnh thiết kế */}
+        <TouchableOpacity
+          style={styles.profileRow}
+          onPress={() => handleNavigate('Profile')}
+          activeOpacity={0.7}
+        >
           <View style={styles.avatarContainer}>
-            <Image
-              source={{
-                uri: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
-              }}
-              style={styles.avatarImage}
-            />
+            {displayAvatar ? (
+              <Image
+                source={{ uri: displayAvatar }}
+                style={styles.avatarImage}
+              />
+            ) : (
+              <Ionicons
+                name="shield-checkmark"
+                size={26}
+                color={theme.colors.purple}
+              />
+            )}
           </View>
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>
-              {ADMIN_STRINGS.SIDEBAR.PROFILE.NAME}
+            <Text style={styles.profileName} numberOfLines={1}>
+              {displayName}
             </Text>
-            <Text style={styles.profileEmail}>
-              {ADMIN_STRINGS.SIDEBAR.PROFILE.EMAIL}
-            </Text>
+            {displayEmail ? (
+              <Text style={styles.profileEmail} numberOfLines={1}>
+                {displayEmail}
+              </Text>
+            ) : null}
           </View>
-        </View>
+          <Ionicons name="chevron-forward" size={18} color={theme.colors.text.muted} />
+        </TouchableOpacity>
       </View>
 
       {/* Đường kẻ phân cách */}
@@ -178,7 +208,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.surface,
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 16 : 48,
     paddingHorizontal: theme.spacing.md,
   },
   header: {
@@ -264,8 +293,7 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.bold,
   },
   footer: {
-    paddingVertical: theme.spacing.md,
-    paddingBottom: Platform.OS === 'android' ? 24 : 36,
+    paddingVertical: theme.spacing.sm,
   },
   signOutButton: {
     flexDirection: 'row',
