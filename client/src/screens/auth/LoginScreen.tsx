@@ -102,6 +102,17 @@ export function LoginScreen({
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.cardContainer}>
+          {/* Back or Close button if navigated from guest flow */}
+          {navigation?.canGoBack?.() && (
+            <TouchableOpacity
+              style={styles.closeBtn}
+              onPress={() => navigation.goBack()}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="close" size={24} color={theme.colors.text.secondary} />
+            </TouchableOpacity>
+          )}
+
           {/* Logo & Header */}
           <View style={styles.header}>
             <View style={styles.logoBadge}>
@@ -240,6 +251,21 @@ export function LoginScreen({
               <Text style={styles.registerLink}>Sign up</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Guest explore option */}
+          <TouchableOpacity
+            style={styles.guestLinkButton}
+            onPress={() => {
+              if (navigation?.canGoBack && navigation.canGoBack()) {
+                navigation.goBack();
+              } else if (navigation?.navigate) {
+                navigation.navigate('Home');
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.guestLinkText}>Khám phá với vai trò Khách →</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -250,6 +276,20 @@ const styles = StyleSheet.create({
   rootContainer: {
     flex: 1,
     backgroundColor: theme.colors.background,
+  },
+  closeBtn: {
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+  },
+  guestLinkButton: {
+    marginTop: 18,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  guestLinkText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.colors.brand[500],
   },
   scrollContent: {
     flexGrow: 1,
