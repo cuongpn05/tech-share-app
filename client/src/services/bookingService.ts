@@ -7,11 +7,17 @@ export interface ExtensionRequestInfo {
   status?: 'none' | 'pending' | 'approved' | 'rejected';
 }
 
+export interface BookingTimelineItem {
+  status: string;
+  timestamp?: string;
+  note?: string;
+}
+
 export interface Booking {
   _id: string;
   bookingCode: string;
   deviceId: any;
-  renterId: string;
+  renterId: any;
   ownerId: any;
   startDate: string;
   endDate: string;
@@ -19,8 +25,10 @@ export interface Booking {
   pricePerDayAtBooking?: number;
   rentalFee?: number;
   depositFee?: number;
+  voucherDiscount?: number;
+  voucherCode?: string;
   totalAmount: number;
-  status: 'pending' | 'approved' | 'active' | 'completed' | 'cancelled' | 'rejected';
+  status: 'pending' | 'approved' | 'active' | 'completed' | 'cancelled' | 'rejected' | 'disputed';
   paymentStatus: 'unpaid' | 'deposit_held' | 'paid' | 'refunded' | 'disputed';
   deliveryMethod?: 'pickup' | 'delivery' | string;
   deliveryAddress?: string;
@@ -36,10 +44,12 @@ export interface Booking {
     after?: string;
   };
   extensionRequest?: ExtensionRequestInfo;
+  timeline?: BookingTimelineItem[];
   isReviewed?: boolean;
   reviewId?: string;
   createdAt: string;
 }
+
 
 export const bookingService = {
   createBooking: async (payload: any) => {

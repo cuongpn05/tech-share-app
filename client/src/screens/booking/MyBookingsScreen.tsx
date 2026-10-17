@@ -82,7 +82,7 @@ export function MyBookingsScreen({
       const data = await bookingService.getMyBookings(status);
       setBookings(data || []);
     } catch (error) {
-      console.warn('Lỗi tải danh sách đơn thuê:', error);
+      console.warn('Error loading bookings list:', error);
     } finally {
       setLoading(false);
     }

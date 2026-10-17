@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Device = require('../models/Device');
 const { createAndSendNotification } = require('../services/notificationService');
 const { getIO } = require('../socket');
+const { uploadToCloudinary } = require('../utils/cloudinary');
 
 /**
  * 1. LẤY DANH SÁCH CÁC CUỘC HỘI THOẠI (GET /api/chats/conversations)
@@ -370,44 +371,16 @@ const uploadChatImage = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No image uploaded' });
     }
 
-    // Nếu có cấu hình Cloudinary ENV, upload trực tiếp lên Cloudinary API
-    if (
-      process.env.CLOUDINARY_CLOUD_NAME &&
-      process.env.CLOUDINARY_API_KEY &&
-      process.env.CLOUDINARY_API_SECRET
-    ) {
-      try {
-        const crypto = require('crypto');
-        const timestamp = Math.round(new Date().getTime() / 1000);
-        const signature = crypto
-          .createHash('sha1')
-          .update(`timestamp=${timestamp}${process.env.CLOUDINARY_API_SECRET}`)
-          .digest('hex');
-
-        const formData = new FormData();
-        const blob = new Blob([req.file.buffer], { type: req.file.mimetype || 'image/jpeg' });
-        formData.append('file', blob);
-        formData.append('api_key', process.env.CLOUDINARY_API_KEY);
-        formData.append('timestamp', String(timestamp));
-        formData.append('signature', signature);
-
-        const cldRes = await fetch(
-          `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload`,
-          { method: 'POST', body: formData }
-        );
-        const cldJson = await cldRes.json();
-        if (cldJson.secure_url) {
-          return res.status(200).json({
-            success: true,
-            data: { url: cldJson.secure_url },
-          });
-        }
-      } catch (cldErr) {
-        console.warn('[Chat Controller] Cloudinary upload fallback to data URI:', cldErr.message);
-      }
+    // Tải ảnh trực tiếp lên Cloudinary với preset và cloud_name từ .env
+    const secureUrl = await uploadToCloudinary(req.file, 'techshare/chats');
+    if (secureUrl) {
+      return res.status(200).json({
+        success: true,
+        data: { url: secureUrl },
+      });
     }
 
-    // Chuyển buffer thành Base64 Data URI để render ngay lập tức trên app
+    // Fallback: Chuyển buffer thành Base64 Data URI để render tạm thời nếu Cloudinary offline
     const base64Data = req.file.buffer.toString('base64');
     const mimeType = req.file.mimetype || 'image/jpeg';
     const dataUri = `data:${mimeType};base64,${base64Data}`;

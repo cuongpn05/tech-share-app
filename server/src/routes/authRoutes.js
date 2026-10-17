@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
 const { requireAuth } = require('../middlewares/authMiddleware');
+const { uploadFlexibleImage } = require('../middlewares/uploadMiddleware');
 
 // Endpoint đăng nhập
 router.post('/login', authController.login);
@@ -11,5 +12,10 @@ router.get('/me', requireAuth, authController.getMe);
 
 // Endpoint cập nhật thông tin cá nhân
 router.put('/me', requireAuth, authController.updateMe);
+
+// Endpoint upload avatar lên Cloudinary và lưu vào database
+router.post('/avatar', requireAuth, uploadFlexibleImage, authController.updateAvatar);
+router.patch('/avatar', requireAuth, uploadFlexibleImage, authController.updateAvatar);
+router.post('/me/avatar', requireAuth, uploadFlexibleImage, authController.updateAvatar);
 
 module.exports = router;

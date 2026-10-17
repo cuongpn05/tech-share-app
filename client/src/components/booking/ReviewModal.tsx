@@ -141,7 +141,7 @@ export function ReviewModal({ visible, onClose, booking, onSuccess }: ReviewModa
               </View>
             </View>
 
-            {/* ── SECTION 1: ĐÁNH GIÁ SẢN PHẨM / THIẾT BỊ ── */}
+            {/* ── SECTION 1: DEVICE REVIEW & RATINGS ── */}
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
                 <Ionicons name="hardware-chip-outline" size={18} color={colors.light.primary} />
@@ -200,7 +200,7 @@ export function ReviewModal({ visible, onClose, booking, onSuccess }: ReviewModa
               />
             </View>
 
-            {/* ── SECTION 2: ĐÁNH GIÁ DỊCH VỤ CỦA CHỦ MÁY ── */}
+            {/* ── SECTION 2: OWNER SERVICE REVIEW ── */}
             <View style={[styles.section, styles.ownerSection]}>
               <View style={styles.sectionHeaderRow}>
                 <Ionicons name="person-circle-outline" size={18} color={colors.light.primaryDark} />

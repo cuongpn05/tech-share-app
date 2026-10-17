@@ -1,6 +1,10 @@
 const Device = require("../models/Device");
 require("../models/User");
 const { asyncHandler } = require("../middlewares/asyncHandler");
+const { uploadToCloudinary } = require("../utils/cloudinary");
+const path = require("path");
+const fs = require("fs");
+const crypto = require("crypto");
 const positiveInteger = (value, fallback) => {
   if (typeof value !== "string" || !/^\d+$/.test(value)) return fallback;
   const parsed = Number(value);
@@ -151,9 +155,27 @@ const uploadDeviceImage = asyncHandler(async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, message: "Please upload a JPEG, PNG, or WebP image." });
   }
+
+  // Tải ảnh trực tiếp lên Cloudinary với preset và cloud_name từ file .env
+  const secureUrl = await uploadToCloudinary(req.file, "techshare/devices");
+  if (secureUrl) {
+    return res.status(201).json({
+      success: true,
+      data: { url: secureUrl },
+    });
+  }
+
+  // Dự phòng lưu trữ local nếu Cloudinary tạm thời mất kết nối
+  const uploadDir = path.resolve(__dirname, "../../uploads");
+  if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+  const filename = `${crypto.randomUUID()}-${req.file.originalname || "device.jpg"}`;
+  const filepath = path.join(uploadDir, filename);
+  if (req.file.buffer) {
+    fs.writeFileSync(filepath, req.file.buffer);
+  }
   return res.status(201).json({
     success: true,
-    data: { url: `/uploads/${req.file.filename}` },
+    data: { url: `/uploads/${filename}` },
   });
 });
 

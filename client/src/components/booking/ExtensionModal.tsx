@@ -148,7 +148,7 @@ export function ExtensionModal({
             </View>
           ) : (
             <>
-              {/* Stepper chọn số ngày */}
+              {/* Extension days stepper */}
               <View style={styles.section}>
                 <Text style={styles.sectionLabel}>{STRINGS.EXTENSION_MODAL.SECTION_LABEL}</Text>
                 <View style={styles.stepperRow}>
