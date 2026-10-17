@@ -40,6 +40,8 @@ const COLUMN_WIDTH = (SCREEN_WIDTH - 40) / 2; // 16px screen padding + 8px gap
 
 
 interface HomeScreenProps {
+  navigation?: any;
+  onNavigateToLogin?: () => void;
   onNavigateToDeviceDetail?: (deviceId: string) => void;
   showOwnerDashboard?: boolean;
   searchValue?: string;
@@ -58,6 +60,8 @@ interface HomeScreenProps {
 }
 
 export function HomeScreen({
+  navigation,
+  onNavigateToLogin,
   onNavigateToDeviceDetail,
   showOwnerDashboard = false,
   searchValue = '',
@@ -91,6 +95,7 @@ export function HomeScreen({
     isLoadingMore,
     hasLoaded,
   } = useAppSelector(state => state.devices);
+  const { isAuthenticated } = useAppSelector(state => state.auth);
 
   const searchInput = searchValue;
   const searchEnabled = !!onSearchChange;
@@ -229,14 +234,33 @@ export function HomeScreen({
           </View>
         </View>
 
-        {/* Chat + Thông báo + Wishlist — dùng HeaderActions component */}
-        <HeaderActions
-          unreadMessages={unreadMessages}
-          unreadNotifications={unreadNotifications}
-          onPressWishlist={onNavigateToWishlist}
-          onPressChat={onNavigateToChat}
-          onPressNotifications={onNavigateToNotifications}
-        />
+        {/* Chat + Thông báo + Wishlist nếu đã đăng nhập, hoặc nút Login nếu chưa đăng nhập */}
+        {isAuthenticated ? (
+          <HeaderActions
+            unreadMessages={unreadMessages}
+            unreadNotifications={unreadNotifications}
+            onPressWishlist={onNavigateToWishlist}
+            onPressChat={onNavigateToChat}
+            onPressNotifications={onNavigateToNotifications}
+          />
+        ) : (
+          <TouchableOpacity
+            style={styles.headerLoginButton}
+            onPress={() => {
+              if (onNavigateToLogin) {
+                onNavigateToLogin();
+              } else if (navigation?.navigate) {
+                navigation.navigate('Login');
+              }
+            }}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Login"
+          >
+            <Ionicons name="log-in-outline" size={16} color="#FFFFFF" style={styles.headerLoginIcon} />
+            <Text style={styles.headerLoginText}>Login</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* BANNER CHUYỂN NHANH VỀ BẢNG ĐIỀU KHIỂN CHỦ MÁY */}
@@ -523,6 +547,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 8,
+  },
+  headerLoginButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.light.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    shadowColor: colors.light.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  headerLoginIcon: {
+    marginRight: 4,
+  },
+  headerLoginText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   ownerSwitchBanner: {
     flexDirection: 'row',
