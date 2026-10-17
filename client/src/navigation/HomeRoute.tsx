@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppSelector } from '../store';
 import { HomeScreen } from '../screens/home/HomeScreen';
 import { MyBookingsScreen } from '../screens/booking/MyBookingsScreen';
+import { AiCompareScreen } from '../screens/ai/AiCompareScreen';
 import { BottomTabNavigator } from '../components/navigation/BottomTabNavigator';
 import { chatService } from '../services/chatService';
 import { socketService } from '../services/socketService';

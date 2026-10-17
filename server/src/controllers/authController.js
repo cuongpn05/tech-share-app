@@ -188,6 +188,38 @@ const getMe = async (req, res) => {
 };
 
 /**
+ * Cập nhật avatar cá nhân lên Cloudinary
+ */
+const updateAvatar = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'Vui lòng chọn ảnh đại diện.' });
+    }
+
+    const secureUrl = await uploadToCloudinary(req.file, 'techshare/avatars');
+    if (!secureUrl) {
+      return res.status(502).json({ success: false, message: 'Upload ảnh đại diện lên Cloudinary thất bại.' });
+    }
+
+    const userId = req.user?._id || req.auth?.id || req.auth?._id;
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $set: { avatar: secureUrl } },
+      { new: true }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Cập nhật ảnh đại diện thành công',
+      data: { avatar: secureUrl, user },
+    });
+  } catch (error) {
+    console.error('Lỗi updateAvatar:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
  * Cập nhật thông tin user hiện tại
  */
 const updateMe = async (req, res) => {
@@ -560,6 +592,7 @@ const resendRegisterOtp = async (req, res) => {
 module.exports = {
   login,
   getMe,
+  updateAvatar,
   updateMe,
   sendRegisterOtp,
   verifyRegisterOtp,

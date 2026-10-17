@@ -185,15 +185,6 @@ export function BookingCreateScreen({
     return null;
   };
 
-  const currentActiveBooking = useMemo(() => {
-    const now = new Date();
-    return busyRanges.find((b) => {
-      const bStart = new Date(b.startDate);
-      const bEnd = new Date(b.endDate);
-      return b.status === 'active' && now >= bStart && now <= bEnd;
-    });
-  }, [busyRanges]);
-
   const openPicker = (type: 'start' | 'end') => {
     setPickerConfig({ visible: true, type });
   };
@@ -259,12 +250,29 @@ export function BookingCreateScreen({
     setPickerConfig({ ...pickerConfig, visible: false });
   };
 
-  const calculateDays = () => {
-    if (!startDate || !endDate) return 0;
-    const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays === 0 ? 1 : diffDays;
-  };
+  const durationInfo = useMemo(() => {
+    if (!startDate || !endDate) {
+      return { totalHours: 0, days: 0, hours: 0, billableDays: 0, displayText: '' };
+    }
+    const diffMs = Math.abs(endDate.getTime() - startDate.getTime());
+    const totalHours = Math.max(1, Math.round(diffMs / (1000 * 60 * 60)));
+    const days = Math.floor(totalHours / 24);
+    const hours = totalHours % 24;
+    const billableDays = Math.max(1, Math.ceil(totalHours / 24));
+
+    let displayText = '';
+    if (days > 0 && hours > 0) {
+      displayText = `${days}d ${hours}h (${totalHours}h)`;
+    } else if (days > 0) {
+      displayText = `${days} ${days === 1 ? 'day' : 'days'} (${totalHours}h)`;
+    } else {
+      displayText = `${totalHours} ${totalHours === 1 ? 'hour' : 'hours'}`;
+    }
+
+    return { totalHours, days, hours, billableDays, displayText };
+  }, [startDate, endDate]);
+
+  const calculateDays = () => durationInfo.billableDays;
 
   const handleQuickSelectDuration = (days: number) => {
     let base = startDate;
@@ -486,26 +494,15 @@ export function BookingCreateScreen({
                 <Text style={styles.sectionSubtitle}>{STRINGS.BOOKING_CREATE.PICKUP_RETURN_SCHEDULE}</Text>
               </View>
             </View>
-            {rentalDays > 0 && startDate && endDate && (
+            {durationInfo.totalHours > 0 && startDate && endDate && (
               <View style={styles.durationPill}>
                 <Ionicons name="time-outline" size={12} color={colors.light.primary} />
                 <Text style={styles.durationPillText}>
-                  {rentalDays} {rentalDays === 1 ? 'day' : 'days'}
+                  {durationInfo.displayText}
                 </Text>
               </View>
             )}
           </View>
-
-          {currentActiveBooking && (
-            <View style={styles.activeBusyAlertBox}>
-              <Ionicons name="warning" size={16} color={colors.light.error} />
-              <Text style={styles.activeBusyAlertText}>
-                {STRINGS.BOOKING_CREATE.RENTED_UNTIL_ALERT(
-                  formatDateOnly(new Date(currentActiveBooking.endDate))
-                )}
-              </Text>
-            </View>
-          )}
 
           {/* Connected Step Cards */}
           <View style={styles.scheduleCardsWrapper}>
@@ -1444,23 +1441,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: colors.light.primary,
-  },
-  activeBusyAlertBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: colors.light.dangerLight,
-    borderWidth: 1,
-    borderColor: colors.light.error,
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  activeBusyAlertText: {
-    fontSize: 12,
-    color: colors.light.error,
-    flex: 1,
-    lineHeight: 16,
   },
   scheduleCardsWrapper: {
     gap: 0,

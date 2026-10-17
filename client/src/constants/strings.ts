@@ -772,20 +772,25 @@ export const STRINGS = {
     SKIP: 'Skip',
     SAVE_RECORD_BTN: 'Save Handover Record',
     TAKE_PHOTO_BADGE: 'Take Photo',
+    NOT_ALLOWED_ACTIVE: 'Handover photos can only be captured and updated before device handover (approved status). Once active, handover records are locked.',
   },
 
   RENTAL_COUNTDOWN: {
     REMAINING_TITLE: 'Remaining Rental Time',
+    SCHEDULED_TITLE: 'Total Rental Duration',
     OVERDUE_TITLE: 'Rental Overdue',
     URGENT_TITLE: 'Urgent: Return within 2 hours',
     WARNING_TITLE: 'Expiring soon (< 6h)',
     OVERDUE_BADGE: 'OVERDUE',
+    STARTS_AT_PICKUP_BADGE: 'STARTS AT PICKUP',
     DAYS: 'Days',
     HOURS: 'Hours',
     MINS: 'Mins',
     SECS: 'Secs',
     COMPACT_REMAINING_PREFIX: 'Remaining: ',
     COMPACT_OVERDUE_PREFIX: 'Overdue: ',
+    COMPACT_SCHEDULED_PREFIX: 'Duration: ',
+    SCHEDULED_HELPER: 'Timer will begin counting down once current time reaches pickup time.',
   },
 
   MY_BOOKINGS: {
@@ -905,6 +910,7 @@ export const STRINGS = {
     UPDATE_RETAKE_PHOTOS: 'Update / Retake handover photos',
     NO_PHOTOS_TITLE: 'No handover photos saved yet',
     NO_PHOTOS_DESC: 'Capture all 4 angles and accessories when receiving the device to protect your deposit.',
+    NO_PHOTOS_ACTIVE_DESC: 'No handover photos were recorded before rental activation. Handover record is now locked.',
     TAKE_PHOTOS_CTA: 'Take Handover Photos (4 angles)',
     SHOW_QR_CTA: 'Show Handover QR Code',
     CANCEL_BOOKING: 'Cancel Booking',
@@ -1056,6 +1062,9 @@ export const STRINGS = {
     YOUR_DEVICES_DESC: 'Devices you have already listed for rent.',
     LOADING_DEVICES: 'Loading your devices...',
     NO_DEVICES_YET: 'You have not listed any device yet.',
+    PREVIOUS_PAGE: 'Previous',
+    NEXT_PAGE: 'Next',
+    PAGE_OF: (page: number, totalPages: number) => `Page ${page} of ${totalPages}`,
     SECTION_PHOTOS: 'Device Photos',
     REMOVE_PHOTO: 'Remove photo',
     ADD_PHOTOS_TITLE: 'Add device photos',
@@ -1733,6 +1742,4 @@ export const STRINGS = {
     VIEW_MESSAGE: 'View',
   },
 } as const;
-
-
 

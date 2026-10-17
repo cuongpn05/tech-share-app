@@ -5,6 +5,7 @@ import { colors } from '../../theme/colors';
 import { STRINGS } from '../../constants/strings';
 
 interface RentalCountdownTimerProps {
+  startDate?: string | Date;
   endDate: string | Date;
   compact?: boolean;
 }
@@ -18,11 +19,40 @@ interface TimeRemaining {
   isExpired: boolean;
   isUrgent: boolean; // <= 2 hours
   isWarning: boolean; // <= 6 hours
+  isPendingStart: boolean; // now < startDate
 }
 
-const calculateTimeRemaining = (targetDate: string | Date): TimeRemaining => {
+const calculateTimeRemaining = (
+  targetDate: string | Date,
+  startDate?: string | Date
+): TimeRemaining => {
   const end = new Date(targetDate).getTime();
   const now = Date.now();
+  const start = startDate ? new Date(startDate).getTime() : 0;
+
+  // If startDate is set and current time has not reached startDate yet:
+  // Display total duration between startDate and endDate, timer has NOT started running
+  if (startDate && now < start) {
+    const totalRentalDiff = Math.max(0, end - start);
+    const days = Math.floor(totalRentalDiff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((totalRentalDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((totalRentalDiff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((totalRentalDiff % (1000 * 60)) / 1000);
+
+    return {
+      totalMs: totalRentalDiff,
+      days,
+      hours,
+      minutes,
+      seconds,
+      isExpired: false,
+      isUrgent: false,
+      isWarning: false,
+      isPendingStart: true,
+    };
+  }
+
+  // When current time reaches or passes startDate (now >= start): countdown timer begins running towards endDate
   const diff = end - now;
 
   if (diff <= 0) {
@@ -41,6 +71,7 @@ const calculateTimeRemaining = (targetDate: string | Date): TimeRemaining => {
       isExpired: true,
       isUrgent: true,
       isWarning: true,
+      isPendingStart: false,
     };
   }
 
@@ -60,24 +91,26 @@ const calculateTimeRemaining = (targetDate: string | Date): TimeRemaining => {
     isExpired: false,
     isUrgent: hoursRemaining <= 2,
     isWarning: hoursRemaining <= 6,
+    isPendingStart: false,
   };
 };
 
 export function RentalCountdownTimer({
+  startDate,
   endDate,
   compact = false,
 }: RentalCountdownTimerProps) {
-  const [timeLeft, setTimeLeft] = useState(calculateTimeRemaining(endDate));
+  const [timeLeft, setTimeLeft] = useState(() => calculateTimeRemaining(endDate, startDate));
 
   useEffect(() => {
-    setTimeLeft(calculateTimeRemaining(endDate));
+    setTimeLeft(calculateTimeRemaining(endDate, startDate));
 
     const intervalId = setInterval(() => {
-      setTimeLeft(calculateTimeRemaining(endDate));
+      setTimeLeft(calculateTimeRemaining(endDate, startDate));
     }, 1000);
 
     return () => clearInterval(intervalId);
-  }, [endDate]);
+  }, [endDate, startDate]);
 
   const padZero = (num: number) => num.toString().padStart(2, '0');
 
@@ -88,7 +121,13 @@ export function RentalCountdownTimer({
   let headerLabel: string = STRINGS.RENTAL_COUNTDOWN.REMAINING_TITLE;
   let iconName: any = 'timer-outline';
 
-  if (timeLeft.isExpired) {
+  if (timeLeft.isPendingStart) {
+    containerBg = colors.light.primaryLight + '50';
+    borderColor = colors.light.primary;
+    statusTextColor = colors.light.primary;
+    headerLabel = STRINGS.RENTAL_COUNTDOWN.SCHEDULED_TITLE;
+    iconName = 'calendar-outline';
+  } else if (timeLeft.isExpired) {
     containerBg = colors.light.dangerLight;
     borderColor = colors.light.error;
     statusTextColor = colors.light.error;
@@ -113,7 +152,9 @@ export function RentalCountdownTimer({
       <View style={[styles.compactContainer, { backgroundColor: containerBg, borderColor }]}>
         <Ionicons name={iconName} size={14} color={statusTextColor} />
         <Text style={[styles.compactText, { color: statusTextColor }]}>
-          {timeLeft.isExpired ? (
+          {timeLeft.isPendingStart ? (
+            `${STRINGS.RENTAL_COUNTDOWN.COMPACT_SCHEDULED_PREFIX}${timeLeft.days > 0 ? `${timeLeft.days}d ` : ''}${padZero(timeLeft.hours)}:${padZero(timeLeft.minutes)}:${padZero(timeLeft.seconds)}`
+          ) : timeLeft.isExpired ? (
             `${STRINGS.RENTAL_COUNTDOWN.COMPACT_OVERDUE_PREFIX}${timeLeft.days > 0 ? `${timeLeft.days}d ` : ''}${padZero(timeLeft.hours)}:${padZero(timeLeft.minutes)}:${padZero(timeLeft.seconds)}`
           ) : (
             `${STRINGS.RENTAL_COUNTDOWN.COMPACT_REMAINING_PREFIX}${timeLeft.days > 0 ? `${timeLeft.days}d ` : ''}${padZero(timeLeft.hours)}:${padZero(timeLeft.minutes)}:${padZero(timeLeft.seconds)}`
@@ -131,11 +172,17 @@ export function RentalCountdownTimer({
           <Ionicons name={iconName} size={16} color={statusTextColor} />
           <Text style={[styles.headerText, { color: statusTextColor }]}>{headerLabel}</Text>
         </View>
-        {timeLeft.isExpired && (
+        {timeLeft.isPendingStart ? (
+          <View style={styles.scheduledBadge}>
+            <Text style={styles.scheduledBadgeText}>
+              {STRINGS.RENTAL_COUNTDOWN.STARTS_AT_PICKUP_BADGE}
+            </Text>
+          </View>
+        ) : timeLeft.isExpired ? (
           <View style={styles.overdueBadge}>
             <Text style={styles.overdueBadgeText}>{STRINGS.RENTAL_COUNTDOWN.OVERDUE_BADGE}</Text>
           </View>
-        )}
+        ) : null}
       </View>
 
       {/* Countdown Digits */}
@@ -178,6 +225,12 @@ export function RentalCountdownTimer({
           <Text style={styles.digitLabel}>{STRINGS.RENTAL_COUNTDOWN.SECS}</Text>
         </View>
       </View>
+
+      {timeLeft.isPendingStart && (
+        <Text style={styles.pendingStartHelper}>
+          {STRINGS.RENTAL_COUNTDOWN.SCHEDULED_HELPER}
+        </Text>
+      )}
     </View>
   );
 }
@@ -205,6 +258,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  scheduledBadge: {
+    backgroundColor: colors.light.primary,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  scheduledBadgeText: {
+    color: colors.light.white,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
   overdueBadge: {
     backgroundColor: colors.light.error,
@@ -265,5 +330,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
+  },
+  pendingStartHelper: {
+    fontSize: 11,
+    color: colors.light.textSecondary,
+    textAlign: 'center',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
 });

@@ -1,11 +1,39 @@
 const Device = require("../models/Device");
 require("../models/User");
 const { asyncHandler } = require("../middlewares/asyncHandler");
+const { uploadToCloudinary } = require("../utils/cloudinary");
+const path = require("path");
+const fs = require("fs");
+const crypto = require("crypto");
 const positiveInteger = (value, fallback) => {
   if (typeof value !== "string" || !/^\d+$/.test(value)) return fallback;
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 };
+
+const getAvailableDevices = asyncHandler(async (req, res) => {
+  const rawLimit = req.query.limit;
+  const requestedLimit = rawLimit === undefined ? 100 : Number(rawLimit);
+  if (rawLimit !== undefined &&
+      (typeof rawLimit !== "string" || !/^\d+$/.test(rawLimit) ||
+        !Number.isSafeInteger(requestedLimit) || requestedLimit < 1)) {
+    return res.status(400).json({ success: false, message: "limit must be a positive integer" });
+  }
+  const limit = Math.min(requestedLimit, 100);
+  const devices = await Device.find({
+    status: "available",
+    moderationStatus: "approved",
+    isDeleted: false,
+  })
+    .sort({ createdAt: -1, _id: 1 })
+    .limit(limit);
+
+  return res.status(200).json({
+    success: true,
+    count: devices.length,
+    data: devices,
+  });
+});
 
 const getNearbyDevices = asyncHandler(async (req, res) => {
   if (req.query.radius !== undefined && req.query.maxDistance !== undefined &&
@@ -127,9 +155,27 @@ const uploadDeviceImage = asyncHandler(async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, message: "Please upload a JPEG, PNG, or WebP image." });
   }
+
+  // Tải ảnh trực tiếp lên Cloudinary với preset và cloud_name từ file .env
+  const secureUrl = await uploadToCloudinary(req.file, "techshare/devices");
+  if (secureUrl) {
+    return res.status(201).json({
+      success: true,
+      data: { url: secureUrl },
+    });
+  }
+
+  // Dự phòng lưu trữ local nếu Cloudinary tạm thời mất kết nối
+  const uploadDir = path.resolve(__dirname, "../../uploads");
+  if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+  const filename = `${crypto.randomUUID()}-${req.file.originalname || "device.jpg"}`;
+  const filepath = path.join(uploadDir, filename);
+  if (req.file.buffer) {
+    fs.writeFileSync(filepath, req.file.buffer);
+  }
   return res.status(201).json({
     success: true,
-    data: { url: `/uploads/${req.file.filename}` },
+    data: { url: `/uploads/${filename}` },
   });
 });
 
@@ -159,5 +205,11 @@ const getDeviceById = asyncHandler(async (req, res) => {
   });
 });
 
-module.exports = { getNearbyDevices, getMyDevices, createDevice, uploadDeviceImage, getDeviceById };
-
+module.exports = {
+  getAvailableDevices,
+  getNearbyDevices,
+  getMyDevices,
+  createDevice,
+  uploadDeviceImage,
+  getDeviceById,
+};

@@ -4,6 +4,7 @@ const Device = require('../models/Device');
 const User = require('../models/User');
 const EkycRequest = require('../models/EkycRequest');
 const { createAndSendNotification } = require('../services/notificationService');
+const { uploadToCloudinary } = require('../utils/cloudinary');
 
 // @desc    Create new booking
 // @route   POST /api/bookings
@@ -86,7 +87,8 @@ const createBooking = async (req, res) => {
     }
 
     const diffTime = Math.abs(end.getTime() - start.getTime());
-    let totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const totalHours = Math.max(1, Math.round(diffTime / (1000 * 60 * 60)));
+    let totalDays = Math.ceil(totalHours / 24);
     if (totalDays === 0) totalDays = 1;
 
     const pricePerDayAtBooking = device.pricePerDay || device.dailyRate;
@@ -326,13 +328,35 @@ const cancelBooking = async (req, res) => {
 // @access  Private
 const getBookingById = async (req, res) => {
   try {
-    const booking = await Booking.findById(req.params.id)
-      .populate('deviceId', 'name images brand category pricePerDay dailyRate depositAmount depositValue location addressText')
-      .populate('ownerId', 'name avatar phone email rating')
+    const bookingId = req.params.id;
+    const userId = (req.auth && (req.auth.id || req.auth._id)) || (req.user && req.user._id);
+    const userRole = (req.auth && req.auth.role) || (req.user && req.user.role);
+
+    const booking = await Booking.findById(bookingId)
+      .populate(
+        'deviceId',
+        'name images brand model category pricePerDay dailyRate depositAmount depositValue description condition location addressText'
+      )
+      .populate('ownerId', 'name avatar phone email rating totalReviews')
       .populate('renterId', 'name avatar phone email rating isVerified trustScore');
 
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy đơn thuê' });
+    }
+
+    if (!booking.qrToken) {
+      booking.qrToken = `TSQR-${booking.bookingCode}-${booking._id.toString().slice(-4).toUpperCase()}`;
+      await booking.save();
+    }
+
+    const renterIdStr = booking.renterId?._id ? booking.renterId._id.toString() : booking.renterId?.toString();
+    const ownerIdStr = booking.ownerId?._id ? booking.ownerId._id.toString() : booking.ownerId?.toString();
+    const isRenter = renterIdStr === (userId ? userId.toString() : '');
+    const isOwner = ownerIdStr === (userId ? userId.toString() : '');
+    const isAdmin = userRole === 'admin';
+
+    if (!isRenter && !isOwner && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'Bạn không có quyền xem đơn thuê này' });
     }
 
     res.status(200).json({ success: true, data: booking });
@@ -342,10 +366,203 @@ const getBookingById = async (req, res) => {
   }
 };
 
+// @desc    Request rental extension
+// @route   POST /api/bookings/:id/extend
+// @access  Private
+const requestExtension = async (req, res) => {
+  try {
+    const bookingId = req.params.id;
+    const { additionalDays, requestedDays } = req.body;
+    const userId = (req.auth && (req.auth.id || req.auth._id)) || (req.user && req.user._id);
+
+    const days = parseInt(additionalDays || requestedDays, 10);
+    if (!days || isNaN(days) || days <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Số ngày gia hạn không hợp lệ (tối thiểu 1 ngày)',
+      });
+    }
+
+    const booking = await Booking.findOne({ _id: bookingId, renterId: userId }).populate('deviceId');
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy đơn thuê của bạn' });
+    }
+
+    if (booking.status !== 'active') {
+      return res.status(400).json({
+        success: false,
+        message: 'Chỉ có thể gửi yêu cầu gia hạn cho đơn thuê đang trong thời gian sử dụng (active)',
+      });
+    }
+
+    if (booking.extensionRequest && booking.extensionRequest.status === 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: 'Đơn thuê này đang có một yêu cầu gia hạn chờ chủ máy phê duyệt',
+      });
+    }
+
+    const currentEndDate = new Date(booking.endDate);
+    const newEndDate = new Date(currentEndDate.getTime() + days * 24 * 60 * 60 * 1000);
+    const dailyRate =
+      booking.pricePerDayAtBooking ||
+      booking.deviceId?.dailyRate ||
+      booking.deviceId?.pricePerDay ||
+      (booking.totalDays > 0 ? Math.round(booking.rentalFee / booking.totalDays) : 0);
+
+    const additionalFee = Math.round(days * dailyRate);
+
+    booking.extensionRequest = {
+      requestedEndDate: newEndDate,
+      requestedDays: days,
+      additionalFee,
+      status: 'pending',
+    };
+
+    booking.timeline.push({
+      status: 'extension_requested',
+      timestamp: new Date(),
+      note: `Yêu cầu gia hạn thêm ${days} ngày (đến ${newEndDate.toLocaleDateString('vi-VN')}), phụ phí: ${additionalFee.toLocaleString('vi-VN')} đ`,
+    });
+
+    await booking.save();
+
+    // Gửi thông báo đến chủ máy
+    if (booking.ownerId) {
+      createAndSendNotification({
+        userId: booking.ownerId,
+        title: 'Rental Extension Request! ⏳',
+        body: `Customer requested an extension of ${days} day(s) for order #${booking.bookingCode}. Additional fee: ${additionalFee.toLocaleString('en-US')} VND.`,
+        type: 'order',
+        relatedId: booking._id,
+        data: {
+          bookingId: booking._id.toString(),
+          status: 'extension_requested',
+        },
+      }).catch((err) => console.error('❌ Lỗi gửi thông báo gia hạn cho chủ máy:', err.message));
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Đã gửi yêu cầu gia hạn đơn thuê thành công',
+      data: booking,
+    });
+  } catch (error) {
+    console.error('Error requesting extension:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi máy chủ khi gửi yêu cầu gia hạn',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Update beforeRental handover photos & condition notes
+// @route   PATCH /api/bookings/:id/handover-renter
+// @access  Private
+const updateBeforeRentalPhotos = async (req, res) => {
+  try {
+    const bookingId = req.params.id;
+    const { photos, conditionNotes } = req.body;
+    const userId = (req.auth && (req.auth.id || req.auth._id)) || (req.user && req.user._id);
+    const userRole = (req.auth && req.auth.role) || (req.user && req.user.role);
+
+    if (!Array.isArray(photos) || photos.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp ít nhất 1 ảnh góc máy lúc nhận bàn giao.',
+      });
+    }
+
+    const booking = await Booking.findById(bookingId)
+      .populate('deviceId', 'name images brand')
+      .populate('renterId', 'name avatar')
+      .populate('ownerId', 'name avatar');
+
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy đơn thuê' });
+    }
+
+    const renterIdStr = booking.renterId?._id ? booking.renterId._id.toString() : booking.renterId?.toString();
+    const ownerIdStr = booking.ownerId?._id ? booking.ownerId._id.toString() : booking.ownerId?.toString();
+    const isRenter = renterIdStr === (userId ? userId.toString() : '');
+    const isOwner = ownerIdStr === (userId ? userId.toString() : '');
+    const isAdmin = userRole === 'admin';
+
+    if (!isRenter && !isOwner && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'Bạn không có quyền cập nhật ảnh đơn thuê này' });
+    }
+
+    if (booking.status !== 'approved') {
+      return res.status(400).json({
+        success: false,
+        message: 'Chỉ có thể tải lên ảnh hiện trạng lúc nhận bàn giao khi đơn ở trạng thái đã duyệt (approved). Khi đơn đã kích hoạt (active) hoặc hoàn tất, biên bản bàn giao không thể chỉnh sửa.',
+      });
+    }
+
+    // Chuẩn hóa và tự động upload lên Cloudinary nếu ảnh được gửi dưới dạng Base64
+    const resolvedPhotos = await Promise.all(
+      photos.map(async (photoStr) => {
+        if (!photoStr || typeof photoStr !== 'string') return '';
+        if (
+          photoStr.startsWith('data:image/') ||
+          (!photoStr.startsWith('http://') &&
+            !photoStr.startsWith('https://') &&
+            !photoStr.startsWith('/uploads/') &&
+            !photoStr.startsWith('file://') &&
+            photoStr.length > 300)
+        ) {
+          const cldUrl = await uploadToCloudinary(photoStr, 'techshare/handover');
+          return cldUrl || photoStr;
+        }
+        return photoStr;
+      })
+    );
+    const validPhotos = resolvedPhotos.filter(Boolean);
+
+    if (!booking.handover) {
+      booking.handover = { beforePhotos: [], afterPhotos: [], beforeNote: '', afterNote: '' };
+    }
+    booking.handover.beforePhotos = validPhotos;
+    if (conditionNotes !== undefined) {
+      booking.handover.beforeNote = conditionNotes;
+    }
+
+    booking.set('handover.beforePhotos', validPhotos);
+    if (conditionNotes !== undefined) {
+      booking.set('handover.beforeNote', conditionNotes);
+    }
+    booking.markModified('handover');
+
+    booking.timeline.push({
+      status: booking.status,
+      timestamp: new Date(),
+      note: `Đã cập nhật ${validPhotos.length} ảnh hiện trạng thiết bị lúc nhận bàn giao (beforeRental).`,
+    });
+
+    await booking.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Đã lưu ảnh nhận bàn giao thiết bị thành công',
+      data: booking,
+    });
+  } catch (error) {
+    console.error('Error updating beforeRental photos:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi máy chủ khi lưu ảnh nhận bàn giao',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createBooking,
   getDeviceBusyDates,
   getMyBookings,
   cancelBooking,
   getBookingById,
+  requestExtension,
+  updateBeforeRentalPhotos,
 };
