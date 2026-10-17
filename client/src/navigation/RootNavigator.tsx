@@ -13,6 +13,7 @@ import ChatDetailScreen from '../screens/chat/ChatDetailScreen';
 import NotificationScreen from '../screens/notification/NotificationScreen';
 import { BookingCreateScreen } from '../screens/booking/BookingCreateScreen';
 import { MyBookingsScreen } from '../screens/booking/MyBookingsScreen';
+import { ProfileScreen } from '../screens/user/ProfileScreen';
 import { socketService } from '../services/socketService';
 import { setAuthToken } from '../config/api';
 import { theme } from '../theme/tokens';
@@ -28,6 +29,7 @@ export type RootStackParamList = {
   Owner: undefined;
   Admin: undefined;
   Home: { initialTab?: ScreenType } | undefined;
+  Profile: undefined;
   OwnerMessages: undefined;
   ChatDetail: { bookingId?: string; otherBookings?: any[] } | undefined;
   Notification: undefined;
@@ -148,6 +150,9 @@ export function RootNavigator() {
           <Stack.Screen name="OwnerMessages" component={OwnerMessagesScreen} />
           <Stack.Screen name="ChatDetail" component={ChatDetailScreen} />
           <Stack.Screen name="Notification" component={NotificationScreen} />
+          <Stack.Screen name="Profile">
+            {({ navigation }) => <ProfileScreen navigation={navigation} onBack={() => navigation.goBack()} />}
+          </Stack.Screen>
           <Stack.Screen name="BookingCreate" component={BookingCreateRoute} />
           <Stack.Screen name="MyBookings" component={MyBookingsRoute} />
         </>

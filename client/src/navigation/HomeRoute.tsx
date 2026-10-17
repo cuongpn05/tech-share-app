@@ -6,6 +6,7 @@ import { MyBookingsScreen } from '../screens/booking/MyBookingsScreen';
 import { BottomTabNavigator } from '../components/navigation/BottomTabNavigator';
 import { chatService } from '../services/chatService';
 import { socketService } from '../services/socketService';
+import { ProfileScreen } from '../screens/user/ProfileScreen';
 import { ScreenType } from '../types';
 
 export interface HomeRouteProps {
@@ -91,6 +92,11 @@ export function HomeRoute({
           }}
           onNavigateToHome={() => setActiveTab('home')}
         />
+      ) : activeTab === 'profile' ? (
+        <ProfileScreen
+          navigation={navigation}
+          onBack={() => setActiveTab('home')}
+        />
       ) : (
         <HomeScreen
           showOwnerDashboard={!!onReturnToOwner}
@@ -108,7 +114,7 @@ export function HomeRoute({
       )}
       <BottomTabNavigator
         activeTab={activeTab}
-        enabledTabs={['home', 'bookings']}
+        enabledTabs={['home', 'bookings', 'profile']}
         onTabPress={(tab) => setActiveTab(tab)}
         safeAreaBottom={insets.bottom}
       />
