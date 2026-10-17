@@ -94,7 +94,11 @@ export const AdminSidebarContent: React.FC<AdminSidebarContentProps> = ({
     <View style={styles.container}>
       {/* 1. PROFILE HEADER */}
       <View style={styles.header}>
-        <View style={styles.profileRow}>
+        <TouchableOpacity
+          style={styles.profileRow}
+          onPress={() => handleNavigate('Profile')}
+          activeOpacity={0.7}
+        >
           <View style={styles.avatarContainer}>
             {displayAvatar ? (
               <Image
@@ -119,7 +123,8 @@ export const AdminSidebarContent: React.FC<AdminSidebarContentProps> = ({
               </Text>
             ) : null}
           </View>
-        </View>
+          <Ionicons name="chevron-forward" size={18} color={theme.colors.text.muted} />
+        </TouchableOpacity>
       </View>
 
       {/* Đường kẻ phân cách */}

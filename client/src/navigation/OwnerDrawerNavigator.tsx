@@ -6,6 +6,7 @@ import OwnerDashboardScreen from '../screens/owner/OwnerDashboardScreen';
 import { PostDeviceScreen } from '../screens/device/PostDeviceScreen';
 import OwnerMessagesScreen from '../screens/owner/OwnerMessagesScreen';
 import NotificationScreen from '../screens/notification/NotificationScreen';
+import ProfileScreen from '../screens/user/ProfileScreen';
 import OwnerSidebarContent from './OwnerSidebarContent';
 import { theme } from '../theme/tokens';
 
@@ -107,6 +108,9 @@ export const OwnerDrawerNavigator: React.FC = () => {
       </Drawer.Screen>
 
       <Drawer.Screen name="OwnerNotifications" component={NotificationScreen} />
+      <Drawer.Screen name="Profile">
+        {({ navigation }) => <ProfileScreen navigation={navigation} onBack={() => navigation.navigate('OwnerDashboard')} />}
+      </Drawer.Screen>
     </Drawer.Navigator>
   );
 };

@@ -7,6 +7,7 @@ import { AiCompareScreen } from '../screens/ai/AiCompareScreen';
 import { BottomTabNavigator } from '../components/navigation/BottomTabNavigator';
 import { chatService } from '../services/chatService';
 import { socketService } from '../services/socketService';
+import { ProfileScreen } from '../screens/user/ProfileScreen';
 import { ScreenType } from '../types';
 
 export interface HomeRouteProps {
@@ -92,8 +93,11 @@ export function HomeRoute({
           }}
           onNavigateToHome={() => setActiveTab('home')}
         />
-      ) : activeTab === 'compare' ? (
-        <AiCompareScreen />
+      ) : activeTab === 'profile' ? (
+        <ProfileScreen
+          navigation={navigation}
+          onBack={() => setActiveTab('home')}
+        />
       ) : (
         <HomeScreen
           showOwnerDashboard={!!onReturnToOwner}
@@ -111,7 +115,7 @@ export function HomeRoute({
       )}
       <BottomTabNavigator
         activeTab={activeTab}
-        enabledTabs={['home', 'bookings', 'compare']}
+        enabledTabs={['home', 'bookings', 'profile']}
         onTabPress={(tab) => setActiveTab(tab)}
         safeAreaBottom={insets.bottom}
       />

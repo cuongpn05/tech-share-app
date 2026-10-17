@@ -163,7 +163,11 @@ export const OwnerSidebarContent: React.FC<OwnerSidebarContentProps> = ({
   return (
     <View style={[styles.container, { paddingTop: statusBarOffset + theme.spacing.lg }]}>
       {/* 1. Header Profile */}
-      <View style={styles.profileSection}>
+      <TouchableOpacity
+        style={styles.profileSection}
+        onPress={() => handleMenuPress({ routeName: 'Profile' } as any)}
+        activeOpacity={0.7}
+      >
         {currentUser?.avatar ? (
           <Image
             source={{ uri: currentUser.avatar }}
@@ -201,7 +205,8 @@ export const OwnerSidebarContent: React.FC<OwnerSidebarContentProps> = ({
             {currentUser?.email || ''}
           </Text>
         </View>
-      </View>
+        <Ionicons name="chevron-forward" size={18} color={theme.colors.text.muted} />
+      </TouchableOpacity>
 
       <View style={styles.divider} />
 
