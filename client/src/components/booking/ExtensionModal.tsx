@@ -78,6 +78,9 @@ export function ExtensionModal({
     };
   }, [booking, additionalDays, dailyRate]);
 
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
   const isPendingExtension = booking?.extensionRequest?.status === 'pending';
 
   const handleIncrement = () => {
@@ -94,22 +97,10 @@ export function ExtensionModal({
     try {
       setLoading(true);
       await bookingService.requestExtension(booking._id, additionalDays);
-      Alert.alert(
-        STRINGS.EXTENSION_MODAL.REQUEST_SENT_TITLE,
-        STRINGS.EXTENSION_MODAL.REQUEST_SENT_MSG(additionalDays),
-        [
-          {
-            text: STRINGS.EXTENSION_MODAL.GOT_IT,
-            onPress: () => {
-              onClose();
-              onSuccess();
-            },
-          },
-        ]
-      );
+      setShowSuccessModal(true);
     } catch (error: any) {
       const msg = error.response?.data?.message || STRINGS.EXTENSION_MODAL.FAILED_MSG;
-      Alert.alert(STRINGS.EXTENSION_MODAL.FAILED_TITLE, msg);
+      setErrorMessage(msg);
     } finally {
       setLoading(false);
     }
@@ -120,7 +111,10 @@ export function ExtensionModal({
   return (
     <Modal visible={visible} transparent={true} animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={[styles.container, { paddingBottom: bottomInset + 12 }]}>
+        <View style={[styles.container, { paddingBottom: bottomInset + 16 }]}>
+          {/* Drag Handle */}
+          <View style={styles.dragHandle} />
+
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerIcon}>
@@ -131,7 +125,7 @@ export function ExtensionModal({
               <Text style={styles.subtitle}>{STRINGS.EXTENSION_MODAL.ORDER_PREFIX}{booking.bookingCode}</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={22} color={colors.light.textSecondary} />
+              <Ionicons name="close" size={20} color={colors.light.textSecondary} />
             </TouchableOpacity>
           </View>
 
@@ -260,6 +254,56 @@ export function ExtensionModal({
             </>
           )}
         </View>
+
+        {/* ── CUSTOM SUCCESS POPUP DIALOG ── */}
+        {showSuccessModal && (
+          <View style={styles.dialogBackdrop}>
+            <View style={styles.dialogCard}>
+              <View style={styles.successIconCircle}>
+                <Ionicons name="sparkles" size={32} color={colors.light.primary} />
+              </View>
+
+              <Text style={styles.dialogTitle}>{STRINGS.EXTENSION_MODAL.REQUEST_SENT_TITLE}</Text>
+              <Text style={styles.dialogMessage}>
+                {STRINGS.EXTENSION_MODAL.REQUEST_SENT_MSG(additionalDays)}
+              </Text>
+
+              <TouchableOpacity
+                style={styles.dialogCtaBtn}
+                onPress={() => {
+                  setShowSuccessModal(false);
+                  onClose();
+                  onSuccess();
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.dialogCtaBtnText}>{STRINGS.EXTENSION_MODAL.GOT_IT}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* ── CUSTOM ALERT / ERROR DIALOG ── */}
+        {Boolean(errorMessage) && (
+          <View style={styles.dialogBackdrop}>
+            <View style={styles.dialogCard}>
+              <View style={[styles.successIconCircle, { backgroundColor: colors.light.dangerLight }]}>
+                <Ionicons name="alert-circle" size={32} color={colors.light.danger} />
+              </View>
+
+              <Text style={styles.dialogTitle}>{STRINGS.EXTENSION_MODAL.FAILED_TITLE}</Text>
+              <Text style={styles.dialogMessage}>{errorMessage}</Text>
+
+              <TouchableOpacity
+                style={[styles.dialogCtaBtn, { backgroundColor: colors.light.textPrimary }]}
+                onPress={() => setErrorMessage(null)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.dialogCtaBtnText}>{STRINGS.COMMON.OK}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
     </Modal>
   );
@@ -273,20 +317,33 @@ const styles = StyleSheet.create({
   },
   container: {
     backgroundColor: colors.light.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    paddingBottom: 32,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 24,
     shadowColor: colors.light.shadow,
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 10,
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 16,
+  },
+  dragHandle: {
+    width: 44,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: colors.light.borderDefault,
+    alignSelf: 'center',
+    marginBottom: 10,
+    marginTop: 4,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 18,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.light.borderSubtle,
   },
   headerIcon: {
     width: 40,
@@ -306,19 +363,24 @@ const styles = StyleSheet.create({
     color: colors.light.textPrimary,
   },
   subtitle: {
-    fontSize: 13,
+    fontSize: 12,
     color: colors.light.textSecondary,
     marginTop: 2,
   },
   closeButton: {
-    padding: 4,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.light.background,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   section: {
     marginBottom: 16,
   },
   sectionLabel: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: colors.light.textPrimary,
     marginBottom: 12,
   },
@@ -327,40 +389,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 16,
-    marginBottom: 12,
+    marginBottom: 14,
   },
   stepBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.light.surface,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: colors.light.background,
     borderWidth: 1,
     borderColor: colors.light.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   stepBtnDisabled: {
-    opacity: 0.4,
+    opacity: 0.35,
   },
   stepValueBox: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 4,
-    paddingHorizontal: 20,
-    paddingVertical: 6,
+    gap: 6,
+    paddingHorizontal: 24,
+    paddingVertical: 8,
     backgroundColor: colors.light.primaryLight,
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.light.primaryLight,
   },
   stepValueText: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '800',
     color: colors.light.primaryDark,
   },
   stepValueSub: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: colors.light.primaryDark,
   },
   chipsContainer: {
@@ -373,34 +435,35 @@ const styles = StyleSheet.create({
   chip: {
     flex: 1,
     paddingVertical: 8,
-    paddingHorizontal: 2,
-    borderRadius: 12,
-    backgroundColor: colors.light.surface,
+    paddingHorizontal: 4,
+    borderRadius: 9999,
+    backgroundColor: colors.light.background,
     borderWidth: 1,
     borderColor: colors.light.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   chipSelected: {
-    backgroundColor: colors.light.primary,
+    backgroundColor: colors.light.primaryLight,
     borderColor: colors.light.primary,
   },
   chipText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.light.textSecondary,
     textAlign: 'center',
   },
   chipTextSelected: {
-    color: colors.light.white,
+    color: colors.light.primaryDark,
+    fontWeight: '700',
   },
   previewCard: {
-    backgroundColor: colors.light.surface,
-    borderRadius: 12,
-    padding: 14,
+    backgroundColor: colors.light.background,
+    borderRadius: 16,
+    padding: 16,
     borderWidth: 1,
     borderColor: colors.light.border,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   previewRow: {
     flexDirection: 'row',
@@ -424,7 +487,7 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: colors.light.border,
-    marginVertical: 8,
+    marginVertical: 10,
   },
   previewFeeLabel: {
     fontSize: 14,
@@ -434,13 +497,14 @@ const styles = StyleSheet.create({
   previewFeeValue: {
     fontSize: 16,
     fontWeight: '800',
-    color: colors.light.primary,
+    color: colors.light.primaryDark,
   },
   noticeText: {
     fontSize: 12,
     color: colors.light.textSecondary,
     lineHeight: 18,
-    marginBottom: 20,
+    marginBottom: 16,
+    textAlign: 'center',
   },
   actions: {
     flexDirection: 'row',
@@ -448,11 +512,11 @@ const styles = StyleSheet.create({
   },
   cancelBtn: {
     flex: 1,
-    paddingVertical: 13,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
-    backgroundColor: colors.light.surface,
+    borderRadius: 9999,
+    backgroundColor: colors.light.background,
     borderWidth: 1,
     borderColor: colors.light.border,
   },
@@ -464,17 +528,23 @@ const styles = StyleSheet.create({
   confirmBtn: {
     flex: 2,
     flexDirection: 'row',
-    paddingVertical: 13,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    borderRadius: 12,
+    borderRadius: 9999,
     backgroundColor: colors.light.primary,
+    shadowColor: colors.light.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
   confirmBtnText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
     color: colors.light.white,
+    letterSpacing: 0.3,
   },
   pendingNotice: {
     alignItems: 'center',
@@ -497,13 +567,83 @@ const styles = StyleSheet.create({
   },
   closeActionButton: {
     backgroundColor: colors.light.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 10,
+    paddingHorizontal: 28,
+    height: 44,
+    borderRadius: 9999,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   closeActionButtonText: {
     color: colors.light.white,
     fontWeight: '700',
     fontSize: 14,
+  },
+  dialogBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+    zIndex: 9999,
+    elevation: 30,
+  },
+  dialogCard: {
+    backgroundColor: colors.light.surface,
+    borderRadius: 24,
+    padding: 26,
+    width: '100%',
+    maxWidth: 340,
+    alignItems: 'center',
+    shadowColor: colors.light.shadow,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  successIconCircle: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: colors.light.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  dialogTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.light.textPrimary,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  dialogMessage: {
+    fontSize: 14,
+    color: colors.light.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  dialogCtaBtn: {
+    width: '100%',
+    height: 48,
+    borderRadius: 9999,
+    backgroundColor: colors.light.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.light.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  dialogCtaBtnText: {
+    color: colors.light.white,
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
 });
