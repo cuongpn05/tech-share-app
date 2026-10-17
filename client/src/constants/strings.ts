@@ -1064,6 +1064,9 @@ export const STRINGS = {
     YOUR_DEVICES_DESC: 'Devices you have already listed for rent.',
     LOADING_DEVICES: 'Loading your devices...',
     NO_DEVICES_YET: 'You have not listed any device yet.',
+    PREVIOUS_PAGE: 'Previous',
+    NEXT_PAGE: 'Next',
+    PAGE_OF: (page: number, totalPages: number) => `Page ${page} of ${totalPages}`,
     SECTION_PHOTOS: 'Device Photos',
     REMOVE_PHOTO: 'Remove photo',
     ADD_PHOTOS_TITLE: 'Add device photos',
@@ -1740,5 +1743,4 @@ export const STRINGS = {
     VIEW_MESSAGE: 'View',
   },
 } as const;
-
 
