@@ -10,6 +10,7 @@ import {
   Pressable,
   Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -29,6 +30,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   onSendLocation,
   isSending = false,
 }) => {
+  const insets = useSafeAreaInsets();
   const [inputText, setInputText] = useState('');
   const [showActionModal, setShowActionModal] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
@@ -118,7 +120,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   const canSend = Boolean(inputText.trim()) && !isSending;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 10) }]}>
       {/* Nút dấu cộng mở Modal đính kèm */}
       <TouchableOpacity
         style={styles.actionBtn}

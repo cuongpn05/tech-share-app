@@ -10,6 +10,7 @@ import {
   Image,
   Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/tokens';
 import { OWNER_STRINGS } from '../constants/ownerStrings';
@@ -38,7 +39,12 @@ export const OwnerSidebarContent: React.FC<OwnerSidebarContentProps> = ({
   pendingCount: propPendingCount,
 }) => {
   const currentUser = useAppSelector((state) => state.auth.user);
-  const statusBarOffset = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
+  const insets = useSafeAreaInsets();
+  const topInset = Math.max(
+    insets.top,
+    Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 20
+  );
+  const bottomInset = Math.max(insets.bottom, theme.spacing.lg);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [pendingBookings, setPendingBookings] = useState(propPendingCount ?? 0);
 
@@ -161,7 +167,7 @@ export const OwnerSidebarContent: React.FC<OwnerSidebarContentProps> = ({
   };
 
   return (
-    <View style={[styles.container, { paddingTop: statusBarOffset + theme.spacing.lg }]}>
+    <View style={[styles.container, { paddingTop: topInset + theme.spacing.md, paddingBottom: bottomInset }]}>
       {/* 1. Header Profile */}
       <TouchableOpacity
         style={styles.profileSection}
@@ -283,7 +289,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.surface,
     paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing.lg,
   },
   profileSection: {
     flexDirection: 'row',

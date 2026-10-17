@@ -9,6 +9,7 @@ import {
   Platform,
   StatusBar,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../theme/tokens';
 import { chatService } from '../../services/chatService';
@@ -146,22 +147,33 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigati
     return true;
   });
 
-  const statusBarOffset = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
+  const insets = useSafeAreaInsets();
+  const topInset = Math.max(
+    insets.top,
+    Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 20
+  );
+  const bottomInset = Math.max(insets.bottom, 24);
 
   return (
-    <View style={[styles.container, { paddingTop: statusBarOffset }]}>
+    <View style={[styles.container, { paddingTop: topInset }]}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" translucent={true} />
 
       {/* Header Bar */}
       <View style={styles.header}>
         <TouchableOpacity
-          style={styles.backBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Menu"
+          style={styles.headerMenuButton}
           onPress={() => {
-            if (navigation?.canGoBack?.()) navigation.goBack();
+            if (navigation?.openDrawer) {
+              navigation.openDrawer();
+            } else if (navigation?.canGoBack?.()) {
+              navigation.goBack();
+            }
           }}
           activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={24} color="#0F172A" />
+          <Ionicons name="menu-outline" size={24} color="#0F172A" />
         </TouchableOpacity>
 
         <View style={styles.headerTitleBox}>
@@ -211,7 +223,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigati
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.colors.brand[500]]} />
           }
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: bottomInset + 16 }]}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => {
             const isMsg = item.type === 'message';
@@ -269,87 +281,99 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigati
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.colors.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: 12,
+    backgroundColor: theme.colors.background,
   },
-  backBtn: {
-    padding: 4,
-    marginRight: 8,
+  headerMenuButton: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    marginRight: 12,
   },
   headerTitleBox: {
     flex: 1,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
+    fontSize: 19,
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.primary,
   },
   headerSubtitle: {
-    fontSize: 12,
-    color: '#64748B',
+    fontSize: 12.5,
+    color: theme.colors.text.muted,
     marginTop: 2,
   },
   markAllBtn: {
     paddingVertical: 6,
     paddingHorizontal: 10,
-    backgroundColor: '#F1F5F9',
-    borderRadius: 8,
+    backgroundColor: theme.colors.surface,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   markAllText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#0D9488',
+    color: theme.colors.brand[500],
   },
   tabsRow: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: '#FFFFFF',
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: 6,
+    backgroundColor: theme.colors.background,
     gap: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    marginBottom: 6,
   },
   tab: {
-    paddingVertical: 6,
+    paddingVertical: 7,
     paddingHorizontal: 14,
-    borderRadius: 20,
-    backgroundColor: '#F1F5F9',
+    borderRadius: 16,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   tabActive: {
-    backgroundColor: '#0D9488',
+    backgroundColor: theme.colors.brand[500],
+    borderColor: theme.colors.brand[500],
   },
   tabText: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 12.5,
+    fontWeight: '500',
     color: '#64748B',
   },
   tabTextActive: {
     color: '#FFFFFF',
+    fontWeight: '700',
   },
   listContent: {
-    padding: 16,
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: 4,
     gap: 10,
   },
   notifCard: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     padding: 14,
-    borderRadius: 14,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#F1F5F9',
     alignItems: 'flex-start',
+    ...theme.shadows.card,
   },
   notifCardUnread: {
     backgroundColor: '#F0FDFA',
-    borderColor: '#99F6E4',
+    borderColor: '#CCFBF1',
   },
   iconBox: {
     width: 42,
@@ -375,31 +399,31 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   cardTitle: {
-    fontSize: 14.5,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#1E293B',
+    color: theme.colors.text.primary,
     flex: 1,
   },
   cardTitleBold: {
     fontWeight: '700',
-    color: '#0F172A',
+    color: theme.colors.text.primary,
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#0D9488',
+    backgroundColor: theme.colors.brand[500],
     marginLeft: 6,
   },
   cardBody: {
     fontSize: 13,
-    color: '#475569',
+    color: theme.colors.text.muted,
     lineHeight: 18,
     marginBottom: 6,
   },
   cardTime: {
-    fontSize: 11,
-    color: '#94A3B8',
+    fontSize: 11.5,
+    color: theme.colors.text.subtle,
   },
   emptyBox: {
     alignItems: 'center',
