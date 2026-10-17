@@ -13,6 +13,7 @@ import ChatDetailScreen from '../screens/chat/ChatDetailScreen';
 import NotificationScreen from '../screens/notification/NotificationScreen';
 import { BookingCreateScreen } from '../screens/booking/BookingCreateScreen';
 import { MyBookingsScreen } from '../screens/booking/MyBookingsScreen';
+import { BookingDetailScreen } from '../screens/booking/BookingDetailScreen';
 import { socketService } from '../services/socketService';
 import { setAuthToken } from '../config/api';
 import { theme } from '../theme/tokens';
@@ -56,6 +57,16 @@ const MyBookingsRoute = ({ navigation }: any) => (
     onNavigateToHome={() => navigation.navigate('Home')}
   />
 );
+
+const BookingDetailRoute = ({ route, navigation }: any) => (
+  <BookingDetailScreen
+    bookingId={route.params.bookingId}
+    onBack={() => navigation.goBack()}
+    onNavigateToChat={(bookingId) => navigation.navigate('ChatDetail', { bookingId })}
+    onNavigateToBookingCreate={(deviceId) => navigation.navigate('BookingCreate', { deviceId })}
+  />
+);
+
 
 export function RootNavigator() {
 
@@ -150,6 +161,7 @@ export function RootNavigator() {
           <Stack.Screen name="Notification" component={NotificationScreen} />
           <Stack.Screen name="BookingCreate" component={BookingCreateRoute} />
           <Stack.Screen name="MyBookings" component={MyBookingsRoute} />
+          <Stack.Screen name="BookingDetail" component={BookingDetailRoute} />
         </>
       )}
     </Stack.Navigator>
