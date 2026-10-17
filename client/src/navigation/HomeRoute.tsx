@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HomeScreen } from '../screens/home/HomeScreen';
 import { MyBookingsScreen } from '../screens/booking/MyBookingsScreen';
+import { AiCompareScreen } from '../screens/ai/AiCompareScreen';
 import { BottomTabNavigator } from '../components/navigation/BottomTabNavigator';
 import { chatService } from '../services/chatService';
 import { socketService } from '../services/socketService';
@@ -91,6 +92,8 @@ export function HomeRoute({
           }}
           onNavigateToHome={() => setActiveTab('home')}
         />
+      ) : activeTab === 'compare' ? (
+        <AiCompareScreen />
       ) : (
         <HomeScreen
           showOwnerDashboard={!!onReturnToOwner}
@@ -108,7 +111,7 @@ export function HomeRoute({
       )}
       <BottomTabNavigator
         activeTab={activeTab}
-        enabledTabs={['home', 'bookings']}
+        enabledTabs={['home', 'bookings', 'compare']}
         onTabPress={(tab) => setActiveTab(tab)}
         safeAreaBottom={insets.bottom}
       />

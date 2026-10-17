@@ -27,26 +27,40 @@ export interface DevicePage {
   };
 }
 
-
 // Kiểm tra dữ liệu trước khi Redux dùng để hiển thị và phân trang.
-function validateNearbyResponse(responseBody: DevicePage & { success: boolean }, requestedPage: number): void {
+function validateNearbyResponse(
+  responseBody: DevicePage & { success: boolean },
+  requestedPage: number,
+): void {
   const pagination = responseBody?.pagination;
-  if (responseBody?.success !== true || !Array.isArray(responseBody.data) || !pagination) {
+  if (
+    responseBody?.success !== true ||
+    !Array.isArray(responseBody.data) ||
+    !pagination
+  ) {
     throw new Error("Invalid nearby device response");
   }
 
-  const isValidPagination = Number.isInteger(pagination.page) &&
-    pagination.page === requestedPage && pagination.limit === 10 &&
-    Number.isInteger(pagination.totalItems) && pagination.totalItems >= 0 &&
-    Number.isInteger(pagination.totalPages) && pagination.totalPages >= 0 &&
-    typeof pagination.hasNextPage === 'boolean';
+  const isValidPagination =
+    Number.isInteger(pagination.page) &&
+    pagination.page === requestedPage &&
+    pagination.limit === 10 &&
+    Number.isInteger(pagination.totalItems) &&
+    pagination.totalItems >= 0 &&
+    Number.isInteger(pagination.totalPages) &&
+    pagination.totalPages >= 0 &&
+    typeof pagination.hasNextPage === "boolean";
   if (!isValidPagination) {
     throw new Error("Invalid nearby device response");
   }
 
-  const hasInvalidDevice = responseBody.data.some(device =>
-    !device || typeof device._id !== 'string' || !device._id ||
-    typeof device.name !== 'string' || !device.name.trim()
+  const hasInvalidDevice = responseBody.data.some(
+    (device) =>
+      !device ||
+      typeof device._id !== "string" ||
+      !device._id ||
+      typeof device.name !== "string" ||
+      !device.name.trim(),
   );
   if (responseBody.data.length > 10 || hasInvalidDevice) {
     throw new Error("Invalid nearby device response");
@@ -54,8 +68,28 @@ function validateNearbyResponse(responseBody: DevicePage & { success: boolean },
 }
 
 export const deviceService = {
+  async getDevices(
+    params?: Pick<GetDevicesParams, "limit">,
+  ): Promise<Device[]> {
+    const response = await apiClient.get<{ success: boolean; data: Device[] }>(
+      "/devices",
+      {
+        params: { limit: params?.limit },
+      },
+    );
+
+    if (response.data?.success !== true || !Array.isArray(response.data.data)) {
+      throw new Error("Invalid available devices response");
+    }
+
+    return response.data.data;
+  },
+
   async getNearbyDevicesPage(params: GetDevicesParams): Promise<DevicePage> {
-    if (!Number.isFinite(params.latitude) || !Number.isFinite(params.longitude)) {
+    if (
+      !Number.isFinite(params.latitude) ||
+      !Number.isFinite(params.longitude)
+    ) {
       throw new Error("Nearby devices require your location");
     }
     const requestParams = {
@@ -67,33 +101,58 @@ export const deviceService = {
       page: params.page || 1,
       limit: 10,
     };
-    const debug = typeof __DEV__ !== 'undefined' && __DEV__;
-    if (debug) console.log('[HOME NEARBY] request URL/params:', apiClient.getUri({ url: '/devices/nearby', params: requestParams }), requestParams);
+    const debug = typeof __DEV__ !== "undefined" && __DEV__;
+    if (debug)
+      console.log(
+        "[HOME NEARBY] request URL/params:",
+        apiClient.getUri({ url: "/devices/nearby", params: requestParams }),
+        requestParams,
+      );
     try {
-      const response = await apiClient.get<DevicePage & { success: boolean }>("/devices/nearby", { params: requestParams });
+      const response = await apiClient.get<DevicePage & { success: boolean }>(
+        "/devices/nearby",
+        { params: requestParams },
+      );
       const responseBody = response.data;
       if (debug) {
-        console.log('[HOME NEARBY] HTTP:', response.status);
-        console.log('[HOME NEARBY] response shape:', Object.keys(responseBody || {}));
-        console.log('[HOME NEARBY] received:', responseBody?.data?.length);
-        console.log('[HOME NEARBY] pagination:', responseBody?.pagination);
+        console.log("[HOME NEARBY] HTTP:", response.status);
+        console.log(
+          "[HOME NEARBY] response shape:",
+          Object.keys(responseBody || {}),
+        );
+        console.log("[HOME NEARBY] received:", responseBody?.data?.length);
+        console.log("[HOME NEARBY] pagination:", responseBody?.pagination);
       }
       validateNearbyResponse(responseBody, requestParams.page);
       if (debug) {
-        const invalidLocationCount = responseBody.data.filter(device => {
+        const invalidLocationCount = responseBody.data.filter((device) => {
           const coordinates = device.location?.coordinates;
-          return !coordinates || coordinates.length !== 2 ||
-            !Number.isFinite(coordinates[0]) || !Number.isFinite(coordinates[1]) ||
-            Math.abs(coordinates[0]) > 180 || Math.abs(coordinates[1]) > 90;
+          return (
+            !coordinates ||
+            coordinates.length !== 2 ||
+            !Number.isFinite(coordinates[0]) ||
+            !Number.isFinite(coordinates[1]) ||
+            Math.abs(coordinates[0]) > 180 ||
+            Math.abs(coordinates[1]) > 90
+          );
         }).length;
-        console.log('[HOME NEARBY] invalid location count:', invalidLocationCount);
+        console.log(
+          "[HOME NEARBY] invalid location count:",
+          invalidLocationCount,
+        );
       }
       return responseBody;
     } catch (error: unknown) {
       if (debug) {
-        const requestError = error as { response?: { status?: number }; code?: string } | null;
-        const errorCode = requestError?.response?.status || requestError?.code || 'NETWORK_ERROR';
-        console.log('[HOME NEARBY] HTTP:', errorCode);
+        const requestError = error as {
+          response?: { status?: number };
+          code?: string;
+        } | null;
+        const errorCode =
+          requestError?.response?.status ||
+          requestError?.code ||
+          "NETWORK_ERROR";
+        console.log("[HOME NEARBY] HTTP:", errorCode);
       }
       throw error;
     }
@@ -121,4 +180,3 @@ export const deviceService = {
     return null;
   },
 };
-
