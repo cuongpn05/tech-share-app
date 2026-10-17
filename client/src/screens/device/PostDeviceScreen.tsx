@@ -40,6 +40,7 @@ type DeviceLocation = {
 };
 
 const categories = ['Smartphone', 'Laptop', 'Camera', 'Drone', 'Audio', 'Gaming', 'Accessory'];
+const DEVICES_PER_PAGE = 5;
 
 function SectionTitle({ title, description }: { title: string; description?: string }) {
   return (
@@ -74,8 +75,14 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishError, setPublishError] = useState('');
   const [devices, setDevices] = useState<Device[]>([]);
+  const [devicePage, setDevicePage] = useState(1);
   const [isLoadingDevices, setIsLoadingDevices] = useState(false);
   const [devicesError, setDevicesError] = useState('');
+  const devicePageCount = Math.ceil(devices.length / DEVICES_PER_PAGE);
+  const visibleDevices = devices.slice(
+    (devicePage - 1) * DEVICES_PER_PAGE,
+    devicePage * DEVICES_PER_PAGE,
+  );
 
   useEffect(() => {
     let isCurrent = true;
@@ -90,6 +97,7 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
 
       setIsLoadingDevices(true);
       setDevices([]);
+      setDevicePage(1);
       setDevicesError('');
       try {
         const ownerDevices = await devicePostService.getMyDevices(accessToken);
@@ -220,7 +228,9 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
         addressText: addressText.trim(),
       });
       try {
-        setDevices(await devicePostService.getMyDevices(accessToken));
+        const ownerDevices = await devicePostService.getMyDevices(accessToken);
+        setDevices(ownerDevices);
+        setDevicePage(1);
         setDevicesError('');
       } catch (error: unknown) {
         console.error('[PostDeviceScreen] Cannot refresh owner devices:', error);
@@ -295,7 +305,7 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
           ) : devices.length === 0 ? (
             <Text style={styles.deviceListMessage}>{STRINGS.POST_DEVICE.NO_DEVICES_YET}</Text>
           ) : (
-            devices.map((device) => (
+            visibleDevices.map((device) => (
               <View key={device._id} style={styles.deviceListCard}>
                 {device.images?.[0] ? (
                   <Image source={{ uri: device.images[0] }} style={styles.deviceListImage} />
@@ -321,6 +331,37 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
               </View>
             ))
           )}
+          {!isLoadingDevices && !devicesError && devicePageCount > 1 ? (
+            <View style={styles.devicePagination}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityState={{ disabled: devicePage === 1 }}
+                disabled={devicePage === 1}
+                onPress={() => setDevicePage((page) => Math.max(1, page - 1))}
+                style={[styles.devicePageButton, devicePage === 1 && styles.devicePageButtonDisabled]}
+              >
+                <Ionicons name="chevron-back" size={16} color={devicePage === 1 ? colors.light.textSecondary : colors.light.primary} />
+                <Text style={[styles.devicePageButtonText, devicePage === 1 && styles.devicePageButtonTextDisabled]}>
+                  {STRINGS.POST_DEVICE.PREVIOUS_PAGE}
+                </Text>
+              </TouchableOpacity>
+              <Text style={styles.devicePageIndicator}>
+                {STRINGS.POST_DEVICE.PAGE_OF(devicePage, devicePageCount)}
+              </Text>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityState={{ disabled: devicePage === devicePageCount }}
+                disabled={devicePage === devicePageCount}
+                onPress={() => setDevicePage((page) => Math.min(devicePageCount, page + 1))}
+                style={[styles.devicePageButton, devicePage === devicePageCount && styles.devicePageButtonDisabled]}
+              >
+                <Text style={[styles.devicePageButtonText, devicePage === devicePageCount && styles.devicePageButtonTextDisabled]}>
+                  {STRINGS.POST_DEVICE.NEXT_PAGE}
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color={devicePage === devicePageCount ? colors.light.textSecondary : colors.light.primary} />
+              </TouchableOpacity>
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.section}>
@@ -563,6 +604,26 @@ const styles = StyleSheet.create({
   deviceListStatus: { fontSize: 11, fontWeight: '700', marginTop: 4 },
   deviceListStatusAvailable: { color: colors.light.success },
   deviceListStatusMuted: { color: colors.light.textSecondary },
+  devicePagination: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 12,
+  },
+  devicePageButton: {
+    minHeight: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    paddingHorizontal: 8,
+    borderRadius: 9,
+    backgroundColor: colors.light.primaryLight,
+  },
+  devicePageButtonDisabled: { backgroundColor: colors.light.borderSubtle },
+  devicePageButtonText: { color: colors.light.primary, fontSize: 12, fontWeight: '700' },
+  devicePageButtonTextDisabled: { color: colors.light.textSecondary },
+  devicePageIndicator: { color: colors.light.textSecondary, fontSize: 12, fontWeight: '600' },
   deviceListMessage: { color: colors.light.textSecondary, fontSize: 12, textAlign: 'center', paddingVertical: 12 },
   deviceListError: { color: colors.light.danger, fontSize: 12, textAlign: 'center', paddingVertical: 12 },
   section: { marginBottom: 25 },
