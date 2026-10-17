@@ -274,7 +274,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.radii.xl,
+    borderRadius: theme.radii.full,
   },
   menuItemActive: {
     backgroundColor: theme.colors.brand[100],

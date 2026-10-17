@@ -10,11 +10,11 @@ const userSchema = new mongoose.Schema({
   },
   username: { type: String, unique: true, sparse: true, trim: true, lowercase: true },
   name: { type: String, required: true, trim: true },
-  phone: { type: String, default: '', trim: true },
-  address: { type: String, default: '' },
+  phone: { type: String, default: null, trim: true },
+  address: { type: String, default: null },
   avatar: {
     type: String,
-    default: '',
+    default: null,
   },
 
   // 1. Nhóm Tín nhiệm & Định danh (Issue #7, #8)

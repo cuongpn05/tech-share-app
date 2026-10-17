@@ -7,7 +7,12 @@ const { uploadFlexibleImage } = require('../middlewares/uploadMiddleware');
 // User login endpoint
 router.post('/login', authController.login);
 
-// Retrieve authenticated user profile
+// Endpoint quy trình đăng ký tài khoản với OTP Email
+router.post('/register/send-otp', authController.sendRegisterOtp);
+router.post('/register/verify-otp', authController.verifyRegisterOtp);
+router.post('/register/resend-otp', authController.resendRegisterOtp);
+
+// Endpoint lấy thông tin profile từ token
 router.get('/me', requireAuth, authController.getMe);
 
 // Update user personal profile
