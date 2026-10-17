@@ -18,7 +18,7 @@ const getAvailableDevices = asyncHandler(async (req, res) => {
   const limit = Math.min(requestedLimit, 100);
   const devices = await Device.find({
     status: "available",
-    moderationStatus: "approved",
+    moderationStatus: { $in: ["approved", null] },
     isDeleted: false,
   })
     .sort({ createdAt: -1, _id: 1 })
@@ -55,7 +55,11 @@ const getNearbyDevices = asyncHandler(async (req, res) => {
       return res.status(400).json({ success: false, message: `${key} must be a single string` });
     }
   }
-  const filter = { status: "available", isDeleted: false };
+  const filter = {
+    status: "available",
+    moderationStatus: { $in: ["approved", null] },
+    isDeleted: false,
+  };
   if (category && category !== "all") filter.category = category.trim().toLowerCase();
   if (q?.trim()) {
     const escaped = q.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

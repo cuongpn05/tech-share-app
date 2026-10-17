@@ -2,9 +2,11 @@ import React from 'react';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { View, Text, StyleSheet } from 'react-native';
 import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen';
+import DeviceModerationListScreen from '../screens/admin/DeviceModerationListScreen';
 import ProfileScreen from '../screens/user/ProfileScreen';
 import AdminSidebarContent from './AdminSidebarContent';
 import { theme } from '../theme/tokens';
+import { ADMIN_STRINGS } from '../constants/adminStrings';
 
 const Drawer = createDrawerNavigator();
 
@@ -12,7 +14,7 @@ const Drawer = createDrawerNavigator();
 const PlaceholderScreen: React.FC<{ title: string }> = ({ title }) => (
   <View style={styles.placeholderContainer}>
     <Text style={styles.placeholderTitle}>{title}</Text>
-    <Text style={styles.placeholderSubtitle}>Tính năng đang được phát triển</Text>
+    <Text style={styles.placeholderSubtitle}>{ADMIN_STRINGS.COMMON.COMING_SOON}</Text>
   </View>
 );
 
@@ -33,16 +35,14 @@ export const AdminDrawerNavigator: React.FC = () => {
           backgroundColor: theme.colors.surface,
         },
         drawerType: 'front',
-        overlayColor: 'rgba(15, 23, 42, 0.4)',
+        overlayColor: theme.colors.overlay,
       }}
     >
       <Drawer.Screen name="AdminDashboard" component={AdminDashboardScreen} />
       <Drawer.Screen name="UserManagement">
         {() => <PlaceholderScreen title="User Management" />}
       </Drawer.Screen>
-      <Drawer.Screen name="DeviceModeration">
-        {() => <PlaceholderScreen title="Device Moderation" />}
-      </Drawer.Screen>
+      <Drawer.Screen name="DeviceModeration" component={DeviceModerationListScreen} />
       <Drawer.Screen name="DepositDisputes">
         {() => <PlaceholderScreen title="Deposit Disputes" />}
       </Drawer.Screen>
