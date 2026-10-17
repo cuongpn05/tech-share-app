@@ -1,6 +1,7 @@
 import { apiClient } from '../config/api';
 import {
   DeviceModerationItem,
+  DeviceModerationDetailItem,
   ModerationTabCounts,
   GetModerationParams,
 } from '../types';
@@ -59,6 +60,15 @@ export const adminService = {
         hasNextPage: false,
       },
     };
+  },
+
+  /**
+   * Lấy chi tiết thiết bị kiểm duyệt cho Admin Hub (UC-A04)
+   */
+  getDeviceDetail: async (id: string): Promise<DeviceModerationDetailItem> => {
+    const response = await apiClient.get(`/admin/devices/${id}`);
+    const data = response.data?.data || response.data;
+    return data;
   },
 
   /**

@@ -17,6 +17,7 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect, DrawerActions } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../theme/tokens';
 import { ADMIN_STRINGS } from '../../constants/adminStrings';
@@ -161,6 +162,13 @@ export const DeviceModerationListScreen: React.FC<DeviceModerationListScreenProp
     fetchModerationDevices(activeTab, debouncedSearch, 1);
   }, [activeTab, debouncedSearch, fetchModerationDevices]);
 
+  // Tự động cập nhật danh sách khi quay lại màn hình
+  useFocusEffect(
+    useCallback(() => {
+      fetchModerationDevices(activeTab, debouncedSearch, 1);
+    }, [activeTab, debouncedSearch, fetchModerationDevices])
+  );
+
   // Pull-to-refresh
   const handleRefresh = useCallback(() => {
     fetchModerationDevices(activeTab, debouncedSearch, 1, true);
@@ -173,7 +181,7 @@ export const DeviceModerationListScreen: React.FC<DeviceModerationListScreenProp
     }
   }, [isLoading, isLoadingMore, hasNextPage, activeTab, debouncedSearch, page, fetchModerationDevices]);
 
-  // Nhấn vào thẻ thiết bị: chuẩn bị cho Backlog No. 52 (Xem chi tiết & duyệt)
+  // Nhấn vào thẻ thiết bị: Xem chi tiết kiểm duyệt (UC-A04)
   const handlePressCard = useCallback(
     (item: DeviceModerationItem) => {
       if (onSelectDevice) {
@@ -517,22 +525,25 @@ export const DeviceModerationListScreen: React.FC<DeviceModerationListScreenProp
     <View style={[styles.container, { paddingTop: topInset }]}>
       {/* 1. Header chuẩn theo Dashboard KPI */}
       <View style={styles.header}>
+        {/* Nút mở Menu Sidebar bên TRÁI thay cho nút Back */}
         <TouchableOpacity
           accessibilityRole="button"
-          accessibilityLabel={ADMIN_STRINGS.MODERATION.ACCESSIBILITY.BACK_BUTTON}
+          accessibilityLabel={ADMIN_STRINGS.MODERATION.ACCESSIBILITY.MENU_BUTTON}
           style={styles.headerButton}
           onPress={() => {
-            if (navigation?.navigate) {
-              navigation.navigate('AdminDashboard');
-            } else if (navigation?.goBack) {
-              navigation.goBack();
+            if (navigation?.openDrawer) {
+              navigation.openDrawer();
+            } else if (navigation?.getParent?.()?.openDrawer) {
+              navigation.getParent().openDrawer();
+            } else if (navigation?.dispatch) {
+              navigation.dispatch(DrawerActions.openDrawer());
             }
           }}
           activeOpacity={0.7}
         >
           <Ionicons
-            name="arrow-back"
-            size={22}
+            name="menu-outline"
+            size={24}
             color={theme.colors.text.primary}
           />
         </TouchableOpacity>
@@ -545,21 +556,6 @@ export const DeviceModerationListScreen: React.FC<DeviceModerationListScreenProp
             {ADMIN_STRINGS.MODERATION.HEADER_SUBTITLE}
           </Text>
         </View>
-
-        {/* Nút mở Menu Sidebar */}
-        <TouchableOpacity
-          accessibilityRole="button"
-          accessibilityLabel={ADMIN_STRINGS.MODERATION.ACCESSIBILITY.MENU_BUTTON}
-          style={styles.headerButton}
-          onPress={() => navigation?.openDrawer?.()}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name="menu-outline"
-            size={24}
-            color={theme.colors.text.primary}
-          />
-        </TouchableOpacity>
       </View>
 
       {/* 2. Thanh tìm kiếm nhanh */}

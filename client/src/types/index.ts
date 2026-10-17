@@ -255,3 +255,22 @@ export interface GetModerationParams {
   limit?: number;
 }
 
+export interface DeviceModerationDetailItem extends DeviceModerationItem {
+  yearOfManufacture?: number;
+  condition?: string;
+  description?: string;
+  specs?: Record<string, string>;
+  accessories?: string[];
+  location?: {
+    type?: string;
+    coordinates?: [number, number];
+    addressText?: string;
+  };
+  owner: DeviceModerationOwner & {
+    email?: string;
+    rating?: number;
+    address?: string;
+  };
+}
+
+

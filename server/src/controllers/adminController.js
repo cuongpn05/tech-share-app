@@ -403,9 +403,92 @@ const rejectDevice = async (req, res) => {
   }
 };
 
+/**
+ * Lấy thông tin chi tiết một thiết bị kiểm duyệt cho Admin Hub (UC-A04)
+ * GET /api/admin/devices/:id
+ */
+const getDeviceDetail = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!/^[a-fA-F0-9]{24}$/.test(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID thiết bị không hợp lệ',
+      });
+    }
+
+    const device = await Device.findOne({
+      _id: id,
+      isDeleted: false,
+    }).populate({
+      path: 'ownerId',
+      select: 'name avatar phone email trust isVerified trustScore rating address',
+    });
+
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy thiết bị kiểm duyệt',
+      });
+    }
+
+    const owner = device.ownerId;
+    const effectiveModerationStatus = device.moderationStatus || 'approved';
+    const formattedDevice = {
+      _id: device._id.toString(),
+      id: device._id.toString(),
+      name: device.name,
+      brand: device.brand,
+      category: device.category,
+      yearOfManufacture: device.yearOfManufacture,
+      condition: device.condition || 'new99',
+      description: device.description || '',
+      images: device.images || [],
+      thumbnail: (device.images && device.images.length > 0) ? device.images[0] : '',
+      specs: device.specs instanceof Map ? Object.fromEntries(device.specs) : (device.specs || {}),
+      accessories: device.accessories || [],
+      pricePerDay: device.pricePerDay,
+      depositAmount: device.depositAmount,
+      location: device.location,
+      addressText: device.addressText || device.location?.addressText || '',
+      status: device.status,
+      moderationStatus: effectiveModerationStatus,
+      rejectReason: device.rejectReason || '',
+      createdAt: device.createdAt,
+      stats: device.stats,
+      owner: {
+        _id: owner?._id ? owner._id.toString() : '',
+        name: owner?.name || 'Chủ máy TechShare',
+        avatar: owner?.avatar || '',
+        phone: owner?.phone || '',
+        email: owner?.email || '',
+        rating: owner?.rating || 5.0,
+        trustScore: owner?.trustScore ?? owner?.trust?.score ?? 100,
+        isVerified: owner?.isVerified ?? owner?.trust?.isVerified ?? false,
+        address: owner?.address || '',
+      },
+    };
+
+    return res.status(200).json({
+      success: true,
+      message: 'Lấy chi tiết thiết bị thành công',
+      data: formattedDevice,
+    });
+  } catch (error) {
+    console.error('[Admin Device Detail Error]:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi máy chủ khi lấy chi tiết thiết bị.',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getDashboardStats,
   getModerationDevices,
+  getDeviceDetail,
   approveDevice,
   rejectDevice,
 };
+

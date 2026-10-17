@@ -1,14 +1,33 @@
 import React from 'react';
 import { createDrawerNavigator } from '@react-navigation/drawer';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, Text, StyleSheet } from 'react-native';
 import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen';
 import DeviceModerationListScreen from '../screens/admin/DeviceModerationListScreen';
+import DeviceModerationDetailScreen from '../screens/admin/DeviceModerationDetailScreen';
 import ProfileScreen from '../screens/user/ProfileScreen';
 import AdminSidebarContent from './AdminSidebarContent';
 import { theme } from '../theme/tokens';
 import { ADMIN_STRINGS } from '../constants/adminStrings';
 
 const Drawer = createDrawerNavigator();
+const ModerationStack = createNativeStackNavigator();
+
+// Stack điều hướng giữa Danh sách kiểm duyệt và Chi tiết kiểm duyệt (UC-A03, UC-A04)
+const DeviceModerationStackNavigator: React.FC = () => {
+  return (
+    <ModerationStack.Navigator screenOptions={{ headerShown: false }}>
+      <ModerationStack.Screen
+        name="DeviceModerationList"
+        component={DeviceModerationListScreen}
+      />
+      <ModerationStack.Screen
+        name="DeviceModerationDetail"
+        component={DeviceModerationDetailScreen}
+      />
+    </ModerationStack.Navigator>
+  );
+};
 
 // Placeholder cho các phân hệ con của Admin Hub
 const PlaceholderScreen: React.FC<{ title: string }> = ({ title }) => (
@@ -42,7 +61,7 @@ export const AdminDrawerNavigator: React.FC = () => {
       <Drawer.Screen name="UserManagement">
         {() => <PlaceholderScreen title="User Management" />}
       </Drawer.Screen>
-      <Drawer.Screen name="DeviceModeration" component={DeviceModerationListScreen} />
+      <Drawer.Screen name="DeviceModeration" component={DeviceModerationStackNavigator} />
       <Drawer.Screen name="DepositDisputes">
         {() => <PlaceholderScreen title="Deposit Disputes" />}
       </Drawer.Screen>
