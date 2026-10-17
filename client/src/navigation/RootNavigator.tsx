@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAppSelector } from '../store';
 import { LoginScreen } from '../screens/auth/LoginScreen';
+import { RegisterScreen } from '../screens/auth/RegisterScreen';
 import { OnboardingScreen } from '../user/OnboardingScreen';
 import OwnerDrawerNavigator from './OwnerDrawerNavigator';
 import AdminDrawerNavigator from './AdminDrawerNavigator';
@@ -31,6 +32,7 @@ const ONBOARDING_STORAGE_KEY = '@has_completed_onboarding';
 export type RootStackParamList = {
   Onboarding: undefined;
   Login: undefined;
+  Register: undefined;
   Owner: undefined;
   Admin: undefined;
   Home: { initialTab?: ScreenType } | undefined;
@@ -222,7 +224,26 @@ export function RootNavigator() {
             {(props) => (
               <LoginScreen
                 {...props}
+                onNavigateToRegister={() => props.navigation.navigate('Register')}
                 onLoginSuccess={(role) => {
+                  const targetRoute = role === 'admin' ? 'Admin' : role === 'owner' ? 'Owner' : 'Home';
+                  if (navigationRef.isReady()) {
+                    navigationRef.reset({
+                      index: 0,
+                      routes: [{ name: targetRoute }],
+                    });
+                  }
+                }}
+              />
+            )}
+          </Stack.Screen>
+
+          <Stack.Screen name="Register">
+            {(props) => (
+              <RegisterScreen
+                {...props}
+                onNavigateToLogin={() => props.navigation.navigate('Login')}
+                onRegisterSuccess={(role) => {
                   const targetRoute = role === 'admin' ? 'Admin' : role === 'owner' ? 'Owner' : 'Home';
                   if (navigationRef.isReady()) {
                     navigationRef.reset({
