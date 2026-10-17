@@ -30,11 +30,11 @@ export interface ProfileScreenProps {
 export function ProfileScreen({ navigation, onBack }: ProfileScreenProps) {
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
-  const authUser = useAppSelector((state) => state.auth.user);
+  const { isAuthenticated, user: authUser } = useAppSelector((state) => state.auth);
 
   // Local state - Chỉ giữ các thông tin cơ bản theo yêu cầu
   const [profile, setProfile] = useState<User>(() => ({
-    _id: authUser?._id || '6ad1cfacf8e0116329d9b970',
+    _id: authUser?._id || 'guest',
     name: authUser?.name || 'Quản trị viên TechShare',
     email: authUser?.email || 'admin@techshare.vn',
     phone: authUser?.phone || '0901000001',
@@ -214,13 +214,17 @@ export function ProfileScreen({ navigation, onBack }: ProfileScreenProps) {
 
         <Text style={styles.headerTitle}>Hồ sơ cá nhân</Text>
 
-        <TouchableOpacity
-          style={styles.headerIconButton}
-          onPress={openEditModal}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="create-outline" size={22} color={theme.primary} />
-        </TouchableOpacity>
+        {isAuthenticated ? (
+          <TouchableOpacity
+            style={styles.headerIconButton}
+            onPress={openEditModal}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="create-outline" size={22} color={theme.primary} />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 40 }} />
+        )}
       </View>
 
       <ScrollView
@@ -239,26 +243,49 @@ export function ProfileScreen({ navigation, onBack }: ProfileScreenProps) {
           />
         }
       >
-        {/* ─── 1. THẺ AVATAR & TÊN & ĐÁNH GIÁ ─── */}
-        <View style={styles.card}>
-          <View style={styles.avatarWrapper}>
-            {profile.avatar ? (
-              <Image source={{ uri: profile.avatar }} style={styles.avatarImage} />
-            ) : (
+        {!isAuthenticated ? (
+          /* ─── GIAO DIỆN KHÁCH CHƯA ĐĂNG NHẬP ─── */
+          <View style={styles.card}>
+            <View style={styles.avatarWrapper}>
               <View style={[styles.avatarImage, styles.avatarFallback]}>
-                <Ionicons name="person" size={44} color={theme.primary} />
+                <Ionicons name="person-outline" size={44} color={theme.primary} />
               </View>
-            )}
+            </View>
+            <Text style={styles.profileName}>Khách (Guest)</Text>
+            <Text style={styles.guestDescText}>
+              Bạn đang duyệt TechShare với vai trò Khách. Đăng nhập để sử dụng đầy đủ các tính năng đặt thuê thiết bị và quản lý đơn hàng.
+            </Text>
             <TouchableOpacity
-              style={styles.cameraIconBadge}
-              onPress={openEditModal}
+              style={styles.editProfileButton}
+              onPress={() => navigation?.navigate('Login')}
               activeOpacity={0.8}
             >
-              <Ionicons name="camera" size={14} color="#FFFFFF" />
+              <Ionicons name="log-in-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.editProfileButtonText}>Đăng nhập / Tạo tài khoản</Text>
             </TouchableOpacity>
           </View>
+        ) : (
+          <>
+            {/* ─── 1. THẺ AVATAR & TÊN & ĐÁNH GIÁ ─── */}
+            <View style={styles.card}>
+              <View style={styles.avatarWrapper}>
+                {profile.avatar ? (
+                  <Image source={{ uri: profile.avatar }} style={styles.avatarImage} />
+                ) : (
+                  <View style={[styles.avatarImage, styles.avatarFallback]}>
+                    <Ionicons name="person" size={44} color={theme.primary} />
+                  </View>
+                )}
+                <TouchableOpacity
+                  style={styles.cameraIconBadge}
+                  onPress={openEditModal}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="camera" size={14} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
 
-          <Text style={styles.profileName}>{profile.name}</Text>
+              <Text style={styles.profileName}>{profile.name}</Text>
 
           {/* Đánh giá sao */}
           <View style={styles.ratingBox}>
@@ -354,6 +381,8 @@ export function ProfileScreen({ navigation, onBack }: ProfileScreenProps) {
           <Ionicons name="log-out-outline" size={18} color={theme.danger} />
           <Text style={styles.signOutButtonText}>Đăng xuất</Text>
         </TouchableOpacity>
+          </>
+        )}
       </ScrollView>
 
       {/* ─── MODAL CHỈNH SỬA THÔNG TIN ─── */}
@@ -560,6 +589,14 @@ const styles = StyleSheet.create({
     color: theme.textPrimary,
     textAlign: 'center',
     marginBottom: 6,
+  },
+  guestDescText: {
+    fontSize: 13,
+    color: theme.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.sm,
   },
   ratingBox: {
     flexDirection: 'row',

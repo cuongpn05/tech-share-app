@@ -32,6 +32,7 @@ interface BookingCreateScreenProps {
   onBack: () => void;
   onSuccess?: () => void;
   onNavigateToVerification?: () => void;
+  onNavigateToLogin?: () => void;
 }
 
 const formatPrice = (price: number): string => {
@@ -65,6 +66,7 @@ export function BookingCreateScreen({
   onBack,
   onSuccess,
   onNavigateToVerification,
+  onNavigateToLogin,
 }: BookingCreateScreenProps) {
   const currentUser = useAppSelector((state) => state.auth.user);
   const insets = useSafeAreaInsets();
@@ -321,6 +323,24 @@ export function BookingCreateScreen({
   const totalAmount = rentalFeeAfterLongTerm + deviceDepositValue;
 
   const handleConfirm = async () => {
+    // 1. Kiểm tra đăng nhập nếu là khách (Role Guest)
+    if (!currentUser) {
+      Alert.alert(
+        'Yêu cầu đăng nhập',
+        'Vui lòng đăng nhập tài khoản để thực hiện đặt thuê thiết bị.',
+        [
+          { text: 'Để sau', style: 'cancel' },
+          {
+            text: 'Đăng nhập ngay',
+            onPress: () => {
+              if (onNavigateToLogin) onNavigateToLogin();
+            },
+          },
+        ]
+      );
+      return;
+    }
+
     if (currentUser?.role === 'renter' && !currentUser.isVerified) {
       Alert.alert(
         STRINGS.AUTH_VERIFY_ALERT.TITLE,
