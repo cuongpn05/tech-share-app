@@ -122,6 +122,12 @@ export function HomeRoute({
         />
       ) : (
         <HomeScreen
+          navigation={navigation}
+          onNavigateToLogin={() => {
+            if (navigation?.navigate) {
+              navigation.navigate('Login');
+            }
+          }}
           showOwnerDashboard={!!onReturnToOwner}
           onNavigateToOwnerDashboard={onReturnToOwner}
           onNavigateToChat={handleNavigateToChat}
