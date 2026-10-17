@@ -46,8 +46,12 @@ const deviceSchema = new mongoose.Schema({
   moderationStatus: {
     type: String,
     enum: ['pending', 'approved', 'rejected'],
-    default: 'approved',
+    default: 'pending',
     index: true,
+  },
+  rejectReason: {
+    type: String,
+    default: '',
   },
   blockedDates: [
     {

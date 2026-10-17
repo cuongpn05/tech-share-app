@@ -157,9 +157,50 @@ export const ChatMessagesSkeleton: React.FC = () => {
   );
 };
 
+/**
+ * 4. Shimmer Skeleton cho danh sách kiểm duyệt thiết bị (DeviceModerationListScreen)
+ */
+export const DeviceModerationListSkeleton: React.FC<{ count?: number }> = ({ count = 4 }) => {
+  return (
+    <View style={styles.container}>
+      {Array.from({ length: count }).map((_, i) => (
+        <View key={`mod_skel_${i}`} style={styles.moderationCard}>
+          {/* Thông tin trên: Thumbnail 64x64 + Cột nội dung */}
+          <View style={styles.moderationTopRow}>
+            <ShimmerBlock width={64} height={64} borderRadius={10} style={styles.moderationThumb} />
+
+            <View style={styles.moderationContent}>
+              {/* Hàng 1: Brand & Status badge */}
+              <View style={styles.moderationRow}>
+                <ShimmerBlock width={54} height={12} borderRadius={4} />
+                <ShimmerBlock width={68} height={18} borderRadius={9} />
+              </View>
+
+              {/* Hàng 2: Tên thiết bị (1 dòng) */}
+              <ShimmerBlock width="80%" height={14} borderRadius={4} />
+
+              {/* Hàng 3: Giá thuê & Tên chủ */}
+              <View style={styles.moderationRow}>
+                <ShimmerBlock width={88} height={13} borderRadius={4} />
+                <ShimmerBlock width={72} height={13} borderRadius={4} />
+              </View>
+            </View>
+          </View>
+
+          {/* Hàng 2 nút Action (Từ chối & Duyệt) */}
+          <View style={styles.moderationActionRow}>
+            <ShimmerBlock width="48%" height={32} borderRadius={8} />
+            <ShimmerBlock width="48%" height={32} borderRadius={8} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+};
+
 const styles = StyleSheet.create({
   shimmerBase: {
-    backgroundColor: '#E2E8F0',
+    backgroundColor: theme.colors.border.light,
   },
   container: {
     paddingHorizontal: 16,
@@ -168,11 +209,11 @@ const styles = StyleSheet.create({
   conversationCard: {
     flexDirection: 'row',
     padding: 14,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     borderRadius: 14,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: theme.colors.border.divider,
   },
   avatar: {
     marginRight: 12,
@@ -198,11 +239,11 @@ const styles = StyleSheet.create({
   notifCard: {
     flexDirection: 'row',
     padding: 14,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     borderRadius: 14,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: theme.colors.border.divider,
   },
   iconBox: {
     marginRight: 12,
@@ -232,17 +273,51 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   bubbleLeft: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     padding: 12,
     borderRadius: 16,
     borderBottomLeftRadius: 4,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: theme.colors.border.divider,
   },
   bubbleRight: {
-    backgroundColor: '#E6F7F7',
+    backgroundColor: theme.colors.brand[100],
     padding: 12,
     borderRadius: 16,
     borderBottomRightRadius: 4,
+  },
+  moderationCard: {
+    padding: 12,
+    backgroundColor: theme.colors.surface,
+    borderRadius: 16,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.border.divider,
+  },
+  moderationTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  moderationThumb: {
+    marginRight: 12,
+  },
+  moderationContent: {
+    flex: 1,
+    height: 64,
+    justifyContent: 'space-between',
+  },
+  moderationRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  moderationActionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border.divider,
   },
 });

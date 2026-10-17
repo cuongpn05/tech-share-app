@@ -22,6 +22,8 @@ export const colors = {
   background: '#F8FAFC', // Slate-50
   surface: '#FFFFFF',    // Pure White
   surfaceMuted: '#F1F5F9', // Slate-100
+  white: '#FFFFFF',
+  overlay: 'rgba(15, 23, 42, 0.45)',
 
   // Text Colors
   text: {

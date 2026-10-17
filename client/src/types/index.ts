@@ -211,3 +211,66 @@ export type ScreenType =
   | 'register'
   | 'profile'
   | 'notification';
+
+export type ModerationStatus = 'pending' | 'approved' | 'rejected';
+export type ModerationFilterStatus = 'all' | 'pending' | 'approved' | 'rejected';
+
+export interface DeviceModerationOwner {
+  _id: string;
+  name: string;
+  avatar?: string;
+  phone?: string;
+  trustScore: number;
+  isVerified: boolean;
+}
+
+export interface DeviceModerationItem {
+  _id: string;
+  id: string;
+  name: string;
+  brand: string;
+  category: DeviceCategory | string;
+  pricePerDay: number;
+  depositAmount: number;
+  images: string[];
+  thumbnail: string;
+  moderationStatus: ModerationStatus;
+  rejectReason?: string;
+  createdAt: string;
+  addressText: string;
+  owner: DeviceModerationOwner;
+}
+
+export interface ModerationTabCounts {
+  totalPending: number;
+  totalApproved: number;
+  totalRejected: number;
+  totalAll: number;
+}
+
+export interface GetModerationParams {
+  status?: ModerationFilterStatus;
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface DeviceModerationDetailItem extends DeviceModerationItem {
+  yearOfManufacture?: number;
+  condition?: string;
+  description?: string;
+  specs?: Record<string, string>;
+  accessories?: string[];
+  location?: {
+    type?: string;
+    coordinates?: [number, number];
+    addressText?: string;
+  };
+  owner: DeviceModerationOwner & {
+    email?: string;
+    rating?: number;
+    address?: string;
+  };
+}
+
+

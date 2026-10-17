@@ -236,7 +236,11 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navi
           </View>
 
           {/* Card 3: Total Devices */}
-          <View style={styles.kpiCard}>
+          <TouchableOpacity
+            style={styles.kpiCard}
+            activeOpacity={0.7}
+            onPress={() => navigation?.navigate?.('DeviceModeration')}
+          >
             <View style={[styles.kpiIconCircle, { backgroundColor: theme.colors.amberLight }]}>
               <Ionicons name="hardware-chip-outline" size={20} color={theme.colors.amber} />
             </View>
@@ -247,7 +251,7 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navi
             <Text style={styles.kpiSubtitle}>
               {`${kpis.rentedDevices} Rented • ${kpis.availableDevices} Available`}
             </Text>
-          </View>
+          </TouchableOpacity>
 
           {/* Card 4: Rental Orders */}
           <View style={styles.kpiCard}>
@@ -378,10 +382,10 @@ const styles = StyleSheet.create({
   menuButton: {
     width: 38,
     height: 38,
-    borderRadius: 12,
-    backgroundColor: '#F8FAFC',
+    borderRadius: theme.radii.md,
+    backgroundColor: theme.colors.background,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border.light,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
