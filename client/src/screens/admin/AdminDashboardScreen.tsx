@@ -6,11 +6,11 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   Platform,
   StatusBar,
   RefreshControl,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../theme/tokens';
 import { ADMIN_STRINGS } from '../../constants/adminStrings';
@@ -145,21 +145,30 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navi
     }
   };
 
+  const insets = useSafeAreaInsets();
+  const topInset = Math.max(
+    insets.top,
+    Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 20
+  );
+  const bottomInset = Math.max(insets.bottom, 24);
+
   const { kpis, actionItems, categoryBreakdown } = data;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor={theme.colors.background} />
+    <View style={[styles.safeArea, { paddingTop: topInset }]}>
+      <StatusBar barStyle="dark-content" backgroundColor={theme.colors.background} translucent={true} />
 
       {/* 1. TOP HEADER BAR */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Menu"
             style={styles.menuButton}
             onPress={handleOpenDrawer}
             activeOpacity={0.7}
           >
-            <Ionicons name="menu" size={24} color={theme.colors.text.primary} />
+            <Ionicons name="menu-outline" size={24} color={theme.colors.text.primary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{ADMIN_STRINGS.HEADER.TITLE}</Text>
         </View>
@@ -167,7 +176,7 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navi
 
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomInset + 16 }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -344,7 +353,7 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navi
           )}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -352,14 +361,13 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: theme.colors.background,
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
+    paddingVertical: 12,
     backgroundColor: theme.colors.background,
   },
   headerLeft: {
@@ -368,19 +376,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   menuButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: theme.colors.surface,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: theme.colors.border.light,
+    borderColor: '#E2E8F0',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: theme.spacing.md,
-    ...theme.shadows.card,
+    marginRight: 12,
   },
   headerTitle: {
-    fontSize: theme.typography.fontSize['2xl'],
+    fontSize: 19,
     fontWeight: theme.typography.fontWeight.bold,
     color: theme.colors.text.primary,
   },

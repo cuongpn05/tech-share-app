@@ -12,6 +12,7 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, {
   Path,
@@ -200,7 +201,12 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
     setRefreshing(false);
   };
 
-  const statusBarOffset = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
+  const insets = useSafeAreaInsets();
+  const topInset = Math.max(
+    insets.top,
+    Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 20
+  );
+  const bottomInset = Math.max(insets.bottom, 24);
 
   // Tính toán kích thước SVG Chart
   const chartCardWidth = SCREEN_WIDTH - theme.spacing.lg * 2;
@@ -262,7 +268,7 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
       : '';
 
   return (
-    <View style={[styles.screenContainer, { paddingTop: statusBarOffset }]}>
+    <View style={[styles.screenContainer, { paddingTop: topInset }]}>
       <StatusBar
         barStyle="dark-content"
         backgroundColor={theme.colors.background}
@@ -271,11 +277,13 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
       {/* 1. Header Navigation Bar */}
       <View style={styles.headerBar}>
         <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Menu"
           style={styles.headerIconButton}
           onPress={() => navigation?.openDrawer?.()}
           activeOpacity={0.7}
         >
-          <Ionicons name="menu" size={22} color={theme.colors.text.primary} />
+          <Ionicons name="menu-outline" size={24} color={theme.colors.text.primary} />
         </TouchableOpacity>
 
         <View style={styles.headerTitleContainer}>
@@ -295,7 +303,7 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomInset + 16 }]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -597,15 +605,14 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   headerIconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: theme.radii.lg,
-    backgroundColor: theme.colors.surface,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
     alignItems: 'center',
     justifyContent: 'center',
-    ...theme.shadows.card,
   },
   headerTitleContainer: {
     flex: 1,

@@ -249,7 +249,7 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: topInset + 8 }]}>
+      <View style={[styles.header, { paddingTop: topInset }]}>
         <View style={styles.headerLeft}>
           <TouchableOpacity
             accessibilityRole="button"
@@ -490,28 +490,37 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.light.background },
   header: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 12,
-    backgroundColor: colors.light.card, borderBottomWidth: 1, borderBottomColor: colors.light.borderSubtle,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: colors.light.background,
   },
   headerLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerButton: {
-    width: 38, height: 38, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: colors.light.borderSubtle, borderRadius: 12, backgroundColor: colors.light.background,
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.light.borderSubtle,
+    borderRadius: 12,
+    backgroundColor: colors.light.background,
   },
   headerTitleCol: { flex: 1 },
-  headerTitle: { color: colors.light.textPrimary, fontSize: 16, fontWeight: '700' },
-  headerSubtitle: { color: colors.light.textSecondary, fontSize: 11, marginTop: 2 },
-  content: { paddingHorizontal: 16, paddingTop: 23, paddingBottom: 30 },
-  intro: { marginBottom: 27 },
-  introTitle: { color: colors.light.textPrimary, fontSize: 24, fontWeight: '800' },
-  introText: { color: colors.light.textSecondary, fontSize: 13, lineHeight: 19, marginTop: 7, maxWidth: 320 },
+  headerTitle: { color: colors.light.textPrimary, fontSize: 19, fontWeight: '700' },
+  headerSubtitle: { color: colors.light.textSecondary, fontSize: 12.5, marginTop: 2 },
+  content: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 36 },
+  intro: { marginBottom: 24 },
+  introTitle: { color: colors.light.textPrimary, fontSize: 22, fontWeight: '800' },
+  introText: { color: colors.light.textSecondary, fontSize: 13, lineHeight: 19, marginTop: 6, maxWidth: 320 },
   myDevicesSection: {
-    marginBottom: 25,
-    padding: 14,
+    marginBottom: 20,
+    padding: 16,
     backgroundColor: colors.light.background,
     borderWidth: 1,
     borderColor: colors.light.borderDefault,
-    borderRadius: 14,
+    borderRadius: 20,
   },
   myDevicesHeader: {
     flexDirection: 'row',
@@ -558,7 +567,7 @@ const styles = StyleSheet.create({
   deviceListError: { color: colors.light.danger, fontSize: 12, textAlign: 'center', paddingVertical: 12 },
   section: { marginBottom: 25 },
   sectionHeading: { marginBottom: 14 },
-  sectionTitle: { color: colors.light.textPrimary, fontSize: 18, fontWeight: '800' },
+  sectionTitle: { color: colors.light.textPrimary, fontSize: 16, fontWeight: '700' },
   sectionDescription: { color: colors.light.textSecondary, fontSize: 13, lineHeight: 19, marginTop: 5 },
   fieldLabel: { color: colors.light.textPrimary, fontSize: 13, fontWeight: '700', marginBottom: 7, marginTop: 14 },
   required: { color: colors.light.danger },

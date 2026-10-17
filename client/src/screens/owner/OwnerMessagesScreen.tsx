@@ -12,6 +12,7 @@ import {
   Image,
   Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../theme/tokens';
@@ -355,7 +356,12 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
     setRefreshing(false);
   };
 
-  const statusBarOffset = Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0;
+  const insets = useSafeAreaInsets();
+  const topInset = Math.max(
+    insets.top,
+    Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 20
+  );
+  const bottomInset = Math.max(insets.bottom, 24);
 
   // Lọc danh sách theo Tab, Từ khóa tìm kiếm và áp dụng Quy tắc Gom nhóm theo Người dùng (Deduplication)
   const filteredConversations = useMemo(() => {
@@ -618,7 +624,7 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
   };
 
   return (
-    <View style={[styles.screenContainer, { paddingTop: statusBarOffset }]}>
+    <View style={[styles.screenContainer, { paddingTop: topInset }]}>
       <StatusBar
         barStyle="dark-content"
         backgroundColor={theme.colors.background}
@@ -628,21 +634,19 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
       {/* 1. Header Bar */}
       <View style={styles.headerBar}>
         <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Menu"
           style={styles.headerIconButton}
           onPress={() => {
-            if (navigation?.canGoBack?.()) {
-              navigation.goBack();
-            } else if (navigation?.openDrawer) {
+            if (navigation?.openDrawer) {
               navigation.openDrawer();
+            } else if (navigation?.canGoBack?.()) {
+              navigation.goBack();
             }
           }}
           activeOpacity={0.7}
         >
-          <Ionicons
-            name={navigation?.canGoBack?.() ? 'arrow-back' : 'menu'}
-            size={22}
-            color={theme.colors.text.primary}
-          />
+          <Ionicons name="menu-outline" size={24} color={theme.colors.text.primary} />
         </TouchableOpacity>
 
         <View style={styles.headerTitleContainer}>
@@ -754,7 +758,7 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
           data={filteredConversations}
           keyExtractor={(item) => item.id}
           renderItem={renderConversationItem}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: bottomInset + 16 }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -791,25 +795,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: theme.spacing.lg,
-    paddingVertical: 14,
-    backgroundColor: theme.colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    paddingVertical: 12,
+    backgroundColor: theme.colors.background,
   },
   headerIconButton: {
-    padding: 6,
-    marginRight: 10,
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    marginRight: 12,
   },
   headerTitleContainer: {
     flex: 1,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: theme.typography.fontWeight.bold,
     color: theme.colors.text.primary,
   },
   headerSubtitle: {
-    fontSize: 12,
+    fontSize: 12.5,
     color: theme.colors.text.muted,
     marginTop: 2,
   },
@@ -818,13 +827,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: theme.colors.surface,
     marginHorizontal: theme.spacing.lg,
-    marginTop: 12,
-    marginBottom: 8,
+    marginTop: 8,
+    marginBottom: 10,
     paddingHorizontal: 12,
-    height: 42,
-    borderRadius: 12,
+    height: 44,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    ...theme.shadows.card,
   },
   searchIcon: {
     marginRight: 8,
@@ -838,13 +848,14 @@ const styles = StyleSheet.create({
   filterTabsRow: {
     flexDirection: 'row',
     paddingHorizontal: theme.spacing.lg,
-    paddingVertical: 10,
+    paddingVertical: 6,
+    marginBottom: 8,
     gap: 8,
   },
   filterTab: {
     paddingHorizontal: 14,
     paddingVertical: 7,
-    borderRadius: 20,
+    borderRadius: 16,
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
     borderColor: '#E2E8F0',
@@ -865,18 +876,23 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.medium,
   },
   listContent: {
+    paddingTop: 4,
     paddingBottom: 32,
   },
   conversationCard: {
     flexDirection: 'row',
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    marginHorizontal: theme.spacing.lg,
+    marginBottom: 10,
+    padding: 14,
+    borderRadius: 18,
     backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    ...theme.shadows.card,
   },
   conversationCardUnread: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F0FDFA',
+    borderColor: '#CCFBF1',
   },
   avatarContainer: {
     position: 'relative',

@@ -9,6 +9,7 @@ import {
   StatusBar,
   Image,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/tokens';
 import { ADMIN_STRINGS } from '../constants/adminStrings';
@@ -71,6 +72,13 @@ export const AdminSidebarContent: React.FC<AdminSidebarContentProps> = ({
   navigation,
   activeRoute = 'AdminDashboard',
 }) => {
+  const insets = useSafeAreaInsets();
+  const topInset = Math.max(
+    insets.top,
+    Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 20
+  );
+  const bottomInset = Math.max(insets.bottom, 16);
+
   const dispatch = useAppDispatch();
   const currentUser = useAppSelector((state) => state.auth.user);
   const displayName = currentUser?.name || currentUser?.username || 'Administrator';
@@ -91,7 +99,7 @@ export const AdminSidebarContent: React.FC<AdminSidebarContentProps> = ({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: topInset + 12, paddingBottom: bottomInset }]}>
       {/* 1. PROFILE HEADER */}
       <View style={styles.header}>
         <View style={styles.profileRow}>
@@ -195,7 +203,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.surface,
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 16 : 48,
     paddingHorizontal: theme.spacing.md,
   },
   header: {
@@ -281,8 +288,7 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.bold,
   },
   footer: {
-    paddingVertical: theme.spacing.md,
-    paddingBottom: Platform.OS === 'android' ? 24 : 36,
+    paddingVertical: theme.spacing.sm,
   },
   signOutButton: {
     flexDirection: 'row',
