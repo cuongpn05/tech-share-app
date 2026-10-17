@@ -35,20 +35,17 @@ export function ProfileScreen({ navigation, onBack }: ProfileScreenProps) {
   // Local state - Chỉ giữ các thông tin cơ bản theo yêu cầu
   const [profile, setProfile] = useState<User>(() => ({
     _id: authUser?._id || 'guest',
-    name: authUser?.name || 'Quản trị viên TechShare',
-    email: authUser?.email || 'admin@techshare.vn',
-    phone: authUser?.phone || '0901000001',
+    name: authUser?.name || '',
+    email: authUser?.email || '',
+    phone: authUser?.phone || '',
     address:
       typeof authUser?.address === 'string'
-        ? authUser?.address
-        : authUser?.address?.fullAddress ||
-          'Tầng 12, Keangnam Landmark 72, Nam Từ Liêm, Hà Nội',
-    avatar:
-      authUser?.avatar ||
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400',
-    referralCode: authUser?.referralCode || 'TSADMIN',
+        ? authUser.address
+        : authUser?.address?.fullAddress || '',
+    avatar: authUser?.avatar || '',
+    referralCode: authUser?.referralCode || '',
     rating: authUser?.rating ?? 5.0,
-    totalReviews: authUser?.totalReviews ?? authUser?.totalReview ?? 3,
+    totalReviews: authUser?.totalReviews ?? authUser?.totalReview ?? 0,
   }));
 
   const [refreshing, setRefreshing] = useState(false);
@@ -72,11 +69,12 @@ export function ProfileScreen({ navigation, onBack }: ProfileScreenProps) {
       setProfile((prev) => ({
         ...prev,
         ...authUser,
-        email: authUser.email || prev.email || 'admin@techshare.vn',
+        email: authUser.email || prev.email || '',
         address:
           typeof authUser.address === 'string'
             ? authUser.address
-            : authUser.address?.fullAddress || prev.address,
+            : authUser.address?.fullAddress || '',
+        avatar: authUser.avatar || '',
       }));
     }
   }, [authUser]);
@@ -163,9 +161,13 @@ export function ProfileScreen({ navigation, onBack }: ProfileScreenProps) {
 
   // Sao chép mã giới thiệu
   const handleCopyReferral = () => {
+    if (!profile.referralCode) {
+      Alert.alert('Mã giới thiệu', 'Tài khoản chưa có mã giới thiệu.');
+      return;
+    }
     Alert.alert(
       'Mã giới thiệu',
-      `Đã sao chép mã: ${profile.referralCode || 'TSADMIN'}`
+      `Đã sao chép mã: ${profile.referralCode}`
     );
   };
 
@@ -324,7 +326,7 @@ export function ProfileScreen({ navigation, onBack }: ProfileScreenProps) {
             <View style={styles.infoTextContainer}>
               <Text style={styles.infoLabel}>Email</Text>
               <Text style={styles.infoValue}>
-                {profile.email || 'admin@techshare.vn'}
+                {profile.email || 'Chưa cập nhật'}
               </Text>
             </View>
           </View>
@@ -348,7 +350,7 @@ export function ProfileScreen({ navigation, onBack }: ProfileScreenProps) {
             <View style={styles.referralTextWrapper}>
               <Ionicons name="gift-outline" size={20} color={theme.primary} />
               <Text style={styles.referralCode}>
-                {profile.referralCode || 'TSADMIN'}
+                {profile.referralCode || 'Chưa có'}
               </Text>
             </View>
 

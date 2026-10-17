@@ -4,6 +4,8 @@ const Account = require('../models/Account');
 const User = require('../models/User');
 const Role = require('../models/Role');
 const EkycRequest = require('../models/EkycRequest');
+const Otp = require('../models/Otp');
+const emailService = require('../services/emailService');
 
 /**
  * Controller đăng nhập người dùng từ collection accounts
@@ -222,8 +224,345 @@ const updateMe = async (req, res) => {
   }
 };
 
+/**
+ * 1. Gửi mã OTP xác thực đăng ký tài khoản qua Email
+ */
+const sendRegisterOtp = async (req, res) => {
+  try {
+    const { username, name, email, phone, password } = req.body;
+
+    // Kiểm tra các trường bắt buộc
+    if (!username || !name || !email || !phone || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng điền đầy đủ các thông tin: Tên đăng nhập, Họ và tên, Email, Số điện thoại và Mật khẩu.',
+      });
+    }
+
+    const trimmedUsername = String(username).trim().toLowerCase();
+    const trimmedEmail = String(email).trim().toLowerCase();
+    const trimmedName = String(name).trim();
+    const trimmedPhone = String(phone).trim();
+
+    // Kiểm tra định dạng username (tối thiểu 3 ký tự, chỉ chứa chữ cái, số hoặc dấu gạch dưới)
+    const usernameRegex = /^[a-zA-Z0-9_]{3,30}$/;
+    if (!usernameRegex.test(trimmedUsername)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tên đăng nhập từ 3-30 ký tự và chỉ chứa chữ cái, số hoặc dấu gạch dưới (_).',
+      });
+    }
+
+    // Kiểm tra định dạng email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Địa chỉ email không đúng định dạng.',
+      });
+    }
+
+    // Kiểm tra số điện thoại (tối thiểu 9-11 chữ số)
+    const phoneRegex = /^[0-9+]{9,15}$/;
+    if (!phoneRegex.test(trimmedPhone.replace(/[\s.-]/g, ''))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Số điện thoại không hợp lệ.',
+      });
+    }
+
+    // Kiểm tra độ dài mật khẩu (tối thiểu 6 ký tự)
+    if (String(password).length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mật khẩu phải có độ dài tối thiểu 6 ký tự.',
+      });
+    }
+
+    // 1. Kiểm tra username đã tồn tại trong collection accounts chưa
+    const existingAccountUsername = await Account.findOne({ username: trimmedUsername });
+    if (existingAccountUsername) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tên đăng nhập này đã có người sử dụng. Vui lòng chọn tên khác.',
+      });
+    }
+
+    // 2. Kiểm tra email đã tồn tại trong collection accounts chưa
+    const existingAccountEmail = await Account.findOne({ email: trimmedEmail });
+    if (existingAccountEmail) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email này đã được đăng ký tài khoản. Vui lòng đăng nhập hoặc sử dụng email khác.',
+      });
+    }
+
+    // 3. Kiểm tra số điện thoại đã tồn tại trong collection users chưa
+    const existingUserPhone = await User.findOne({ phone: trimmedPhone });
+    if (existingUserPhone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Số điện thoại này đã được sử dụng cho một tài khoản khác.',
+      });
+    }
+
+    // 4. Mã hoá mật khẩu bằng bcrypt trước khi lưu tạm vào OTP
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // 5. Sinh mã OTP 6 chữ số ngẫu nhiên
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // 6. Xoá mọi OTP cũ của email này và lưu OTP mới
+    await Otp.deleteMany({ email: trimmedEmail });
+    await Otp.create({
+      email: trimmedEmail,
+      otp,
+      registrationData: {
+        username: trimmedUsername,
+        name: trimmedName,
+        phone: trimmedPhone,
+        passwordHash,
+      },
+      createdAt: new Date(),
+    });
+
+    // 7. Gửi email chứa mã OTP qua Gmail SMTP
+    try {
+      await emailService.sendRegistrationOtpEmail(trimmedEmail, otp, trimmedName);
+    } catch (mailError) {
+      console.error('Lỗi gửi email OTP:', mailError);
+      return res.status(500).json({
+        success: false,
+        message: 'Không thể gửi email OTP. Vui lòng kiểm tra lại địa chỉ email hoặc thử lại sau.',
+        error: mailError.message,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Mã xác thực OTP đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư.',
+      email: trimmedEmail,
+      expiresInSeconds: 300,
+    });
+  } catch (error) {
+    console.error('Lỗi trong sendRegisterOtp:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Đã xảy ra lỗi hệ thống khi xử lý gửi mã OTP.',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * 2. Xác nhận mã OTP và tạo tài khoản trong accounts + users (mặc định role renter)
+ */
+const verifyRegisterOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp đầy đủ email và mã OTP 6 số.',
+      });
+    }
+
+    const trimmedEmail = String(email).trim().toLowerCase();
+    const trimmedOtp = String(otp).trim();
+
+    // 1. Tìm bản ghi OTP khớp với email và mã
+    const otpDoc = await Otp.findOne({
+      email: trimmedEmail,
+      otp: trimmedOtp,
+    });
+
+    if (!otpDoc) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mã OTP không chính xác hoặc đã hết hạn (quá 5 phút). Vui lòng thử lại.',
+      });
+    }
+
+    const { registrationData } = otpDoc;
+
+    // 2. Kiểm tra lại lần nữa phòng trường hợp tài khoản đã tạo trước đó
+    const duplicateAccount = await Account.findOne({
+      $or: [{ username: registrationData.username }, { email: trimmedEmail }],
+    });
+    if (duplicateAccount) {
+      await Otp.deleteMany({ email: trimmedEmail });
+      return res.status(400).json({
+        success: false,
+        message: 'Tài khoản hoặc email này vừa được tạo bởi phiên khác.',
+      });
+    }
+
+    // 3. Tìm role 'renter' trong collection roles (mặc định cho người dùng đăng ký mới)
+    let renterRole = await Role.findOne({ code: 'renter' });
+    if (!renterRole) {
+      renterRole = await Role.create({
+        code: 'renter',
+        name: 'Người thuê',
+        description: 'Tài khoản người thuê thiết bị',
+        permissions: ['rent_device', 'review_device', 'chat'],
+      });
+    }
+
+    // 4. Tạo tài khoản trong collection accounts
+    const newAccount = await Account.create({
+      username: registrationData.username,
+      email: trimmedEmail,
+      passwordHash: registrationData.passwordHash,
+      roleId: renterRole._id,
+      isActive: true,
+      lastLogin: new Date(),
+    });
+
+    // 5. Sinh mã giới thiệu duy nhất
+    const cleanPrefix = registrationData.username.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const referralCode = `TS${cleanPrefix}${randomSuffix}`;
+
+    // 6. Tạo thông tin hồ sơ tương ứng trong collection users (trùng accountId)
+    // Các thông tin như địa chỉ mặc định null, người dùng sẽ tự cập nhật trong profile sau
+    const newUser = await User.create({
+      accountId: newAccount._id,
+      username: newAccount.username,
+      name: registrationData.name,
+      phone: registrationData.phone,
+      address: null,
+      avatar: null,
+      trust: {
+        isVerified: false,
+        score: 100,
+        badges: [],
+      },
+      wallet: {
+        balance: 0,
+        escrowBalance: 0,
+      },
+      pushConfig: {
+        expoPushToken: '',
+        fcmTokens: [],
+        biometricEnabled: false,
+      },
+      location: {
+        type: 'Point',
+        coordinates: [105.7826, 21.0285], // Mặc định Hà Nội, Việt Nam
+      },
+      wishlist: [],
+      referralCode,
+      referredBy: null,
+      rating: 5.0,
+      totalReviews: 0,
+      isActive: true,
+    });
+
+    // 7. Xoá mã OTP đã sử dụng
+    await Otp.deleteMany({ email: trimmedEmail });
+
+    // 8. Tạo JWT token thời hạn 7 ngày
+    const secret = process.env.JWT_SECRET || 'techshare_mma301_super_secret_jwt_key_2026';
+    const payload = {
+      id: newUser._id,
+      accountId: newAccount._id,
+      email: newAccount.email,
+      username: newAccount.username,
+      role: 'renter',
+      name: newUser.name,
+    };
+    const token = jwt.sign(payload, secret, { expiresIn: '7d' });
+
+    // 9. Phản hồi thành công kèm token và dữ liệu user
+    return res.status(201).json({
+      success: true,
+      message: 'Đăng ký tài khoản thành công!',
+      token,
+      user: {
+        _id: newUser._id,
+        accountId: newAccount._id,
+        username: newAccount.username,
+        email: newAccount.email,
+        name: newUser.name,
+        role: 'renter',
+        avatar: newUser.avatar,
+        phone: newUser.phone,
+        address: newUser.address,
+        isVerified: newUser.isVerified,
+        trustScore: newUser.trustScore,
+        walletBalance: newUser.walletBalance,
+        walletEscrowBalance: newUser.walletEscrowBalance,
+      },
+    });
+  } catch (error) {
+    console.error('Lỗi trong verifyRegisterOtp:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Đã xảy ra lỗi máy chủ trong quá trình xác thực và tạo tài khoản.',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * 3. Gửi lại mã OTP cho email đang chờ xác thực
+ */
+const resendRegisterOtp = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp email cần gửi lại mã OTP.',
+      });
+    }
+
+    const trimmedEmail = String(email).trim().toLowerCase();
+    const existingOtpDoc = await Otp.findOne({ email: trimmedEmail });
+
+    if (!existingOtpDoc) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phiên đăng ký đã hết hạn hoặc không tồn tại. Vui lòng nhập lại thông tin đăng ký.',
+      });
+    }
+
+    // Sinh mã OTP mới
+    const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    existingOtpDoc.otp = newOtp;
+    existingOtpDoc.createdAt = new Date();
+    await existingOtpDoc.save();
+
+    // Gửi email mới
+    await emailService.sendRegistrationOtpEmail(
+      trimmedEmail,
+      newOtp,
+      existingOtpDoc.registrationData?.name || ''
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Mã xác thực mới đã được gửi đến email của bạn.',
+      email: trimmedEmail,
+      expiresInSeconds: 300,
+    });
+  } catch (error) {
+    console.error('Lỗi trong resendRegisterOtp:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi gửi lại mã OTP.',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   login,
   getMe,
   updateMe,
+  sendRegisterOtp,
+  verifyRegisterOtp,
+  resendRegisterOtp,
 };
+
