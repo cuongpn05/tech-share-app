@@ -16,7 +16,8 @@ import { OWNER_STRINGS } from '../constants/ownerStrings';
 import { chatService } from '../services/chatService';
 import { socketService } from '../services/socketService';
 import { apiClient } from '../config/api';
-import { useAppSelector } from '../store';
+import { useAppDispatch, useAppSelector } from '../store';
+import { clearAuth } from '../store/slices/authSlice';
 
 export interface OwnerSidebarContentProps {
   navigation?: any;
@@ -149,13 +150,22 @@ export const OwnerSidebarContent: React.FC<OwnerSidebarContentProps> = ({
     }
   };
 
+  const dispatch = useAppDispatch();
+
   const handleSignOut = () => {
     Alert.alert(
       OWNER_STRINGS.SIDEBAR.SIGN_OUT,
       'Bạn có chắc chắn muốn đăng xuất khỏi phiên làm việc chủ thiết bị không?',
       [
         { text: 'Hủy', style: 'cancel' },
-        { text: 'Đăng xuất', style: 'destructive', onPress: () => console.log('Owner signed out') },
+        {
+          text: 'Đăng xuất',
+          style: 'destructive',
+          onPress: () => {
+            navigation?.closeDrawer?.();
+            dispatch(clearAuth());
+          },
+        },
       ]
     );
   };
