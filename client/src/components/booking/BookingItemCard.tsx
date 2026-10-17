@@ -39,6 +39,24 @@ export function BookingItemCard({
   const isPendingExtension = booking.extensionRequest?.status === 'pending';
   const isApprovedExtension = booking.extensionRequest?.status === 'approved';
 
+  const rentalDurationText = React.useMemo(() => {
+    if (!booking.startDate || !booking.endDate) {
+      return `${booking.totalDays} ${booking.totalDays === 1 ? STRINGS.BOOKING_ITEM_CARD.DAY_UNIT : STRINGS.BOOKING_ITEM_CARD.DAYS_UNIT}`;
+    }
+    const diffMs = Math.abs(new Date(booking.endDate).getTime() - new Date(booking.startDate).getTime());
+    const totalHours = Math.round(diffMs / (1000 * 60 * 60));
+    const days = Math.floor(totalHours / 24);
+    const remHours = totalHours % 24;
+
+    if (days > 0 && remHours > 0) {
+      return `${days}d ${remHours}h (${totalHours}h)`;
+    }
+    if (days > 0) {
+      return `${days} ${days === 1 ? STRINGS.BOOKING_ITEM_CARD.DAY_UNIT : STRINGS.BOOKING_ITEM_CARD.DAYS_UNIT}`;
+    }
+    return `${totalHours}h`;
+  }, [booking.startDate, booking.endDate, booking.totalDays]);
+
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
       {/* Header */}
@@ -64,7 +82,7 @@ export function BookingItemCard({
             {STRINGS.BOOKING_ITEM_CARD.FROM_PREFIX}{new Date(booking.startDate).toLocaleDateString('en-US')}
           </Text>
           <Text style={styles.dateText}>
-            {STRINGS.BOOKING_ITEM_CARD.TO_PREFIX}{new Date(booking.endDate).toLocaleDateString('en-US')} ({booking.totalDays} {booking.totalDays === 1 ? STRINGS.BOOKING_ITEM_CARD.DAY_UNIT : STRINGS.BOOKING_ITEM_CARD.DAYS_UNIT})
+            {STRINGS.BOOKING_ITEM_CARD.TO_PREFIX}{new Date(booking.endDate).toLocaleDateString('en-US')} ({rentalDurationText})
           </Text>
         </View>
       </View>
@@ -72,7 +90,10 @@ export function BookingItemCard({
       {/* Countdown Timer for active rentals */}
       {isActive && (
         <View style={styles.timerWrapper}>
-          <RentalCountdownTimer endDate={booking.endDate} />
+          <RentalCountdownTimer
+            startDate={booking.startDate}
+            endDate={booking.endDate}
+          />
         </View>
       )}
 
