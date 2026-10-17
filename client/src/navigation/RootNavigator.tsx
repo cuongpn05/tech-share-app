@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -16,6 +16,7 @@ import { MyBookingsScreen } from '../screens/booking/MyBookingsScreen';
 import { ProfileScreen } from '../screens/user/ProfileScreen';
 import { socketService } from '../services/socketService';
 import { setAuthToken } from '../config/api';
+import { navigationRef } from './navigationRef';
 import { theme } from '../theme/tokens';
 import { ScreenType } from '../types';
 
@@ -100,6 +101,49 @@ export function RootNavigator() {
     setHasCompletedOnboarding(true);
   };
 
+  const prevAuthRef = useRef<{ isAuthenticated: boolean; role?: string }>({
+    isAuthenticated,
+    role: user?.role,
+  });
+
+  // Tự động chuyển hướng chính xác đến trang của Role khi đăng nhập hoặc đăng xuất
+  useEffect(() => {
+    if (hasCompletedOnboarding === null) return;
+
+    const prev = prevAuthRef.current;
+    const isLoginEvent = !prev.isAuthenticated && isAuthenticated;
+    const isLogoutEvent = prev.isAuthenticated && !isAuthenticated;
+    const isRoleChangeEvent = isAuthenticated && prev.role !== user?.role;
+
+    prevAuthRef.current = { isAuthenticated, role: user?.role };
+
+    const executeRedirect = () => {
+      if (!navigationRef.isReady()) return;
+      if (isLoginEvent || isRoleChangeEvent) {
+        const targetRoute: keyof RootStackParamList =
+          user?.role === 'admin' ? 'Admin' : user?.role === 'owner' ? 'Owner' : 'Home';
+        navigationRef.reset({
+          index: 0,
+          routes: [{ name: targetRoute }],
+        });
+      } else if (isLogoutEvent) {
+        navigationRef.reset({
+          index: 0,
+          routes: [{ name: 'Home' }],
+        });
+      }
+    };
+
+    if (isLoginEvent || isLogoutEvent || isRoleChangeEvent) {
+      if (navigationRef.isReady()) {
+        executeRedirect();
+      } else {
+        const timer = setTimeout(executeRedirect, 50);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [isAuthenticated, user?.role, hasCompletedOnboarding]);
+
   // Màn hình loading chờ kiểm tra AsyncStorage
   if (hasCompletedOnboarding === null) {
     return (
@@ -109,7 +153,6 @@ export function RootNavigator() {
     );
   }
 
-  // Điều hướng: Role guest hoặc renter vào thẳng Home sau khi onboarding xong
   const getInitialRoute = (): keyof RootStackParamList => {
     if (!hasCompletedOnboarding) return 'Onboarding';
     if (isAuthenticated) {
@@ -117,30 +160,25 @@ export function RootNavigator() {
       if (user?.role === 'owner') return 'Owner';
       return 'Home';
     }
-    // Role guest: vào thẳng trang Home
     return 'Home';
   };
 
   return (
-    <Stack.Navigator
-      key={!hasCompletedOnboarding ? 'onboarding' : isAuthenticated ? `auth-${user?.role || 'renter'}` : 'guest'}
-      initialRouteName={getInitialRoute()}
-      screenOptions={{ headerShown: false }}
-    >
+    <Stack.Navigator initialRouteName={getInitialRoute()} screenOptions={{ headerShown: false }}>
       {!hasCompletedOnboarding ? (
         <Stack.Screen name="Onboarding">
           {(props) => <OnboardingScreen {...props} onComplete={handleCompleteOnboarding} />}
         </Stack.Screen>
-      ) : (
+      ) : isAuthenticated ? (
+        // ── PHÂN HỆ ĐÃ ĐĂNG NHẬP (Phân theo Role) ──────────────────────
         <>
-          {/* Màn hình chính phân theo role nếu đã đăng nhập, hoặc Home cho guest/renter */}
-          {isAuthenticated && user?.role === 'admin' ? (
+          {user?.role === 'admin' ? (
             <>
               <Stack.Screen name="Admin" component={AdminDrawerNavigator} />
               <Stack.Screen name="Owner" component={OwnerDrawerNavigator} />
               <Stack.Screen name="Home" component={HomeRoute} />
             </>
-          ) : isAuthenticated && user?.role === 'owner' ? (
+          ) : user?.role === 'owner' ? (
             <>
               <Stack.Screen name="Owner" component={OwnerDrawerNavigator} />
               <Stack.Screen name="Home" component={HomeRoute} />
@@ -149,19 +187,43 @@ export function RootNavigator() {
           ) : (
             <>
               <Stack.Screen name="Home" component={HomeRoute} />
-              {isAuthenticated && (
-                <>
-                  <Stack.Screen name="Owner" component={OwnerDrawerNavigator} />
-                  <Stack.Screen name="Admin" component={AdminDrawerNavigator} />
-                </>
-              )}
+              <Stack.Screen name="Owner" component={OwnerDrawerNavigator} />
+              <Stack.Screen name="Admin" component={AdminDrawerNavigator} />
             </>
           )}
 
-          {/* Màn hình Login luôn có trong Stack để người dùng guest bấm đăng nhập bất cứ lúc nào */}
-          <Stack.Screen name="Login" component={LoginScreen} />
+          {/* Các màn hình chức năng khi đã đăng nhập */}
+          <Stack.Screen name="OwnerMessages" component={OwnerMessagesScreen} />
+          <Stack.Screen name="ChatDetail" component={ChatDetailScreen} />
+          <Stack.Screen name="Notification" component={NotificationScreen} />
+          <Stack.Screen name="Profile">
+            {({ navigation }) => <ProfileScreen navigation={navigation} onBack={() => navigation.goBack()} />}
+          </Stack.Screen>
+          <Stack.Screen name="BookingCreate" component={BookingCreateRoute} />
+          <Stack.Screen name="MyBookings" component={MyBookingsRoute} />
+        </>
+      ) : (
+        // ── PHÂN HỆ KHÁCH CHƯA ĐĂNG NHẬP (Guest) ────────────────────────
+        <>
+          <Stack.Screen name="Home" component={HomeRoute} />
+          <Stack.Screen name="Login">
+            {(props) => (
+              <LoginScreen
+                {...props}
+                onLoginSuccess={(role) => {
+                  const targetRoute = role === 'admin' ? 'Admin' : role === 'owner' ? 'Owner' : 'Home';
+                  if (navigationRef.isReady()) {
+                    navigationRef.reset({
+                      index: 0,
+                      routes: [{ name: targetRoute }],
+                    });
+                  }
+                }}
+              />
+            )}
+          </Stack.Screen>
 
-          {/* Các màn hình chức năng */}
+          {/* Các màn hình chức năng khách có thể bấm xem */}
           <Stack.Screen name="OwnerMessages" component={OwnerMessagesScreen} />
           <Stack.Screen name="ChatDetail" component={ChatDetailScreen} />
           <Stack.Screen name="Notification" component={NotificationScreen} />
@@ -173,7 +235,6 @@ export function RootNavigator() {
         </>
       )}
     </Stack.Navigator>
-
   );
 }
 

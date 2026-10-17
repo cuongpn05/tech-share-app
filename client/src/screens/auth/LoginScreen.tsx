@@ -144,7 +144,7 @@ export function LoginScreen({
               />
               <TextInput
                 style={styles.inputField}
-                placeholder="e.g. renter1 or email@techshare.vn"
+                placeholder="Enter your username or email"
                 placeholderTextColor={theme.colors.text.subtle}
                 value={identifier}
                 onChangeText={(text) => {
