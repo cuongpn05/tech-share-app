@@ -6,7 +6,7 @@ const reviewSchema = new mongoose.Schema({
   renterId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   ownerId:  { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 
-  // Người thực hiện đánh giá & Loại đối tượng được đánh giá (Hỗ trợ Mục 32, 33, 48)
+  // Reviewer reference & target entity type (Supports UC-R32, UC-R33, UC-O21)
   reviewerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   targetType: {
     type: String,
@@ -16,6 +16,10 @@ const reviewSchema = new mongoose.Schema({
 
   rating: { type: Number, min: 1, max: 5, required: true },
   comment: { type: String, required: true, trim: true },
+  ownerRating: { type: Number, min: 1, max: 5, default: 5 },
+  ownerFeedback: { type: String, default: '' },
+  renterTrustRating: { type: Number, min: 1, max: 5, default: null },
+  renterFeedback: { type: String, default: '' },
   images: [{ type: String }],
 }, {
   timestamps: { createdAt: true, updatedAt: false },
@@ -23,7 +27,7 @@ const reviewSchema = new mongoose.Schema({
   toObject: { virtuals: true },
 });
 
-// Tự động gán reviewerId = renterId nếu code cũ của App không truyền reviewerId
+// Auto-assign reviewerId = renterId if client does not explicitly supply reviewerId
 reviewSchema.pre('validate', function (next) {
   if (!this.reviewerId) {
     this.reviewerId = this.targetType === 'renter' ? this.ownerId : this.renterId;
@@ -31,7 +35,7 @@ reviewSchema.pre('validate', function (next) {
   next();
 });
 
-// Cho phép 1 đơn hàng có đủ: Renter đánh giá Device, Renter đánh giá Owner, và Owner đánh giá Renter
+// Compound unique index ensuring one review per targetType per participant per booking
 reviewSchema.index({ bookingId: 1, reviewerId: 1, targetType: 1 }, { unique: true });
 reviewSchema.index({ deviceId: 1, createdAt: -1 });
 

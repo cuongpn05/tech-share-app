@@ -4,7 +4,7 @@ const authController = require('../controllers/authController');
 const { requireAuth } = require('../middlewares/authMiddleware');
 const { uploadFlexibleImage } = require('../middlewares/uploadMiddleware');
 
-// Endpoint đăng nhập
+// User login endpoint
 router.post('/login', authController.login);
 
 // Endpoint quy trình đăng ký tài khoản với OTP Email
@@ -15,10 +15,10 @@ router.post('/register/resend-otp', authController.resendRegisterOtp);
 // Endpoint lấy thông tin profile từ token
 router.get('/me', requireAuth, authController.getMe);
 
-// Endpoint cập nhật thông tin cá nhân
+// Update user personal profile
 router.put('/me', requireAuth, authController.updateMe);
 
-// Endpoint upload avatar lên Cloudinary và lưu vào database
+// Upload avatar to Cloudinary and update database
 router.post('/avatar', requireAuth, uploadFlexibleImage, authController.updateAvatar);
 router.patch('/avatar', requireAuth, uploadFlexibleImage, authController.updateAvatar);
 router.post('/me/avatar', requireAuth, uploadFlexibleImage, authController.updateAvatar);

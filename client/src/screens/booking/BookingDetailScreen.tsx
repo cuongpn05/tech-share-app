@@ -805,7 +805,10 @@ export function BookingDetailScreen({
         visible={reviewModalVisible}
         booking={booking}
         onClose={() => setReviewModalVisible(false)}
-        onSuccess={fetchDetail}
+        onSuccess={() => {
+          setBooking((prev) => (prev ? { ...prev, isReviewed: true } : prev));
+          fetchDetail();
+        }}
       />
 
       <HandoverQrModal

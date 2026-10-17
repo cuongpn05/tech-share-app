@@ -32,6 +32,8 @@ export function ReviewModal({ visible, onClose, booking, onSuccess }: ReviewModa
   const [ownerRating, setOwnerRating] = useState(5);
   const [ownerFeedback, setOwnerFeedback] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const deviceName = booking?.deviceId?.name || STRINGS.REVIEW_MODAL.DEFAULT_DEVICE_NAME;
   const deviceImage = booking?.deviceId?.images?.[0] || 'https://via.placeholder.com/150';
@@ -67,7 +69,7 @@ export function ReviewModal({ visible, onClose, booking, onSuccess }: ReviewModa
     if (!booking) return;
 
     if (!deviceComment.trim()) {
-      Alert.alert(STRINGS.REVIEW_MODAL.INCOMPLETE_ALERT_TITLE, STRINGS.REVIEW_MODAL.INCOMPLETE_ALERT_MSG);
+      setErrorMessage(STRINGS.REVIEW_MODAL.INCOMPLETE_ALERT_MSG);
       return;
     }
 
@@ -81,22 +83,10 @@ export function ReviewModal({ visible, onClose, booking, onSuccess }: ReviewModa
         ownerFeedback: ownerFeedback.trim(),
       });
 
-      Alert.alert(
-        STRINGS.REVIEW_MODAL.SUCCESS_ALERT_TITLE,
-        STRINGS.REVIEW_MODAL.SUCCESS_ALERT_MSG,
-        [
-          {
-            text: STRINGS.REVIEW_MODAL.ALERT_BUTTON_AWESOME,
-            onPress: () => {
-              onClose();
-              onSuccess();
-            },
-          },
-        ]
-      );
+      setShowSuccessModal(true);
     } catch (error: any) {
       const msg = error.response?.data?.message || STRINGS.REVIEW_MODAL.ERROR_DEFAULT;
-      Alert.alert(STRINGS.COMMON.ERROR, msg);
+      setErrorMessage(msg);
     } finally {
       setLoading(false);
     }
@@ -111,6 +101,9 @@ export function ReviewModal({ visible, onClose, booking, onSuccess }: ReviewModa
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.sheetContainer}>
+          {/* Drag Handle */}
+          <View style={styles.dragHandle} />
+
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerLeft}>
@@ -123,7 +116,7 @@ export function ReviewModal({ visible, onClose, booking, onSuccess }: ReviewModa
               </View>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color={colors.light.textSecondary} />
+              <Ionicons name="close" size={22} color={colors.light.textSecondary} />
             </TouchableOpacity>
           </View>
 
@@ -294,6 +287,54 @@ export function ReviewModal({ visible, onClose, booking, onSuccess }: ReviewModa
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* ── CUSTOM SUCCESS POPUP DIALOG ── */}
+        {showSuccessModal && (
+          <View style={styles.dialogBackdrop}>
+            <View style={styles.dialogCard}>
+              <View style={styles.successIconCircle}>
+                <Ionicons name="sparkles" size={32} color={colors.light.primary} />
+              </View>
+
+              <Text style={styles.dialogTitle}>{STRINGS.REVIEW_MODAL.SUCCESS_ALERT_TITLE}</Text>
+              <Text style={styles.dialogMessage}>{STRINGS.REVIEW_MODAL.SUCCESS_ALERT_MSG}</Text>
+
+              <TouchableOpacity
+                style={styles.dialogCtaBtn}
+                onPress={() => {
+                  setShowSuccessModal(false);
+                  onClose();
+                  onSuccess();
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.dialogCtaBtnText}>{STRINGS.REVIEW_MODAL.ALERT_BUTTON_AWESOME}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* ── CUSTOM ALERT / ERROR DIALOG ── */}
+        {Boolean(errorMessage) && (
+          <View style={styles.dialogBackdrop}>
+            <View style={styles.dialogCard}>
+              <View style={[styles.successIconCircle, { backgroundColor: colors.light.dangerLight }]}>
+                <Ionicons name="alert-circle" size={32} color={colors.light.danger} />
+              </View>
+
+              <Text style={styles.dialogTitle}>{STRINGS.REVIEW_MODAL.INCOMPLETE_ALERT_TITLE}</Text>
+              <Text style={styles.dialogMessage}>{errorMessage}</Text>
+
+              <TouchableOpacity
+                style={[styles.dialogCtaBtn, { backgroundColor: colors.light.textPrimary }]}
+                onPress={() => setErrorMessage(null)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.dialogCtaBtnText}>{STRINGS.COMMON.OK}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -307,16 +348,24 @@ const styles = StyleSheet.create({
   },
   sheetContainer: {
     backgroundColor: colors.light.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '90%',
-    paddingTop: 18,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 20,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: '92%',
+    paddingTop: 8,
     shadowColor: colors.light.shadow,
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 12,
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 16,
+  },
+  dragHandle: {
+    width: 44,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: colors.light.borderDefault,
+    alignSelf: 'center',
+    marginBottom: 8,
+    marginTop: 4,
   },
   header: {
     flexDirection: 'row',
@@ -325,7 +374,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: colors.light.border,
+    borderBottomColor: colors.light.borderSubtle,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -333,15 +382,15 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   headerIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: colors.light.warningLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
   title: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '800',
     color: colors.light.textPrimary,
   },
@@ -351,7 +400,12 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   closeButton: {
-    padding: 4,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.light.background,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   scrollBody: {
     paddingHorizontal: 20,
@@ -361,18 +415,18 @@ const styles = StyleSheet.create({
   deviceCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    backgroundColor: colors.light.surface,
-    padding: 12,
-    borderRadius: 12,
+    gap: 14,
+    backgroundColor: colors.light.background,
+    padding: 14,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.light.border,
     marginBottom: 16,
   },
   deviceThumb: {
-    width: 52,
-    height: 52,
-    borderRadius: 8,
+    width: 56,
+    height: 56,
+    borderRadius: 12,
     backgroundColor: colors.light.borderDefault,
   },
   deviceInfo: {
@@ -390,11 +444,16 @@ const styles = StyleSheet.create({
   },
   section: {
     backgroundColor: colors.light.surface,
-    borderRadius: 14,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.light.border,
-    padding: 14,
-    marginBottom: 14,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: colors.light.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   ownerSection: {
     borderColor: colors.light.primaryLight,
@@ -403,8 +462,8 @@ const styles = StyleSheet.create({
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 2,
+    gap: 8,
+    marginBottom: 4,
   },
   sectionTitle: {
     fontSize: 14,
@@ -414,13 +473,15 @@ const styles = StyleSheet.create({
   sectionSubtitle: {
     fontSize: 12,
     color: colors.light.textSecondary,
-    marginBottom: 12,
+    marginBottom: 14,
+    lineHeight: 16,
   },
   starsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 12,
-    marginBottom: 6,
+    gap: 14,
+    marginBottom: 8,
+    paddingVertical: 4,
   },
   starTouch: {
     padding: 4,
@@ -428,23 +489,25 @@ const styles = StyleSheet.create({
   ratingTextLabel: {
     textAlign: 'center',
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
     color: colors.light.warning,
-    marginBottom: 12,
+    marginBottom: 14,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
   },
   tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 12,
+    gap: 8,
+    marginBottom: 14,
   },
   tagChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 9999,
     borderWidth: 1,
     borderColor: colors.light.border,
-    backgroundColor: colors.light.surface,
+    backgroundColor: colors.light.background,
   },
   tagChipActive: {
     backgroundColor: colors.light.primaryLight,
@@ -453,37 +516,40 @@ const styles = StyleSheet.create({
   tagText: {
     fontSize: 12,
     color: colors.light.textSecondary,
+    fontWeight: '500',
   },
   tagTextActive: {
     color: colors.light.primaryDark,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   textInput: {
     borderWidth: 1,
     borderColor: colors.light.border,
-    borderRadius: 10,
-    padding: 10,
+    borderRadius: 14,
+    padding: 12,
     fontSize: 13,
     color: colors.light.textPrimary,
-    backgroundColor: colors.light.surface,
+    backgroundColor: colors.light.background,
     textAlignVertical: 'top',
-    minHeight: 65,
+    minHeight: 70,
   },
   footerActions: {
     flexDirection: 'row',
     gap: 12,
     paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingTop: 14,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 16,
     borderTopWidth: 1,
-    borderTopColor: colors.light.border,
+    borderTopColor: colors.light.borderSubtle,
+    backgroundColor: colors.light.surface,
   },
   cancelBtn: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
+    height: 48,
+    borderRadius: 9999,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.light.surface,
+    backgroundColor: colors.light.background,
     borderWidth: 1,
     borderColor: colors.light.border,
   },
@@ -495,16 +561,90 @@ const styles = StyleSheet.create({
   submitBtn: {
     flex: 2,
     flexDirection: 'row',
-    gap: 6,
-    paddingVertical: 12,
-    borderRadius: 12,
+    gap: 8,
+    height: 48,
+    borderRadius: 9999,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.light.primary,
+    shadowColor: colors.light.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
   submitBtnText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
     color: colors.light.white,
+    letterSpacing: 0.3,
+  },
+  dialogBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+    zIndex: 9999,
+    elevation: 24,
+  },
+  dialogCard: {
+    backgroundColor: colors.light.surface,
+    borderRadius: 24,
+    padding: 26,
+    width: '100%',
+    maxWidth: 340,
+    alignItems: 'center',
+    shadowColor: colors.light.shadow,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  successIconCircle: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: colors.light.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  dialogTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.light.textPrimary,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  dialogMessage: {
+    fontSize: 14,
+    color: colors.light.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  dialogCtaBtn: {
+    width: '100%',
+    height: 48,
+    borderRadius: 9999,
+    backgroundColor: colors.light.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.light.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  dialogCtaBtnText: {
+    color: colors.light.white,
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
 });

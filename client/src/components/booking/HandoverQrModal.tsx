@@ -277,14 +277,20 @@ const styles = StyleSheet.create({
   doneBtn: {
     width: '100%',
     backgroundColor: colors.light.primary,
-    paddingVertical: 12,
-    borderRadius: 14,
+    height: 48,
+    borderRadius: 9999,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: colors.light.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
   doneBtnText: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
     color: colors.light.white,
+    letterSpacing: 0.3,
   },
 });

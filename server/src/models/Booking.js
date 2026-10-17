@@ -68,6 +68,10 @@ const bookingSchema = new mongoose.Schema({
     },
   ],
   isHiddenByRenter: { type: Boolean, default: false },
+
+  // 8. Đánh giá chất lượng dịch vụ (UC-R27)
+  isReviewed: { type: Boolean, default: false, index: true },
+  reviewId: { type: mongoose.Schema.Types.ObjectId, ref: 'Review' },
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

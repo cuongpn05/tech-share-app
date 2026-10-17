@@ -250,7 +250,16 @@ export function MyBookingsScreen({
         visible={reviewModalVisible}
         booking={selectedBookingToReview}
         onClose={() => setReviewModalVisible(false)}
-        onSuccess={() => fetchBookings(activeTab)}
+        onSuccess={() => {
+          if (selectedBookingToReview) {
+            setBookings((prev) =>
+              prev.map((b) =>
+                b._id === selectedBookingToReview._id ? { ...b, isReviewed: true } : b
+              )
+            );
+          }
+          fetchBookings(activeTab);
+        }}
       />
 
       {/* CANCEL MODAL */}

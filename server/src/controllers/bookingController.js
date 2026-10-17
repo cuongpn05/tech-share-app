@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Booking = require('../models/Booking');
 const Device = require('../models/Device');
 const User = require('../models/User');
+const Review = require('../models/Review');
 const EkycRequest = require('../models/EkycRequest');
 const { createAndSendNotification } = require('../services/notificationService');
 const { uploadToCloudinary } = require('../utils/cloudinary');
@@ -263,6 +264,27 @@ const getMyBookings = async (req, res) => {
       .populate('ownerId', 'name avatar phone email')
       .sort({ createdAt: -1 });
 
+    // Ensure isReviewed status is accurate for completed bookings
+    const completedUnreviewedIds = bookings
+      .filter((b) => b.status === 'completed' && !b.isReviewed)
+      .map((b) => b._id);
+
+    if (completedUnreviewedIds.length > 0) {
+      try {
+        const existingReviews = await Review.find({ bookingId: { $in: completedUnreviewedIds } }).select('bookingId');
+        const reviewedBookingIds = new Set(existingReviews.map((r) => r.bookingId.toString()));
+
+        for (const b of bookings) {
+          if (reviewedBookingIds.has(b._id.toString())) {
+            b.isReviewed = true;
+            Booking.updateOne({ _id: b._id }, { isReviewed: true }).exec();
+          }
+        }
+      } catch (syncErr) {
+        console.warn('Error syncing isReviewed in getMyBookings:', syncErr.message);
+      }
+    }
+
     res.status(200).json({ success: true, data: bookings });
   } catch (error) {
     console.error('Error getting my bookings:', error);
@@ -347,6 +369,23 @@ const getBookingById = async (req, res) => {
     if (!booking.qrToken) {
       booking.qrToken = `TSQR-${booking.bookingCode}-${booking._id.toString().slice(-4).toUpperCase()}`;
       await booking.save();
+    }
+
+    // Sync isReviewed for completed booking if a review already exists
+    if (!booking.isReviewed && booking.status === 'completed') {
+      try {
+        const existingReview = await Review.findOne({ bookingId: booking._id });
+        if (existingReview) {
+          booking.isReviewed = true;
+          booking.reviewId = existingReview._id;
+          await Booking.updateOne(
+            { _id: booking._id },
+            { isReviewed: true, reviewId: existingReview._id }
+          );
+        }
+      } catch (revErr) {
+        console.warn('Error syncing isReviewed in getBookingById:', revErr.message);
+      }
     }
 
     const renterIdStr = booking.renterId?._id ? booking.renterId._id.toString() : booking.renterId?.toString();
