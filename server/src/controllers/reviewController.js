@@ -65,17 +65,21 @@ const createReview = async (req, res) => {
 
     const numRating = Number(rating);
     if (!numRating || isNaN(numRating) || numRating < 1 || numRating > 5) {
-      return res.status(400).json({ success: false, message: 'Device rating must be between 1 and 5 stars.' });
+      return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5 stars.' });
     }
 
     if (!comment || !comment.trim()) {
-      return res.status(400).json({ success: false, message: 'Please provide review comments for the device.' });
+      return res.status(400).json({ success: false, message: 'Please provide review comments.' });
     }
 
-    const numOwnerRating = ownerRating ? Number(ownerRating) : 5;
+    // Unified review: synchronize owner rating and feedback with overall rating & comment
+    const numOwnerRating = ownerRating !== undefined && ownerRating !== null ? Number(ownerRating) : numRating;
     if (isNaN(numOwnerRating) || numOwnerRating < 1 || numOwnerRating > 5) {
-      return res.status(400).json({ success: false, message: 'Owner service rating must be between 1 and 5 stars.' });
+      return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5 stars.' });
     }
+    const finalOwnerFeedback = ownerFeedback !== undefined && ownerFeedback !== null && ownerFeedback.trim() !== ''
+      ? ownerFeedback.trim()
+      : comment.trim();
 
     // Validate booking
     const booking = await Booking.findOne({ _id: bookingId, renterId }).populate('deviceId');
@@ -112,7 +116,7 @@ const createReview = async (req, res) => {
       existingReview.rating = numRating;
       existingReview.comment = comment.trim();
       existingReview.ownerRating = numOwnerRating;
-      existingReview.ownerFeedback = ownerFeedback ? ownerFeedback.trim() : '';
+      existingReview.ownerFeedback = finalOwnerFeedback;
       existingReview.images = Array.isArray(images) ? images : [];
       await existingReview.save();
       review = existingReview;
@@ -127,7 +131,7 @@ const createReview = async (req, res) => {
         rating: numRating,
         comment: comment.trim(),
         ownerRating: numOwnerRating,
-        ownerFeedback: ownerFeedback ? ownerFeedback.trim() : '',
+        ownerFeedback: finalOwnerFeedback,
         images: Array.isArray(images) ? images : [],
       });
     }
@@ -139,7 +143,7 @@ const createReview = async (req, res) => {
     booking.timeline.push({
       status: 'reviewed',
       timestamp: new Date(),
-      note: `Customer submitted review (${numRating}★ device, ${numOwnerRating}★ service)`,
+      note: `Customer submitted review (${numRating}★)`,
     });
     await booking.save();
 
@@ -238,108 +242,6 @@ const getBookingReview = async (req, res) => {
   }
 };
 
-// @desc    Owner rates renter trust score after completed booking
-// @route   PATCH /api/reviews/:reviewId/owner-rate
-// @access  Private (Owner only)
-const ownerRateRenter = async (req, res) => {
-  try {
-    const ownerId = (req.auth && (req.auth.id || req.auth._id)) || (req.user && req.user._id);
-    const { reviewId } = req.params;
-    const { renterTrustRating, renterFeedback } = req.body;
-
-    const numRating = Number(renterTrustRating);
-    if (!numRating || isNaN(numRating) || numRating < 1 || numRating > 5) {
-      return res.status(400).json({ success: false, message: 'Renter trust rating must be between 1 and 5 stars.' });
-    }
-
-    let review = await Review.findOne({
-      $or: [{ _id: reviewId }, { bookingId: reviewId }],
-      ownerId,
-    });
-
-    if (!review) {
-      const booking = await Booking.findOne({ _id: reviewId, ownerId });
-      if (!booking) {
-        return res.status(404).json({ success: false, message: 'Valid booking or review not found.' });
-      }
-      if (booking.status !== 'completed') {
-        return res.status(400).json({ success: false, message: 'Trust score rating is only available for completed bookings.' });
-      }
-
-      review = await Review.create({
-        bookingId: booking._id,
-        deviceId: booking.deviceId,
-        renterId: booking.renterId,
-        ownerId: booking.ownerId,
-        reviewerId: ownerId,
-        targetType: 'renter',
-        rating: 5,
-        comment: '',
-        ownerRating: 5,
-        ownerFeedback: '',
-        renterTrustRating: numRating,
-        renterFeedback: renterFeedback ? renterFeedback.trim() : '',
-      });
-
-      booking.reviewId = review._id;
-      await booking.save();
-    } else {
-      if (review.renterTrustRating) {
-        return res.status(400).json({ success: false, message: 'You have already rated the renter for this booking.' });
-      }
-
-      review.renterTrustRating = numRating;
-      review.renterFeedback = renterFeedback ? renterFeedback.trim() : '';
-      await review.save();
-    }
-
-    const TRUST_DELTA = { 5: 2, 4: 1, 3: 0, 2: -5, 1: -10 };
-    const delta = TRUST_DELTA[numRating] ?? 0;
-
-    if (delta !== 0) {
-      try {
-        const renter = await User.findById(review.renterId);
-        if (renter) {
-          const currentScore = renter.trust?.score ?? renter.trustScore ?? 100;
-          const newScore = Math.max(0, Math.min(100, currentScore + delta));
-          await User.findByIdAndUpdate(review.renterId, {
-            'trust.score': newScore,
-          });
-        }
-      } catch (err) {
-        console.error('Error updating renter trust score:', err.message);
-      }
-    }
-
-    try {
-      const booking = await Booking.findById(review.bookingId);
-      if (booking && booking.renterId) {
-        const starEmoji = numRating >= 4 ? '⭐' : numRating >= 3 ? '🙂' : '⚠️';
-        const deltaText = delta > 0 ? `Trust score +${delta} 🏆` : delta < 0 ? `Trust score ${delta} ⚠️` : 'Trust score unchanged.';
-        createAndSendNotification({
-          userId: booking.renterId,
-          title: `Owner Rated Your Rental Experience ${starEmoji}`,
-          body: `Order #${booking.bookingCode}: ${numRating}-star rating. ${deltaText}`,
-          type: 'order',
-          relatedId: review._id,
-          data: { bookingId: booking._id.toString(), reviewId: review._id.toString() },
-        }).catch((err) => console.error('Error sending owner-rate notification:', err.message));
-      }
-    } catch (err) {
-      console.error('Error sending notification:', err.message);
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'Renter trust rating has been recorded successfully.',
-      data: { renterTrustRating: numRating, delta },
-    });
-  } catch (error) {
-    console.error('Error in ownerRateRenter:', error);
-    res.status(500).json({ success: false, message: 'Server error while rating renter.' });
-  }
-};
-
 // @desc    Get all reviews where current user is the owner
 // @route   GET /api/reviews/my-owner-reviews
 // @access  Private
@@ -380,7 +282,6 @@ module.exports = {
   createReview,
   getDeviceReviews,
   getBookingReview,
-  ownerRateRenter,
   getMyOwnerReviews,
   recalculateOwnerReputationController,
 };

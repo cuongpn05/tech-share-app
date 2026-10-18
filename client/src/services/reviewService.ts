@@ -2,16 +2,11 @@ import { apiClient } from '../config/api';
 
 export interface CreateReviewPayload {
   bookingId: string;
-  rating: number; // 1–5 (Thiết bị)
+  rating: number; // 1–5 (Đánh giá chung / Thiết bị & Dịch vụ)
   comment: string;
-  ownerRating: number; // 1–5 (Chủ máy)
+  ownerRating?: number; // 1–5 (Tự động đồng bộ với rating nếu không truyền)
   ownerFeedback?: string;
   images?: string[];
-}
-
-export interface OwnerRateRenterPayload {
-  renterTrustRating: number; // 1–5 (Ý thức khách thuê)
-  renterFeedback?: string;
 }
 
 export interface ReviewItem {
@@ -24,8 +19,6 @@ export interface ReviewItem {
   comment: string;
   ownerRating: number;
   ownerFeedback?: string;
-  renterTrustRating?: number | null;
-  renterFeedback?: string;
   images: string[];
   createdAt: string;
 }
@@ -46,16 +39,7 @@ export const reviewService = {
     return res.data.data;
   },
 
-  // Chủ máy đánh giá ý thức khách thuê – cập nhật trustScore
-  ownerRateRenter: async (
-    reviewId: string,
-    payload: OwnerRateRenterPayload
-  ): Promise<{ renterTrustRating: number; delta: number }> => {
-    const res = await apiClient.patch(`/reviews/${reviewId}/owner-rate`, payload);
-    return res.data.data;
-  },
-
-  // Lấy tất cả review mà chủ máy hiện tại là ownerId (để hiển thị danh sách chấm điểm)
+  // Lấy tất cả review mà chủ máy hiện tại là ownerId
   getMyOwnerReviews: async (): Promise<ReviewItem[]> => {
     const res = await apiClient.get('/reviews/my-owner-reviews');
     return res.data.data;

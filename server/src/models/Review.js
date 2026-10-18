@@ -10,16 +10,14 @@ const reviewSchema = new mongoose.Schema({
   reviewerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   targetType: {
     type: String,
-    enum: ['device', 'owner', 'renter'],
+    enum: ['device', 'owner'],
     default: 'device',
   },
 
   rating: { type: Number, min: 1, max: 5, required: true },
   comment: { type: String, required: true, trim: true },
-  ownerRating: { type: Number, min: 1, max: 5, default: 5 },
+  ownerRating: { type: Number, min: 1, max: 5 },
   ownerFeedback: { type: String, default: '' },
-  renterTrustRating: { type: Number, min: 1, max: 5, default: null },
-  renterFeedback: { type: String, default: '' },
   images: [{ type: String }],
 }, {
   timestamps: { createdAt: true, updatedAt: false },
@@ -27,10 +25,16 @@ const reviewSchema = new mongoose.Schema({
   toObject: { virtuals: true },
 });
 
-// Auto-assign reviewerId = renterId if client does not explicitly supply reviewerId
+// Auto-assign reviewerId = renterId and sync unified rating/feedback
 reviewSchema.pre('validate', function (next) {
   if (!this.reviewerId) {
-    this.reviewerId = this.targetType === 'renter' ? this.ownerId : this.renterId;
+    this.reviewerId = this.renterId;
+  }
+  if ((this.ownerRating === undefined || this.ownerRating === null) && this.rating) {
+    this.ownerRating = this.rating;
+  }
+  if (!this.ownerFeedback && this.comment) {
+    this.ownerFeedback = this.comment;
   }
   next();
 });
