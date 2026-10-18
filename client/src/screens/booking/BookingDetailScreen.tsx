@@ -26,6 +26,8 @@ import { ReviewModal } from '../../components/booking/ReviewModal';
 import { HandoverQrModal } from '../../components/booking/HandoverQrModal';
 import { HandoverCameraModal } from '../../components/booking/HandoverCameraModal';
 import { BookingCancelModal } from '../../components/booking/BookingCancelModal';
+import { reviewService, ReviewItem } from '../../services/reviewService';
+import { useAppSelector } from '../../store';
 import { navigate } from '../../navigation/navigationRef';
 
 export interface BookingDetailScreenProps {
@@ -167,8 +169,10 @@ export function BookingDetailScreen({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const currentUser = useAppSelector((state) => state.auth.user);
   const [extensionModalVisible, setExtensionModalVisible] = useState(false);
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
+  const [bookingReview, setBookingReview] = useState<ReviewItem | null>(null);
   const [qrModalVisible, setQrModalVisible] = useState(false);
   const [handoverCameraModalVisible, setHandoverCameraModalVisible] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -179,6 +183,15 @@ export function BookingDetailScreen({
     try {
       const data = await bookingService.getBookingById(bookingId);
       setBooking(data);
+
+      if (data && (data.status === 'completed' || data.isReviewed)) {
+        try {
+          const rev = await reviewService.getBookingReview(bookingId);
+          setBookingReview(rev);
+        } catch {
+          setBookingReview(null);
+        }
+      }
     } catch (error: any) {
       console.error('Failed to load booking details:', error);
       Alert.alert(
@@ -771,9 +784,18 @@ export function BookingDetailScreen({
             </TouchableOpacity>
           )}
 
-          {/* Completed: Review or Rent again */}
-          {booking.status === 'completed' && (
-            booking.isReviewed ? (
+          {/* Completed: Review or Rent again (for Renter) */}
+          {booking.status === 'completed' && (() => {
+            const currentUserId = currentUser?._id || (currentUser as any)?.id;
+            const isOwner = Boolean(
+              currentUserId &&
+              ((booking.ownerId as any)?._id === currentUserId || booking.ownerId === currentUserId)
+            );
+
+            // Owner does not rate renter
+            if (isOwner) return null;
+
+            return booking.isReviewed ? (
               <TouchableOpacity style={styles.reRentBtn} onPress={handleReRent}>
                 <Ionicons name="repeat" size={18} color={colors.light.white} />
                 <Text style={styles.reRentBtnText}>{STRINGS.BOOKING_DETAIL.RENT_AGAIN}</Text>
@@ -788,8 +810,8 @@ export function BookingDetailScreen({
                   {STRINGS.BOOKING_DETAIL.REVIEW_QUALITY_BTN}
                 </Text>
               </TouchableOpacity>
-            )
-          )}
+            );
+          })()}
         </View>
       )}
 
@@ -1577,6 +1599,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: colors.light.white,
+  },
+  ratedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.light.primaryLight,
+    borderWidth: 1,
+    borderColor: colors.light.primary,
+    paddingVertical: 13,
+    borderRadius: 12,
+  },
+  ratedBadgeText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.light.primaryDark,
   },
   previewBackdrop: {
     flex: 1,

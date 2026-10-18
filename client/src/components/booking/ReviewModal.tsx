@@ -27,10 +27,8 @@ interface ReviewModalProps {
 }
 
 export function ReviewModal({ visible, onClose, booking, onSuccess }: ReviewModalProps) {
-  const [deviceRating, setDeviceRating] = useState(5);
-  const [deviceComment, setDeviceComment] = useState('');
-  const [ownerRating, setOwnerRating] = useState(5);
-  const [ownerFeedback, setOwnerFeedback] = useState('');
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
   const [loading, setLoading] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -39,36 +37,23 @@ export function ReviewModal({ visible, onClose, booking, onSuccess }: ReviewModa
   const deviceImage = booking?.deviceId?.images?.[0] || 'https://via.placeholder.com/150';
   const ownerName = booking?.ownerId?.name || STRINGS.REVIEW_MODAL.DEFAULT_OWNER_NAME;
 
-  const toggleDeviceTag = (tag: string) => {
-    if (deviceComment.includes(tag)) {
-      setDeviceComment(
-        deviceComment
+  const toggleTag = (tag: string) => {
+    if (comment.includes(tag)) {
+      setComment(
+        comment
           .replace(tag, '')
           .replace(/,\s*,/g, ',')
           .trim()
       );
     } else {
-      setDeviceComment((prev: string) => (prev ? `${prev}, ${tag}` : tag));
-    }
-  };
-
-  const toggleOwnerTag = (tag: string) => {
-    if (ownerFeedback.includes(tag)) {
-      setOwnerFeedback(
-        ownerFeedback
-          .replace(tag, '')
-          .replace(/,\s*,/g, ',')
-          .trim()
-      );
-    } else {
-      setOwnerFeedback((prev: string) => (prev ? `${prev}, ${tag}` : tag));
+      setComment((prev: string) => (prev ? `${prev}, ${tag}` : tag));
     }
   };
 
   const handleSubmit = async () => {
     if (!booking) return;
 
-    if (!deviceComment.trim()) {
+    if (!comment.trim()) {
       setErrorMessage(STRINGS.REVIEW_MODAL.INCOMPLETE_ALERT_MSG);
       return;
     }
@@ -77,10 +62,10 @@ export function ReviewModal({ visible, onClose, booking, onSuccess }: ReviewModa
       setLoading(true);
       await reviewService.createReview({
         bookingId: booking._id,
-        rating: deviceRating,
-        comment: deviceComment.trim(),
-        ownerRating,
-        ownerFeedback: ownerFeedback.trim(),
+        rating,
+        comment: comment.trim(),
+        ownerRating: rating,
+        ownerFeedback: comment.trim(),
       });
 
       setShowSuccessModal(true);
@@ -134,14 +119,16 @@ export function ReviewModal({ visible, onClose, booking, onSuccess }: ReviewModa
               </View>
             </View>
 
-            {/* ── SECTION 1: DEVICE REVIEW & RATINGS ── */}
+            {/* ── UNIFIED RENTAL EXPERIENCE REVIEW & RATINGS ── */}
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
-                <Ionicons name="hardware-chip-outline" size={18} color={colors.light.primary} />
-                <Text style={styles.sectionTitle}>{STRINGS.REVIEW_MODAL.DEVICE_SECTION_TITLE}</Text>
+                <Ionicons name="sparkles" size={18} color={colors.light.primary} />
+                <Text style={styles.sectionTitle}>
+                  {STRINGS.REVIEW_MODAL.SECTION_TITLE || STRINGS.REVIEW_MODAL.DEVICE_SECTION_TITLE}
+                </Text>
               </View>
               <Text style={styles.sectionSubtitle}>
-                {STRINGS.REVIEW_MODAL.DEVICE_SECTION_SUBTITLE}
+                {STRINGS.REVIEW_MODAL.SECTION_SUBTITLE || STRINGS.REVIEW_MODAL.DEVICE_SECTION_SUBTITLE}
               </Text>
 
               {/* Star selector */}
@@ -149,29 +136,29 @@ export function ReviewModal({ visible, onClose, booking, onSuccess }: ReviewModa
                 {[1, 2, 3, 4, 5].map((star) => (
                   <TouchableOpacity
                     key={star}
-                    onPress={() => setDeviceRating(star)}
+                    onPress={() => setRating(star)}
                     activeOpacity={0.7}
                     style={styles.starTouch}
                   >
                     <Ionicons
-                      name={star <= deviceRating ? 'star' : 'star-outline'}
-                      size={32}
-                      color={star <= deviceRating ? colors.light.warning : colors.light.borderDefault}
+                      name={star <= rating ? 'star' : 'star-outline'}
+                      size={36}
+                      color={star <= rating ? colors.light.warning : colors.light.borderDefault}
                     />
                   </TouchableOpacity>
                 ))}
               </View>
-              <Text style={styles.ratingTextLabel}>{STRINGS.REVIEW_MODAL.RATING_LABELS[deviceRating]}</Text>
+              <Text style={styles.ratingTextLabel}>{STRINGS.REVIEW_MODAL.RATING_LABELS[rating]}</Text>
 
               {/* Quick tags */}
               <View style={styles.tagsContainer}>
-                {STRINGS.REVIEW_MODAL.DEVICE_TAGS.map((tag) => {
-                  const isSelected = deviceComment.includes(tag);
+                {(STRINGS.REVIEW_MODAL.TAGS || STRINGS.REVIEW_MODAL.DEVICE_TAGS).map((tag) => {
+                  const isSelected = comment.includes(tag);
                   return (
                     <TouchableOpacity
                       key={tag}
                       style={[styles.tagChip, isSelected && styles.tagChipActive]}
-                      onPress={() => toggleDeviceTag(tag)}
+                      onPress={() => toggleTag(tag)}
                     >
                       <Text style={[styles.tagText, isSelected && styles.tagTextActive]}>
                         {tag}
@@ -181,86 +168,15 @@ export function ReviewModal({ visible, onClose, booking, onSuccess }: ReviewModa
                 })}
               </View>
 
-              {/* Device comment input */}
+              {/* Unified comment input */}
               <TextInput
-                style={styles.textInput}
-                placeholder={STRINGS.REVIEW_MODAL.DEVICE_COMMENT_PLACEHOLDER}
+                style={[styles.textInput, { minHeight: 90 }]}
+                placeholder={STRINGS.REVIEW_MODAL.COMMENT_PLACEHOLDER || STRINGS.REVIEW_MODAL.DEVICE_COMMENT_PLACEHOLDER}
                 placeholderTextColor={colors.light.textSecondary}
-                value={deviceComment}
-                onChangeText={setDeviceComment}
+                value={comment}
+                onChangeText={setComment}
                 multiline
-                numberOfLines={3}
-              />
-            </View>
-
-            {/* ── SECTION 2: OWNER SERVICE REVIEW ── */}
-            <View style={[styles.section, styles.ownerSection]}>
-              <View style={styles.sectionHeaderRow}>
-                <Ionicons name="person-circle-outline" size={18} color={colors.light.primaryDark} />
-                <Text style={[styles.sectionTitle, { color: colors.light.primaryDark }]}>
-                  {STRINGS.REVIEW_MODAL.OWNER_SECTION_TITLE}
-                </Text>
-              </View>
-              <Text style={styles.sectionSubtitle}>
-                {STRINGS.REVIEW_MODAL.OWNER_SECTION_SUBTITLE}
-              </Text>
-
-              {/* Star selector for owner */}
-              <View style={styles.starsRow}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <TouchableOpacity
-                    key={star}
-                    onPress={() => setOwnerRating(star)}
-                    activeOpacity={0.7}
-                    style={styles.starTouch}
-                  >
-                    <Ionicons
-                      name={star <= ownerRating ? 'star' : 'star-outline'}
-                      size={28}
-                      color={star <= ownerRating ? colors.light.primaryDark : colors.light.borderDefault}
-                    />
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <Text style={[styles.ratingTextLabel, { color: colors.light.primaryDark }]}>
-                {STRINGS.REVIEW_MODAL.OWNER_RATING_LABELS[ownerRating]}
-              </Text>
-
-              {/* Quick tags for owner */}
-              <View style={styles.tagsContainer}>
-                {STRINGS.REVIEW_MODAL.OWNER_TAGS.map((tag) => {
-                  const isSelected = ownerFeedback.includes(tag);
-                  return (
-                    <TouchableOpacity
-                      key={tag}
-                      style={[
-                        styles.tagChip,
-                        isSelected && { backgroundColor: colors.light.primaryLight, borderColor: colors.light.primary },
-                      ]}
-                      onPress={() => toggleOwnerTag(tag)}
-                    >
-                      <Text
-                        style={[
-                          styles.tagText,
-                          isSelected && { color: colors.light.primaryDark, fontWeight: '700' },
-                        ]}
-                      >
-                        {tag}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              {/* Owner feedback input */}
-              <TextInput
-                style={styles.textInput}
-                placeholder={STRINGS.REVIEW_MODAL.OWNER_FEEDBACK_PLACEHOLDER}
-                placeholderTextColor={colors.light.textSecondary}
-                value={ownerFeedback}
-                onChangeText={setOwnerFeedback}
-                multiline
-                numberOfLines={2}
+                numberOfLines={4}
               />
             </View>
           </ScrollView>
