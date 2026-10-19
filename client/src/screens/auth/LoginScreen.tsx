@@ -15,8 +15,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppDispatch } from '../../store';
 import { setAuth } from '../../store/slices/authSlice';
-import { apiClient, setAuthToken } from '../../config/api';
+import { setAuthToken } from '../../config/api';
 import { socketService } from '../../services/socketService';
+import { loginService } from '../../services/loginService';
 import { theme } from '../../theme/tokens';
 
 export interface LoginScreenProps {
@@ -43,16 +44,13 @@ export function LoginScreen({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleLogin = async () => {
-    const finalIdentifier = identifier.trim();
-    const finalPassword = password;
+    // ── Bước 1: Validate form phía client (không cần gọi API) ───────────
+    const validation = loginService.validate({ identifier, password });
 
-    if (!finalIdentifier) {
-      setErrorMessage('Please enter your username or email.');
-      return;
-    }
-
-    if (!finalPassword) {
-      setErrorMessage('Please enter your password.');
+    if (!validation.isValid) {
+      setErrorMessage(
+        validation.identifierError || validation.passwordError || 'Vui lòng kiểm tra lại thông tin.',
+      );
       return;
     }
 
@@ -60,34 +58,37 @@ export function LoginScreen({
     setErrorMessage(null);
 
     try {
-      const response = await apiClient.post('/auth/login', {
-        identifier: finalIdentifier,
-        password: finalPassword,
-      });
+      // ── Bước 2: Gọi loginService → POST /api/login ──────────────────
+      const data = await loginService.login({ identifier, password });
 
-      if (response.data?.success && response.data?.token && response.data?.user) {
-        const { token, user } = response.data;
-        setAuthToken(token);
-        // Workflow 1: Kết nối Socket.IO và gia nhập room định danh cá nhân user_{userId}
-        const userId = user._id || (user as any).id;
+      if (data.success && data.token && data.user) {
+        // ── Bước 3: Lưu token vào axios headers ─────────────────────
+        setAuthToken(data.token);
+
+        // ── Bước 4: Kết nối Socket.IO với user ID ───────────────────
+        const userId = data.user._id || (data.user as any).id;
         if (userId) {
           socketService.connect(userId);
         }
-        dispatch(setAuth({ token, user }));
+
+        // ── Bước 5: Cập nhật Redux store với token + user ────────────
+        dispatch(setAuth({ token: data.token, user: data.user }));
+
+        // ── Bước 6: Callback chuyển màn hình theo role ───────────────
         if (onLoginSuccess) {
-          onLoginSuccess(user.role || 'renter');
+          onLoginSuccess(data.user.role || 'renter');
         }
       } else {
-        setErrorMessage(response.data?.message || 'Login failed. Please try again.');
+        setErrorMessage(data.message || 'Đăng nhập thất bại. Vui lòng thử lại.');
       }
     } catch (err: any) {
-      console.error('Login error:', err.message, 'Target URL:', `${apiClient.defaults.baseURL}/auth/login`);
+      console.error('[LoginScreen] Lỗi đăng nhập:', err.message);
       if (err.response?.data?.message) {
         setErrorMessage(err.response.data.message);
       } else if (err.message === 'Network Error' || !err.response) {
-        setErrorMessage('Cannot connect to server. Please check your network connection and make sure the backend API is running.');
+        setErrorMessage('Không thể kết nối máy chủ. Vui lòng kiểm tra mạng và đảm bảo backend đang chạy.');
       } else {
-        setErrorMessage('An error occurred during login. Please try again.');
+        setErrorMessage('Đã xảy ra lỗi trong quá trình đăng nhập. Vui lòng thử lại.');
       }
     } finally {
       setLoading(false);

@@ -6,12 +6,14 @@ const deviceRoutes = require('./routes/deviceRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const ownerRoutes = require('./routes/ownerRoutes');
 const authRoutes = require('./routes/authRoutes');
+const loginRoutes = require('./routes/loginRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
 const aiRoutes= require("./routes/aiRoutes")
 const morgan = require('morgan');
 const { notFound, errorHandler } = require('./middlewares/errorHandler');
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -25,6 +27,7 @@ app.get('/api/health', (req, res) => {
 });
 app.use("/api/ai", aiRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/login', loginRoutes);
 app.use('/api/devices', deviceRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/owner', ownerRoutes);
