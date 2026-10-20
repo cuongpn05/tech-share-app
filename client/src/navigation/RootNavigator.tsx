@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAppSelector } from '../store';
 import { LoginScreen } from '../screens/auth/LoginScreen';
 import { RegisterScreen } from '../screens/auth/RegisterScreen';
+import { ForgotPasswordScreen } from '../screens/auth/ForgotPasswordScreen';
 import { OnboardingScreen } from '../user/OnboardingScreen';
 import OwnerDrawerNavigator from './OwnerDrawerNavigator';
 import AdminDrawerNavigator from './AdminDrawerNavigator';
@@ -39,6 +40,7 @@ export type RootStackParamList = {
   Onboarding: undefined;
   Login: undefined;
   Register: undefined;
+  ForgotPassword: undefined;
   Owner: undefined;
   Admin: undefined;
   Home: { initialTab?: ScreenType } | undefined;
@@ -251,10 +253,14 @@ export function RootNavigator() {
           <Stack.Screen name="BookingCreate" component={BookingCreateRoute} />
           <Stack.Screen name="MyBookings" component={MyBookingsRoute} />
           <Stack.Screen name="BookingDetail" component={BookingDetailRoute} />
-          <Stack.Screen
-            name="AiChatConsultant"
-            component={AiChatConsultantRoute}
-          />
+          <Stack.Screen name="ForgotPassword">
+            {(props) => (
+              <ForgotPasswordScreen
+                {...props}
+                onNavigateToLogin={() => props.navigation.navigate('Login')}
+              />
+            )}
+          </Stack.Screen>
         </>
       ) : (
         // ── PHÂN HỆ KHÁCH CHƯA ĐĂNG NHẬP (Guest) ────────────────────────
@@ -267,6 +273,7 @@ export function RootNavigator() {
               <LoginScreen
                 {...props}
                 onNavigateToRegister={() => props.navigation.navigate('Register')}
+                onNavigateToForgotPassword={() => props.navigation.navigate('ForgotPassword')}
                 onLoginSuccess={(role) => {
                   const targetRoute = role === 'admin' ? 'Admin' : role === 'owner' ? 'Owner' : 'Home';
                   if (navigationRef.isReady()) {
@@ -294,6 +301,15 @@ export function RootNavigator() {
                     });
                   }
                 }}
+              />
+            )}
+          </Stack.Screen>
+
+          <Stack.Screen name="ForgotPassword">
+            {(props) => (
+              <ForgotPasswordScreen
+                {...props}
+                onNavigateToLogin={() => props.navigation.navigate('Login')}
               />
             )}
           </Stack.Screen>
