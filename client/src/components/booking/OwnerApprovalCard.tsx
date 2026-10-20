@@ -5,637 +5,410 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
-  ActivityIndicator,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../theme/tokens';
 import { OWNER_STRINGS } from '../../constants/ownerStrings';
 import { Booking } from '../../services/bookingService';
 
-interface OwnerApprovalCardProps {
+export interface OwnerApprovalCardProps {
   booking: Booking;
-  onApprove: (booking: Booking) => void;
-  onReject: (booking: Booking) => void;
+  onPress?: (booking: Booking) => void;
   onChat?: (booking: Booking) => void;
+  onApprove?: (booking: Booking) => void;
+  onReject?: (booking: Booking) => void;
   onViewDetails?: (booking: Booking) => void;
   isProcessing?: boolean;
 }
 
 export const OwnerApprovalCard: React.FC<OwnerApprovalCardProps> = ({
   booking,
-  onApprove,
-  onReject,
+  onPress,
   onChat,
   onViewDetails,
-  isProcessing = false,
 }) => {
+  const navigation = useNavigation<any>();
   const strings = OWNER_STRINGS.PENDING_REQUESTS;
   const renter = booking.renterId || {};
   const device = booking.deviceId || {};
 
-  const renterName = renter.name || renter.username || 'Khách hàng';
+  const renterName = renter.name || renter.username || strings.DEFAULT_RENTER_NAME;
   const renterAvatar = renter.avatar;
   const isVerified = Boolean(renter.trust?.isVerified || renter.isVerified);
-  const trustScore = renter.trust?.score ?? renter.trustScore ?? 100;
-  const rating = renter.rating ? Number(renter.rating).toFixed(1) : '5.0';
-  const reviewsCount = renter.totalReviews ?? 0;
 
-  const deviceName = device.name || 'Thiết bị';
-  const deviceBrand = device.brand || '';
+  const deviceName = device.name || strings.DEFAULT_DEVICE_NAME;
   const deviceImage =
     (Array.isArray(device.images) && device.images.length > 0 ? device.images[0] : null) ||
     device.image ||
     '';
 
-  const pricePerDay =
-    booking.pricePerDayAtBooking ||
-    (booking as any).pricing?.pricePerDayAtBooking ||
-    device.pricePerDay ||
-    0;
-
+  const totalDays = booking.totalDays || 1;
   const rentalFee =
     booking.rentalFee ||
     (booking as any).pricing?.rentalFee ||
-    0;
+    ((booking.pricePerDayAtBooking || device.pricePerDay || 0) * totalDays);
 
-  const depositFee =
-    booking.depositFee ||
-    (booking as any).pricing?.depositFee ||
-    device.depositAmount ||
-    0;
-
-  const totalAmount =
-    booking.totalAmount ||
-    (booking as any).pricing?.totalAmount ||
-    rentalFee + depositFee;
-
-  const formatVND = (num: number) => {
-    return (num || 0).toLocaleString('vi-VN') + ' đ';
-  };
-
-  const formatDate = (dateStr: string) => {
+  const formatShortDate = (dateStr?: string) => {
     if (!dateStr) return '';
     const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
     const day = String(d.getDate()).padStart(2, '0');
     const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    return `${day}/${month}/${year}`;
+    return `${day}/${month}`;
   };
 
-  const startFormatted = formatDate(booking.startDate);
-  const endFormatted = formatDate(booking.endDate);
-  const totalDays = booking.totalDays || 1;
+  const startDateStr = formatShortDate(booking.startDate);
+  const endDateStr = formatShortDate(booking.endDate);
+  const dateDisplay =
+    startDateStr && endDateStr
+      ? `${startDateStr} - ${endDateStr} (${totalDays} ${strings.DAYS_UNIT})`
+      : `${totalDays} ${strings.DAYS_UNIT}`;
 
-  const deliveryMethod =
-    booking.deliveryMethod ||
-    (booking as any).delivery?.method ||
-    'pickup';
-
-  const deliveryAddress =
-    booking.deliveryAddress ||
-    (booking as any).delivery?.address ||
-    '';
+  const formattedRentalPrice = `${(rentalFee || 0).toLocaleString('vi-VN')} ${strings.CURRENCY_SUFFIX}`;
 
   const isPending = booking.status === 'pending';
   const isApproved = booking.status === 'approved';
   const isRejected = booking.status === 'rejected';
 
+  const handleCardPress = () => {
+    if (onPress) {
+      onPress(booking);
+    } else if (onViewDetails) {
+      onViewDetails(booking);
+    } else {
+      navigation.navigate('BookingRequestDetail', { bookingId: booking._id });
+    }
+  };
+
   return (
-    <View style={styles.cardContainer}>
-      {/* 1. Header: Booking Code & Status Pill */}
-      <View style={styles.cardHeader}>
-        <View style={styles.codeRow}>
-          <View style={styles.codeIconBox}>
-            <Ionicons name="receipt-outline" size={15} color={theme.colors.brand[500]} />
-          </View>
-          <Text style={styles.bookingCodeText}>#{booking.bookingCode || booking._id?.slice(-8)}</Text>
+    <TouchableOpacity
+      style={styles.cardContainer}
+      onPress={handleCardPress}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+    >
+      {/* Hàng 1 (Header thẻ): Mã đơn hàng bên trái & Badge trạng thái bên phải */}
+      <View style={styles.headerRow}>
+        <View style={styles.codeContainer}>
+          <Ionicons name="receipt-outline" size={13} color={theme.colors.text.subtle} />
+          <Text style={styles.bookingCodeText}>
+            #{booking.bookingCode || booking._id?.slice(-8)}
+          </Text>
         </View>
 
         <View
           style={[
-            styles.statusPill,
-            isPending && styles.statusPending,
-            isApproved && styles.statusApproved,
-            isRejected && styles.statusRejected,
+            styles.statusBadge,
+            isPending && styles.statusBadgePending,
+            isApproved && styles.statusBadgeApproved,
+            isRejected && styles.statusBadgeRejected,
           ]}
         >
           <Ionicons
-            name={isPending ? 'time-outline' : isApproved ? 'checkmark-circle-outline' : 'close-circle-outline'}
-            size={13}
-            color={isPending ? '#D97706' : isApproved ? '#059669' : '#DC2626'}
+            name={
+              isPending
+                ? 'time-outline'
+                : isApproved
+                ? 'checkmark-circle-outline'
+                : 'close-circle-outline'
+            }
+            size={12}
+            color={
+              isPending
+                ? theme.colors.amber
+                : isApproved
+                ? theme.colors.green
+                : theme.colors.red
+            }
           />
           <Text
             style={[
-              styles.statusText,
-              isPending && styles.textPending,
-              isApproved && styles.textApproved,
-              isRejected && styles.textRejected,
+              styles.statusBadgeText,
+              isPending && styles.statusTextPending,
+              isApproved && styles.statusTextApproved,
+              isRejected && styles.statusTextRejected,
             ]}
           >
-            {isPending ? 'Chờ duyệt' : isApproved ? 'Đã duyệt' : 'Đã từ chối'}
+            {isPending
+              ? strings.STATUS_PENDING
+              : isApproved
+              ? strings.STATUS_APPROVED
+              : strings.STATUS_REJECTED}
           </Text>
         </View>
       </View>
 
-      {/* 2. Customer Profile Section */}
-      <View style={styles.renterSection}>
-        <View style={styles.renterAvatarWrap}>
+      {/* Hàng 2 (Khối nội dung chính - 2 cột ngang: Thumbnail + Tóm tắt) */}
+      <View style={styles.mainContentRow}>
+        {/* Cột trái: Ảnh thumbnail máy vuông 72x72 bo góc 10px */}
+        <View style={styles.thumbnailContainer}>
+          {deviceImage ? (
+            <Image
+              source={{ uri: deviceImage }}
+              style={styles.thumbnailImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.thumbnailPlaceholder}>
+              <Ionicons
+                name="hardware-chip-outline"
+                size={26}
+                color={theme.colors.text.subtle}
+              />
+            </View>
+          )}
+        </View>
+
+        {/* Cột phải: Thông tin tóm tắt (Tên máy, Thời gian, Tiền thuê) */}
+        <View style={styles.summaryContainer}>
+          {/* Dòng 1: Tên thiết bị (in đậm, fontSize 15, numberOfLines 1) */}
+          <Text style={styles.deviceNameText} numberOfLines={1}>
+            {deviceName}
+          </Text>
+
+          {/* Dòng 2: Thời gian: Icon lịch nhỏ + "21/10 - 22/10 (1 ngày)" */}
+          <View style={styles.dateRow}>
+            <Ionicons
+              name="calendar-outline"
+              size={13}
+              color={theme.colors.text.muted}
+            />
+            <Text style={styles.dateText}>{dateDisplay}</Text>
+          </View>
+
+          {/* Dòng 3: Tiền thuê: "Tiền thuê: 380.000 đ" (số tiền in đậm, màu primary) */}
+          <View style={styles.priceRow}>
+            <Text style={styles.priceLabel}>{strings.RENTAL_PRICE_LABEL} </Text>
+            <Text style={styles.priceValue}>{formattedRentalPrice}</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Hàng 3 (Footer tóm tắt & Khách thuê) */}
+      <View style={styles.footerRow}>
+        {/* Bên trái: Avatar nhỏ (24x24) + Tên khách + Icon Tích xanh nếu isVerified */}
+        <View style={styles.renterContainer}>
           {renterAvatar ? (
             <Image source={{ uri: renterAvatar }} style={styles.renterAvatar} />
           ) : (
-            <View style={[styles.renterAvatar, styles.avatarPlaceholder]}>
-              <Ionicons name="person" size={20} color={theme.colors.brand[500]} />
+            <View style={styles.renterAvatarPlaceholder}>
+              <Ionicons name="person" size={12} color={theme.colors.text.subtle} />
             </View>
           )}
+          <Text style={styles.renterNameText} numberOfLines={1}>
+            {renterName}
+          </Text>
           {isVerified && (
-            <View style={styles.verifiedDot}>
-              <Ionicons name="shield-checkmark" size={10} color="#FFFFFF" />
-            </View>
+            <Ionicons
+              name="checkmark-circle"
+              size={13}
+              color={theme.colors.green}
+              style={styles.verifiedCheckmark}
+            />
           )}
         </View>
 
-        <View style={styles.renterDetails}>
-          <View style={styles.renterNameRow}>
-            <Text style={styles.renterName} numberOfLines={1}>
-              {renterName}
-            </Text>
-            {isVerified && (
-              <View style={styles.verifiedBadge}>
-                <Ionicons name="checkmark-circle" size={12} color="#059669" />
-                <Text style={styles.verifiedBadgeText}>eKYC</Text>
-              </View>
-            )}
-          </View>
-
-          <View style={styles.reputationRow}>
-            <View style={styles.reputationItem}>
-              <Ionicons name="star" size={12} color="#F59E0B" />
-              <Text style={styles.reputationText}>
-                {rating} ({reviewsCount})
-              </Text>
-            </View>
-
-            <View style={styles.reputationDivider} />
-
-            <View style={styles.reputationItem}>
-              <Ionicons name="shield-outline" size={12} color="#059669" />
-              <Text style={[styles.reputationText, { color: '#059669', fontWeight: '700' }]}>
-                Trust: {trustScore}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Chat Button with Renter */}
-        {onChat && (
-          <TouchableOpacity
-            style={styles.chatIconButton}
-            onPress={() => onChat(booking)}
-            activeOpacity={0.7}
-            accessibilityLabel={strings.CHAT_BUTTON}
-          >
-            <Ionicons name="chatbubble-ellipses-outline" size={18} color={theme.colors.brand[600]} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* 3. Device Info Section */}
-      <View style={styles.deviceCard}>
-        {deviceImage ? (
-          <Image source={{ uri: deviceImage }} style={styles.deviceImage} />
-        ) : (
-          <View style={[styles.deviceImage, styles.deviceImagePlaceholder]}>
-            <Ionicons name="hardware-chip-outline" size={22} color={theme.colors.text.muted} />
-          </View>
-        )}
-
-        <View style={styles.deviceDetails}>
-          {deviceBrand ? <Text style={styles.deviceBrand}>{deviceBrand.toUpperCase()}</Text> : null}
-          <Text style={styles.deviceName} numberOfLines={2}>
-            {deviceName}
-          </Text>
-          <Text style={styles.deviceRateText}>
-            {formatVND(pricePerDay)} <Text style={styles.perDaySub}>{strings.DAILY_RATE}</Text>
-          </Text>
-        </View>
-      </View>
-
-      {/* 4. Rental Logistics: Dates & Delivery */}
-      <View style={styles.logisticsContainer}>
-        {/* Schedule */}
-        <View style={styles.logisticRow}>
-          <Ionicons name="calendar-outline" size={16} color="#64748B" />
-          <Text style={styles.logisticLabel}>{strings.RENTAL_PERIOD}:</Text>
-          <Text style={styles.logisticValue}>
-            {startFormatted} ➔ {endFormatted} ({totalDays} {strings.DAYS_UNIT})
-          </Text>
-        </View>
-
-        {/* Delivery Method */}
-        <View style={styles.logisticRow}>
+        {/* Bên phải: Nút icon Chat nhanh (32x32) và Icon chevron-forward */}
+        <View style={styles.footerActions}>
+          {onChat && (
+            <TouchableOpacity
+              style={styles.chatIconButton}
+              onPress={(e) => {
+                e.stopPropagation?.();
+                onChat(booking);
+              }}
+              activeOpacity={0.7}
+              accessibilityLabel={strings.CHAT_BUTTON}
+              accessibilityRole="button"
+            >
+              <Ionicons
+                name="chatbubble-ellipses-outline"
+                size={15}
+                color={theme.colors.brand[600]}
+              />
+            </TouchableOpacity>
+          )}
           <Ionicons
-            name={deliveryMethod === 'delivery' ? 'bicycle-outline' : 'storefront-outline'}
-            size={16}
-            color="#64748B"
+            name="chevron-forward"
+            size={18}
+            color={theme.colors.text.subtle}
           />
-          <Text style={styles.logisticLabel}>Giao nhận:</Text>
-          <Text style={styles.logisticValue} numberOfLines={1}>
-            {deliveryMethod === 'delivery' ? strings.DELIVERY : strings.PICKUP}
-            {deliveryAddress ? ` (${deliveryAddress})` : ''}
-          </Text>
         </View>
       </View>
-
-      {/* 5. Financial Summary Row */}
-      <View style={styles.financialRow}>
-        <View style={styles.financialCol}>
-          <Text style={styles.financialSmallLabel}>{strings.RENTAL_FEE}</Text>
-          <Text style={styles.financialSmallValue}>{formatVND(rentalFee)}</Text>
-        </View>
-
-        <View style={styles.financialVerticalSep} />
-
-        <View style={styles.financialCol}>
-          <Text style={styles.financialSmallLabel}>{strings.DEPOSIT}</Text>
-          <Text style={styles.financialSmallValue}>{formatVND(depositFee)}</Text>
-        </View>
-
-        <View style={styles.financialVerticalSep} />
-
-        <View style={[styles.financialCol, { alignItems: 'flex-end' }]}>
-          <Text style={styles.financialTotalLabel}>{strings.TOTAL_PRICE}</Text>
-          <Text style={styles.financialTotalValue}>{formatVND(totalAmount)}</Text>
-        </View>
-      </View>
-
-      {/* 6. Action Buttons for Owner */}
-      {isPending && (
-        <View style={styles.actionRow}>
-          {/* Decline Button */}
-          <TouchableOpacity
-            style={styles.declineButton}
-            onPress={() => onReject(booking)}
-            disabled={isProcessing}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="close-circle-outline" size={17} color="#DC2626" />
-            <Text style={styles.declineButtonText}>{strings.REJECT_BUTTON}</Text>
-          </TouchableOpacity>
-
-          {/* Approve Button */}
-          <TouchableOpacity
-            style={styles.approveButton}
-            onPress={() => onApprove(booking)}
-            disabled={isProcessing}
-            activeOpacity={0.85}
-          >
-            {isProcessing ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <>
-                <Ionicons name="checkmark-circle-outline" size={18} color="#FFFFFF" />
-                <Text style={styles.approveButtonText}>{strings.APPROVE_BUTTON}</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Status note if rejected */}
-      {isRejected && booking.rejectReason ? (
-        <View style={styles.rejectedReasonBox}>
-          <Ionicons name="information-circle-outline" size={15} color="#DC2626" />
-          <Text style={styles.rejectedReasonText}>
-            Lý do từ chối: {booking.rejectReason}
-          </Text>
-        </View>
-      ) : null}
-    </View>
+    </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
   cardContainer: {
     backgroundColor: theme.colors.surface,
-    borderRadius: 22,
-    padding: 16,
-    marginBottom: 16,
+    borderRadius: theme.radii.lg,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border.light,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 12,
     ...theme.shadows.card,
   },
-  cardHeader: {
+  headerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    alignItems: 'center',
+    marginBottom: 10,
   },
-  codeRow: {
+  codeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  codeIconBox: {
-    width: 26,
-    height: 26,
-    borderRadius: 8,
-    backgroundColor: '#E6F7F7',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 8,
+    gap: 5,
   },
   bookingCodeText: {
-    fontSize: 14,
-    fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.text.primary,
-    letterSpacing: 0.5,
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.text.subtle,
+    letterSpacing: 0.2,
   },
-  statusPill: {
+  statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    borderRadius: theme.radii.full,
     gap: 4,
   },
-  statusPending: {
-    backgroundColor: '#FEF3C7',
+  statusBadgePending: {
+    backgroundColor: theme.colors.amberLight,
   },
-  statusApproved: {
-    backgroundColor: '#DCFCE7',
+  statusBadgeApproved: {
+    backgroundColor: theme.colors.greenLight,
   },
-  statusRejected: {
-    backgroundColor: '#FEE2E2',
+  statusBadgeRejected: {
+    backgroundColor: theme.colors.redLight,
   },
-  statusText: {
-    fontSize: 12,
-    fontWeight: theme.typography.fontWeight.bold,
+  statusBadgeText: {
+    fontSize: 11.5,
+    fontWeight: '600',
   },
-  textPending: {
-    color: '#D97706',
+  statusTextPending: {
+    color: theme.colors.amber,
   },
-  textApproved: {
-    color: '#059669',
+  statusTextApproved: {
+    color: theme.colors.green,
   },
-  textRejected: {
-    color: '#DC2626',
+  statusTextRejected: {
+    color: theme.colors.red,
   },
-  renterSection: {
+  mainContentRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F8FAFC',
+    marginBottom: 10,
   },
-  renterAvatarWrap: {
-    position: 'relative',
+  thumbnailContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.border.divider,
   },
-  renterAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#F1F5F9',
+  thumbnailImage: {
+    width: '100%',
+    height: '100%',
   },
-  avatarPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#E6F7F7',
-  },
-  verifiedDot: {
-    position: 'absolute',
-    bottom: -1,
-    right: -1,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: '#059669',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: '#FFFFFF',
-  },
-  renterDetails: {
+  thumbnailPlaceholder: {
     flex: 1,
-    marginLeft: 12,
-  },
-  renterNameRow: {
-    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  renterName: {
+  summaryContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    marginLeft: 14,
+  },
+  deviceNameText: {
     fontSize: 15,
-    fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.text.primary,
-  },
-  verifiedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    marginLeft: 6,
-    gap: 3,
-  },
-  verifiedBadgeText: {
-    fontSize: 10.5,
     fontWeight: '700',
-    color: '#059669',
+    color: theme.colors.text.primary,
+    lineHeight: 20,
   },
-  reputationRow: {
+  dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 4,
+    gap: 5,
   },
-  reputationItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  reputationText: {
-    fontSize: 12,
-    color: theme.colors.text.muted,
+  dateText: {
+    fontSize: 12.5,
+    color: theme.colors.text.secondary,
     fontWeight: '500',
   },
-  reputationDivider: {
-    width: 1,
-    height: 12,
-    backgroundColor: '#E2E8F0',
-    marginHorizontal: 8,
-  },
-  chatIconButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: '#F0FDFA',
-    borderWidth: 1,
-    borderColor: '#CCFBF1',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deviceCard: {
+  priceRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 14,
-    padding: 10,
-    marginTop: 10,
+    alignItems: 'baseline',
+    marginTop: 4,
   },
-  deviceImage: {
-    width: 58,
-    height: 58,
-    borderRadius: 10,
-    backgroundColor: '#E2E8F0',
+  priceLabel: {
+    fontSize: 12.5,
+    color: theme.colors.text.muted,
+    fontWeight: '400',
   },
-  deviceImagePlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deviceDetails: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  deviceBrand: {
-    fontSize: 10.5,
+  priceValue: {
+    fontSize: 15,
     fontWeight: '700',
     color: theme.colors.brand[600],
-    letterSpacing: 0.5,
-    marginBottom: 2,
   },
-  deviceName: {
-    fontSize: 13.5,
-    fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.text.primary,
-    lineHeight: 18,
+  footerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border.divider,
   },
-  deviceRateText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: theme.colors.brand[700],
-    marginTop: 3,
+  renterContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 10,
   },
-  perDaySub: {
-    fontSize: 11,
-    color: theme.colors.text.muted,
-    fontWeight: 'normal',
-  },
-  logisticsContainer: {
-    marginTop: 12,
-    backgroundColor: '#FFFFFF',
+  renterAvatar: {
+    width: 24,
+    height: 24,
     borderRadius: 12,
-    paddingVertical: 4,
-    gap: 6,
+    backgroundColor: theme.colors.surfaceMuted,
   },
-  logisticRow: {
+  renterAvatarPlaceholder: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: theme.colors.surfaceMuted,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  renterNameText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    marginLeft: 7,
+    maxWidth: 180,
+  },
+  verifiedCheckmark: {
+    marginLeft: 4,
+  },
+  footerActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  logisticLabel: {
-    fontSize: 12.5,
-    color: theme.colors.text.muted,
-    fontWeight: '500',
-  },
-  logisticValue: {
-    fontSize: 12.5,
-    color: theme.colors.text.primary,
-    fontWeight: '600',
-    flex: 1,
-  },
-  financialRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0FDFA',
-    borderRadius: 14,
-    padding: 12,
-    marginTop: 12,
+  chatIconButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.colors.brand[50],
     borderWidth: 1,
-    borderColor: '#CCFBF1',
-  },
-  financialCol: {
-    flex: 1,
-  },
-  financialSmallLabel: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-  financialSmallValue: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: theme.colors.text.primary,
-    marginTop: 2,
-  },
-  financialVerticalSep: {
-    width: 1,
-    height: 24,
-    backgroundColor: '#CCFBF1',
-    marginHorizontal: 8,
-  },
-  financialTotalLabel: {
-    fontSize: 11,
-    color: theme.colors.brand[700],
-    fontWeight: '700',
-  },
-  financialTotalValue: {
-    fontSize: 15,
-    fontWeight: theme.typography.fontWeight.bold,
-    color: '#0D9488',
-    marginTop: 2,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 14,
-    gap: 10,
-  },
-  declineButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    borderColor: theme.colors.brand[200],
     justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 14,
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    gap: 6,
-  },
-  declineButtonText: {
-    fontSize: 13.5,
-    fontWeight: '700',
-    color: '#DC2626',
-  },
-  approveButton: {
-    flex: 1.6,
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 14,
-    backgroundColor: '#0D9488',
-    gap: 6,
-    ...theme.shadows.card,
-  },
-  approveButtonText: {
-    fontSize: 13.5,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  rejectedReasonBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    padding: 10,
-    borderRadius: 10,
-    marginTop: 10,
-    gap: 6,
-  },
-  rejectedReasonText: {
-    fontSize: 12,
-    color: '#DC2626',
-    flex: 1,
   },
 });
-
-export default OwnerApprovalCard;

@@ -345,6 +345,9 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
           renderItem={({ item }) => (
             <OwnerApprovalCard
               booking={item}
+              onPress={(selected) =>
+                navigation?.navigate('BookingRequestDetail', { bookingId: selected._id })
+              }
               onApprove={handleApprove}
               onReject={handleOpenReject}
               onChat={handleChat}
