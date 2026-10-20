@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppSelector } from '../store';
 import { HomeScreen } from '../screens/home/HomeScreen';
+import { MapScreen } from '../screens/map/MapScreen';
 import { MyBookingsScreen } from '../screens/booking/MyBookingsScreen';
 import { AiCompareScreen } from '../screens/ai/AiCompareScreen';
 import { BottomTabNavigator } from '../components/navigation/BottomTabNavigator';
@@ -121,6 +122,8 @@ export function HomeRoute({
           navigation={navigation}
           onBack={() => setActiveTab('home')}
         />
+      ) : activeTab === 'map' ? (
+        <MapScreen onNavigateToDeviceDetail={(deviceId) => navigation?.navigate('DeviceDetail', { deviceId })} />
       ) : activeTab === 'compare' ? (
         <AiCompareScreen />
       ) : (
@@ -147,7 +150,7 @@ export function HomeRoute({
       )}
       <BottomTabNavigator
         activeTab={activeTab}
-        enabledTabs={['home', 'bookings', 'compare', 'profile']}
+        enabledTabs={['home', 'bookings', 'map', 'compare', 'profile']}
         onTabPress={(tab) => setActiveTab(tab)}
         safeAreaBottom={insets.bottom}
       />
