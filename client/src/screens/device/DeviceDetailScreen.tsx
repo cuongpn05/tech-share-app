@@ -13,6 +13,7 @@ interface DeviceDetailScreenProps {
   deviceId: string;
   onBack: () => void;
   onRent: (deviceId: string) => void;
+  onViewOwner?: (ownerId: string) => void;
 }
 
 function specLabel(key: string): string {
@@ -35,7 +36,7 @@ function imageUri(value: string): string {
   return value.startsWith('/') ? API_BASE_URL.replace(/\/api\/?$/, '') + value : value;
 }
 
-export function DeviceDetailScreen({ deviceId, onBack, onRent }: DeviceDetailScreenProps) {
+export function DeviceDetailScreen({ deviceId, onBack, onRent, onViewOwner }: DeviceDetailScreenProps) {
   const insets = useSafeAreaInsets();
   const [device, setDevice] = useState<Device | null>(null);
   const [loading, setLoading] = useState(true);
@@ -189,7 +190,8 @@ export function DeviceDetailScreen({ deviceId, onBack, onRent }: DeviceDetailScr
                 <Text style={styles.sectionTitle}>Owner</Text>
               </View>
               {owner && typeof owner.name === 'string' && owner.name.trim() ? (
-                <View style={styles.ownerRow}>
+                <TouchableOpacity style={styles.ownerRow} accessibilityRole="button" accessibilityLabel="View owner profile"
+                  disabled={!owner._id || !onViewOwner} onPress={() => onViewOwner?.(owner._id)}>
                   {typeof owner.avatar === 'string' && owner.avatar.trim() && !avatarFailed ? (
                     <Image source={{ uri: imageUri(owner.avatar) }} style={styles.avatar} onError={() => setAvatarFailed(true)} />
                   ) : <View style={[styles.avatar, styles.avatarPlaceholder]}>
@@ -202,7 +204,8 @@ export function DeviceDetailScreen({ deviceId, onBack, onRent }: DeviceDetailScr
                       <Text style={styles.addressText}>{ownerAddress}</Text>
                     </View> : null}
                   </View>
-                </View>
+                  <Ionicons name="chevron-forward" size={18} color={colors.light.textMuted} />
+                </TouchableOpacity>
               ) : <Text style={styles.muted}>Owner information unavailable.</Text>}
             </View>
           </ScrollView>

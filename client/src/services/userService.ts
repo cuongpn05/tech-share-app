@@ -23,6 +23,14 @@ export interface ProfileResponse {
 }
 
 export const userService = {
+  async getOwnerProfile(ownerId: string): Promise<User & { deviceCount: number }> {
+    const response = await apiClient.get(`/owner/${ownerId}/profile`);
+    if (response.data?.success !== true || typeof response.data.data?._id !== 'string' ||
+        response.data.data._id.toLowerCase() !== ownerId.toLowerCase()) {
+      throw new Error('Invalid owner profile response');
+    }
+    return response.data.data;
+  },
   /**
    * Lấy thông tin tài khoản & profile chi tiết của user hiện tại
    */

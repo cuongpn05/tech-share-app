@@ -16,6 +16,7 @@ import ChatDetailScreen from '../screens/chat/ChatDetailScreen';
 import NotificationScreen from '../screens/notification/NotificationScreen';
 import { BookingCreateScreen } from '../screens/booking/BookingCreateScreen';
 import { DeviceDetailScreen } from '../screens/device/DeviceDetailScreen';
+import { OwnerProfileScreen } from '../screens/user/OwnerProfileScreen';
 import { MyBookingsScreen } from '../screens/booking/MyBookingsScreen';
 import { BookingDetailScreen } from '../screens/booking/BookingDetailScreen';
 import { ProfileScreen } from '../screens/user/ProfileScreen';
@@ -52,6 +53,7 @@ export type RootStackParamList = {
   Notification: undefined;
   BookingCreate: { deviceId: string };
   DeviceDetail: { deviceId: string };
+  OwnerProfile: { ownerId: string };
   MyBookings: undefined;
   BookingDetail: { bookingId: string };
   BookingRequestDetail: { bookingId: string };
@@ -61,11 +63,17 @@ export type RootStackParamList = {
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+const OwnerProfileRoute = ({ route, navigation }: any) => (
+  <OwnerProfileScreen ownerId={route.params.ownerId} onBack={() => navigation.goBack()}
+    onMessage={() => navigation.navigate('OwnerMessages')} />
+);
+
 const DeviceDetailRoute = ({ route, navigation }: any) => (
   <DeviceDetailScreen
     deviceId={route.params.deviceId}
     onBack={() => navigation.goBack()}
     onRent={(deviceId) => navigation.navigate('BookingCreate', { deviceId })}
+    onViewOwner={(ownerId) => navigation.navigate('OwnerProfile', { ownerId })}
   />
 );
 
@@ -215,6 +223,7 @@ export function RootNavigator() {
   return (
     <Stack.Navigator initialRouteName={getInitialRoute()} screenOptions={{ headerShown: false }}>
       <Stack.Screen name="DeviceDetail" component={DeviceDetailRoute} />
+      <Stack.Screen name="OwnerProfile" component={OwnerProfileRoute} />
       {!hasCompletedOnboarding ? (
         <Stack.Screen name="Onboarding">
           {(props) => <OnboardingScreen {...props} onComplete={handleCompleteOnboarding} />}
