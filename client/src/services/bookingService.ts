@@ -1,5 +1,8 @@
 import { apiClient } from '../config/api';
 
+type BookingsUpdateListener = () => void;
+let bookingsUpdateListeners: BookingsUpdateListener[] = [];
+
 export interface ExtensionRequestInfo {
   requestedEndDate?: string;
   requestedDays?: number;
@@ -52,6 +55,23 @@ export interface Booking {
 
 
 export const bookingService = {
+  onBookingsUpdated: (listener: BookingsUpdateListener) => {
+    bookingsUpdateListeners.push(listener);
+    return () => {
+      bookingsUpdateListeners = bookingsUpdateListeners.filter((l) => l !== listener);
+    };
+  },
+
+  notifyBookingsUpdated: () => {
+    bookingsUpdateListeners.forEach((fn) => {
+      try {
+        fn();
+      } catch (err) {
+        console.warn('[bookingService] Listener error:', err);
+      }
+    });
+  },
+
   createBooking: async (payload: any) => {
     const res = await apiClient.post('/bookings', payload);
     return res.data;
@@ -91,11 +111,25 @@ export const bookingService = {
     return res.data.data;
   },
 
-  getOwnerBookings: async (status?: string): Promise<Booking[]> => {
+  getOwnerBookings: async (status?: string, userId?: string): Promise<Booking[]> => {
     const res = await apiClient.get('/bookings/owner-bookings', {
-      params: status ? { status } : {},
+      params: { ...(status ? { status } : {}), ...(userId ? { userId } : {}) },
     });
     return res.data.data;
+  },
+
+  getOwnerPendingBookings: async (userId?: string): Promise<Booking[]> => {
+    try {
+      const res = await apiClient.get('/owner/pending-bookings', {
+        params: userId ? { userId } : {},
+      });
+      return res.data?.data || [];
+    } catch {
+      const res = await apiClient.get('/bookings/owner-bookings', {
+        params: { status: 'pending', ...(userId ? { userId } : {}) },
+      });
+      return res.data?.data || [];
+    }
   },
 
   updateBookingStatusByOwner: async (
@@ -107,6 +141,7 @@ export const bookingService = {
       status,
       reason,
     });
+    bookingService.notifyBookingsUpdated();
     return res.data.data;
   },
 

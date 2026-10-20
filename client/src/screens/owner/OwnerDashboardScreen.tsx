@@ -1,5 +1,6 @@
 import { API_BASE_URL, apiClient } from '../../config/api';
 import React, { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -27,6 +28,7 @@ import { theme } from '../../theme/tokens';
 import { OWNER_STRINGS } from '../../constants/ownerStrings';
 import { chatService } from '../../services/chatService';
 import { socketService } from '../../services/socketService';
+import { notificationService } from '../../services/notificationService';
 import { useAppSelector } from '../../store';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -86,31 +88,31 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
   const currentUser = useAppSelector((state) => state.auth.user);
   const [selectedTimeframe, setSelectedTimeframe] = useState<'week' | 'month'>('week');
   const [refreshing, setRefreshing] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  const loadUnreadCount = useCallback(async () => {
-    try {
-      const convs = await chatService.getConversations();
-      if (Array.isArray(convs)) {
-        const total = convs.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
-        setUnreadCount(total);
-      }
-    } catch {}
-  }, []);
+  const [unreadNotifications, setUnreadNotifications] = useState(
+    notificationService.getUnreadCountCached()
+  );
 
   useEffect(() => {
-    loadUnreadCount();
-    const unsub = socketService.onNewMessage(() => {
-      loadUnreadCount();
+    const userId = currentUser?._id || (currentUser as any)?.id;
+    if (userId) {
+      notificationService.fetchUnreadCount(userId);
+    }
+    const unsubNotifCount = notificationService.onUnreadCountChange((count) => {
+      setUnreadNotifications(count);
     });
-    const unsubRead = socketService.onMessagesRead(() => {
-      loadUnreadCount();
+    const unsubNotif = socketService.onNotification(() => {
+      if (userId) {
+        notificationService.fetchUnreadCount(userId);
+      } else {
+        notificationService.incrementUnreadCount();
+      }
     });
+
     return () => {
-      unsub();
-      unsubRead();
+      unsubNotifCount();
+      unsubNotif();
     };
-  }, [loadUnreadCount]);
+  }, [currentUser]);
 
   // Khởi tạo trạng thái mặc định rỗng/0, toàn bộ số liệu được kéo trực tiếp từ MongoDB Atlas
   const [profile, setProfile] = useState<OwnerProfileData>({
@@ -154,6 +156,8 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
     dataPoints: [],
   });
 
+  const [pendingCount, setPendingCount] = useState<number>(0);
+
   // Tải dữ liệu từ Backend API MongoDB Atlas
   const fetchDashboardData = useCallback(async () => {
     try {
@@ -168,6 +172,7 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
         if (d.kpis) setKpis(d.kpis);
         if (d.wallet) setWallet(d.wallet);
         if (d.chart) setChart(d.chart);
+        if (d.pendingBookingsCount !== undefined) setPendingCount(d.pendingBookingsCount);
         return;
       }
     } catch {
@@ -183,6 +188,7 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
             if (d.kpis) setKpis(d.kpis);
             if (d.wallet) setWallet(d.wallet);
             if (d.chart) setChart(d.chart);
+            if (d.pendingBookingsCount !== undefined) setPendingCount(d.pendingBookingsCount);
           }
         }
       } catch (err) {
@@ -194,6 +200,14 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
   useEffect(() => {
     fetchDashboardData();
   }, [fetchDashboardData]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchDashboardData();
+      const userId = currentUser?._id || (currentUser as any)?.id;
+      notificationService.fetchUnreadCount(userId);
+    }, [fetchDashboardData, currentUser])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -295,7 +309,13 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
           activeOpacity={0.7}
         >
           <Ionicons name="notifications-outline" size={20} color={theme.colors.text.primary} />
-          {unreadCount > 0 && <View style={styles.notifBadgeDot} />}
+          {unreadNotifications > 0 && (
+            <View style={styles.notifBadge}>
+              <Text style={styles.notifBadgeText}>
+                {unreadNotifications > 99 ? '99+' : unreadNotifications}
+              </Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -355,6 +375,7 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
             ) : null}
           </View>
         </View>
+
 
         {/* 3. Section Header: Performance & Revenue + Segmented Toggle */}
         <View style={styles.sectionHeaderRow}>
@@ -612,6 +633,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  notifBadge: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: '#EF4444',
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  notifBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: theme.typography.fontWeight.bold,
+    textAlign: 'center',
+    lineHeight: 12,
+  },
   headerTitleContainer: {
     flex: 1,
     paddingHorizontal: 12,
@@ -656,6 +698,7 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.bold,
     color: theme.colors.text.primary,
   },
+
   badgesRow: {
     flexDirection: 'row',
     alignItems: 'center',

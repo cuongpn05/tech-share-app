@@ -11,6 +11,7 @@ const registerRoutes = require('./routes/registerRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const userManagementRoutes = require('./routes/userManagementRoutes');
 const ekycRoutes = require('./routes/ekycRoutes');
 const aiRoutes= require("./routes/aiRoutes")
@@ -38,6 +39,7 @@ app.use('/api/owner', ownerRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/user-management', userManagementRoutes);
 app.use('/api/ekyc', ekycRoutes);
 

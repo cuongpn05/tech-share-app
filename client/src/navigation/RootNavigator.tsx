@@ -10,6 +10,7 @@ import OwnerDrawerNavigator from './OwnerDrawerNavigator';
 import AdminDrawerNavigator from './AdminDrawerNavigator';
 import { HomeRoute } from './HomeRoute';
 import OwnerMessagesScreen from '../screens/owner/OwnerMessagesScreen';
+import OwnerPendingBookingsScreen from '../screens/owner/OwnerPendingBookingsScreen';
 import ChatDetailScreen from '../screens/chat/ChatDetailScreen';
 import NotificationScreen from '../screens/notification/NotificationScreen';
 import { BookingCreateScreen } from '../screens/booking/BookingCreateScreen';
@@ -17,15 +18,18 @@ import { DeviceDetailScreen } from '../screens/device/DeviceDetailScreen';
 import { MyBookingsScreen } from '../screens/booking/MyBookingsScreen';
 import { BookingDetailScreen } from '../screens/booking/BookingDetailScreen';
 import { ProfileScreen } from '../screens/user/ProfileScreen';
+import { EkycVerificationScreen } from '../screens/user/EkycVerificationScreen';
 import { AiChatConsultant } from '../screens/ai/AiChatConsultant';
 import { socketService } from '../services/socketService';
+import { firebaseMessagingService } from '../services/firebaseMessagingService';
+import { notificationService } from '../services/notificationService';
 import { setAuthToken } from '../config/api';
 import { navigationRef } from './navigationRef';
 import { theme } from '../theme/tokens';
 import { ScreenType } from '../types';
 
 import { Ionicons } from '@expo/vector-icons';
-import { Text, TouchableOpacity, Alert } from 'react-native';
+import { Text, TouchableOpacity } from 'react-native';
 
 export { HomeRoute } from './HomeRoute';
 
@@ -39,6 +43,7 @@ export type RootStackParamList = {
   Admin: undefined;
   Home: { initialTab?: ScreenType } | undefined;
   Profile: undefined;
+  OwnerPendingBookings: undefined;
   EkycVerification: undefined;
   OwnerMessages: undefined;
   ChatDetail: { bookingId?: string; otherBookings?: any[] } | undefined;
@@ -124,6 +129,12 @@ export function RootNavigator() {
     const uid = user?._id || (user as any)?.id;
     if (isAuthenticated && uid) {
       socketService.connect(uid);
+
+      // Khởi tạo thông báo đẩy Firebase Cloud Messaging (FCM)
+      firebaseMessagingService.init(uid);
+
+      // Tải và đồng bộ số lượng thông báo chưa đọc toàn cục
+      notificationService.fetchUnreadCount(uid);
     }
   }, [isAuthenticated, user, token]);
 
@@ -154,28 +165,28 @@ export function RootNavigator() {
 
     const executeRedirect = () => {
       if (!navigationRef.isReady()) return;
-      if (isLoginEvent || isRoleChangeEvent) {
-        const targetRoute: keyof RootStackParamList =
-          user?.role === 'admin' ? 'Admin' : user?.role === 'owner' ? 'Owner' : 'Home';
-        navigationRef.reset({
-          index: 0,
-          routes: [{ name: targetRoute }],
-        });
-      } else if (isLogoutEvent) {
-        navigationRef.reset({
-          index: 0,
-          routes: [{ name: 'Home' }],
-        });
+      try {
+        if (isLoginEvent || isRoleChangeEvent) {
+          const targetRoute: keyof RootStackParamList =
+            user?.role === 'admin' ? 'Admin' : user?.role === 'owner' ? 'Owner' : 'Home';
+          navigationRef.reset({
+            index: 0,
+            routes: [{ name: targetRoute }],
+          });
+        } else if (isLogoutEvent) {
+          navigationRef.reset({
+            index: 0,
+            routes: [{ name: 'Home' }],
+          });
+        }
+      } catch (err) {
+        console.warn('[RootNavigator] Reset redirect skipped:', err);
       }
     };
 
     if (isLoginEvent || isLogoutEvent || isRoleChangeEvent) {
-      if (navigationRef.isReady()) {
-        executeRedirect();
-      } else {
-        const timer = setTimeout(executeRedirect, 50);
-        return () => clearTimeout(timer);
-      }
+      const timer = setTimeout(executeRedirect, 150);
+      return () => clearTimeout(timer);
     }
   }, [isAuthenticated, user?.role, hasCompletedOnboarding]);
 
@@ -229,6 +240,7 @@ export function RootNavigator() {
           )}
 
           {/* Các màn hình chức năng khi đã đăng nhập */}
+          <Stack.Screen name="OwnerPendingBookings" component={OwnerPendingBookingsScreen} />
           <Stack.Screen name="OwnerMessages" component={OwnerMessagesScreen} />
           <Stack.Screen name="ChatDetail" component={ChatDetailScreen} />
           <Stack.Screen name="Notification" component={NotificationScreen} />
@@ -248,6 +260,8 @@ export function RootNavigator() {
         // ── PHÂN HỆ KHÁCH CHƯA ĐĂNG NHẬP (Guest) ────────────────────────
         <>
           <Stack.Screen name="Home" component={HomeRoute} />
+          <Stack.Screen name="Owner" component={OwnerDrawerNavigator} />
+          <Stack.Screen name="Admin" component={AdminDrawerNavigator} />
           <Stack.Screen name="Login">
             {(props) => (
               <LoginScreen
@@ -285,6 +299,7 @@ export function RootNavigator() {
           </Stack.Screen>
 
           {/* Các màn hình chức năng khách có thể bấm xem */}
+          <Stack.Screen name="OwnerPendingBookings" component={OwnerPendingBookingsScreen} />
           <Stack.Screen name="OwnerMessages" component={OwnerMessagesScreen} />
           <Stack.Screen name="ChatDetail" component={ChatDetailScreen} />
           <Stack.Screen name="Notification" component={NotificationScreen} />
