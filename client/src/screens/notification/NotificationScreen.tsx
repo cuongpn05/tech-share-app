@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../theme/tokens';
 import { chatService } from '../../services/chatService';
+import { notificationService } from '../../services/notificationService';
 import { socketService, InAppNotification } from '../../services/socketService';
 import { useAppSelector } from '../../store';
 import { NotificationListSkeleton } from '../../components/common/ShimmerPlaceholders';
@@ -40,51 +41,63 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigati
   const [refreshing, setRefreshing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Tải danh sách thông báo thực tế tổng hợp từ các cuộc hội thoại & đơn thuê
+  // Tải danh sách thông báo thực tế tổng hợp từ MongoDB notifications & các cuộc hội thoại
   const loadNotifications = useCallback(async (isSilent = false) => {
     if (!isSilent) setIsLoading(true);
     try {
-      const convs = await chatService.getConversations();
-      if (Array.isArray(convs)) {
-        const notifs: NotificationItem[] = [];
+      const notifs: NotificationItem[] = [];
+      const seenIds = new Set<string>();
 
-        convs.forEach((c) => {
-          // 1. Thông báo tin nhắn gần nhất
-          if (c.lastMessage) {
+      // 1. Tải danh sách thông báo chính thức lưu trong MongoDB Atlas
+      try {
+        const notifRes = await notificationService.getMyNotifications({ limit: 50 });
+        if (notifRes?.success && Array.isArray(notifRes.data)) {
+          notifRes.data.forEach((n: any) => {
+            const notifId = n._id || n.id;
+            seenIds.add(notifId);
             notifs.push({
-              id: `msg_${c.bookingId}_${c.lastMessage._id || Date.now()}`,
-              title: `${c.otherUser?.name || 'Đối tác'} đã gửi tin nhắn`,
-              body: c.lastMessage.text || 'Bạn có tin nhắn mới',
-              type: 'message',
-              bookingId: c.bookingId,
-              createdAt: c.lastMessage.createdAt || c.lastActivityAt || new Date().toISOString(),
-              isRead: (c.unreadCount || 0) === 0,
+              id: notifId,
+              title: n.title,
+              body: n.body,
+              type: n.type === 'message' ? 'message' : 'booking',
+              bookingId: n.relatedId || n.data?.bookingId,
+              createdAt: n.createdAt || new Date().toISOString(),
+              isRead: Boolean(n.isRead),
             });
-          }
-
-          // 2. Thông báo cập nhật trạng thái đơn
-          let statusText = '';
-          if (c.bookingStatus === 'completed') statusText = 'Đơn thuê thiết bị đã hoàn tất thành công';
-          else if (c.bookingStatus === 'approved') statusText = 'Đơn thuê thiết bị đã được chủ máy phê duyệt';
-          else if (c.bookingStatus === 'active') statusText = 'Thiết bị đang trong thời gian cho thuê';
-
-          if (statusText) {
-            notifs.push({
-              id: `booking_${c.bookingId}`,
-              title: `Cập nhật đơn thuê: ${c.device?.title || 'Thiết bị'}`,
-              body: statusText,
-              type: 'booking',
-              bookingId: c.bookingId,
-              createdAt: c.lastActivityAt || new Date().toISOString(),
-              isRead: true,
-            });
-          }
-        });
-
-        // Sắp xếp thông báo mới nhất lên đầu
-        notifs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        setNotifications(notifs);
+          });
+        }
+      } catch (dbErr) {
+        console.warn('[NotificationScreen] Lỗi tải từ notificationService:', dbErr);
       }
+
+      // 2. Bổ sung thông báo tin nhắn trao đổi từ chatService nếu chưa có
+      try {
+        const convs = await chatService.getConversations();
+        if (Array.isArray(convs)) {
+          convs.forEach((c) => {
+            if (c.lastMessage) {
+              const msgId = `msg_${c.bookingId}_${c.lastMessage._id || Date.now()}`;
+              if (!seenIds.has(msgId)) {
+                notifs.push({
+                  id: msgId,
+                  title: `${c.otherUser?.name || 'Đối tác'} đã gửi tin nhắn`,
+                  body: c.lastMessage.text || 'Bạn có tin nhắn mới',
+                  type: 'message',
+                  bookingId: c.bookingId,
+                  createdAt: c.lastMessage.createdAt || c.lastActivityAt || new Date().toISOString(),
+                  isRead: (c.unreadCount || 0) === 0,
+                });
+              }
+            }
+          });
+        }
+      } catch (chatErr) {
+        console.warn('[NotificationScreen] Lỗi tải từ chatService:', chatErr);
+      }
+
+      // Sắp xếp thông báo mới nhất lên đầu
+      notifs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setNotifications(notifs);
     } catch (err) {
       console.warn('[NotificationScreen] Lỗi tải thông báo:', err);
     } finally {
@@ -97,11 +110,12 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigati
 
     // Lắng nghe socket notification thời gian thực
     const unsubNotif = socketService.onNotification((notif: InAppNotification) => {
+      notificationService.incrementUnreadCount();
       const newItem: NotificationItem = {
         id: notif._id || `notif_${Date.now()}`,
         title: notif.title || 'Thông báo mới',
         body: notif.body || '',
-        type: (notif.type as any) || 'message',
+        type: (notif.type as any) === 'message' ? 'message' : 'booking',
         bookingId: notif.data?.bookingId || notif.relatedId,
         createdAt: notif.createdAt || new Date().toISOString(),
         isRead: false,
@@ -127,18 +141,36 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigati
   };
 
   const handlePressItem = (item: NotificationItem) => {
-    // Đánh dấu đã đọc
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === item.id ? { ...n, isRead: true } : n))
-    );
+    // Đánh dấu đã đọc cục bộ và giảm số lượng thông báo nếu chưa đọc
+    if (!item.isRead) {
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === item.id ? { ...n, isRead: true } : n))
+      );
 
-    if (item.bookingId && navigation?.navigate) {
-      navigation.navigate('ChatDetail', { bookingId: item.bookingId });
+      // Gửi cập nhật lên backend nếu là notification từ DB
+      if (!item.id.startsWith('msg_') && !item.id.startsWith('booking_')) {
+        notificationService.markAsRead(item.id);
+      } else {
+        notificationService.decrementUnreadCount();
+      }
+    }
+
+    if (navigation?.navigate) {
+      if (item.type === 'booking') {
+        if (currentUser?.role === 'owner') {
+          navigation.navigate('OwnerPendingBookings');
+        } else if (item.bookingId) {
+          navigation.navigate('BookingDetail', { bookingId: item.bookingId });
+        }
+      } else if (item.bookingId) {
+        navigation.navigate('ChatDetail', { bookingId: item.bookingId });
+      }
     }
   };
 
   const handleMarkAllRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    notificationService.markAllAsRead();
   };
 
   const filteredList = notifications.filter((item) => {

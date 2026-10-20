@@ -139,7 +139,7 @@ const createBooking = async (req, res) => {
     if (ownerId) {
       const renter = await User.findById(renterId).select('name');
       const renterName = renter?.name || 'Khách thuê';
-      createAndSendNotification({
+      await createAndSendNotification({
         userId: ownerId,
         title: 'Yêu cầu thuê thiết bị mới! 📦',
         body: `Khách hàng ${renterName} vừa gửi yêu cầu thuê "${device.name}" (${totalDays} ngày). Mã đơn: #${bookingCode}. Nhấn để xem và duyệt đơn.`,
@@ -596,6 +596,147 @@ const updateBeforeRentalPhotos = async (req, res) => {
   }
 };
 
+// @desc    Get owner bookings
+// @route   GET /api/bookings/owner-bookings
+// @access  Private
+const getOwnerBookings = async (req, res) => {
+  try {
+    const userId = (req.auth && (req.auth.id || req.auth._id)) || (req.user && req.user._id) || req.query.ownerId || req.query.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Chưa xác thực người dùng' });
+    }
+
+    const { status } = req.query;
+    let query = { ownerId: userId };
+    if (status && status !== 'all') {
+      query.status = status;
+    }
+
+    const bookings = await Booking.find(query)
+      .populate('deviceId', 'name images brand model category pricePerDay dailyRate depositAmount depositValue condition description location addressText specs')
+      .populate('renterId', 'name username email phone avatar isVerified trust trustScore rating totalReviews address')
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({ success: true, count: bookings.length, data: bookings });
+  } catch (error) {
+    console.error('Error getting owner bookings:', error);
+    return res.status(500).json({ success: false, message: 'Lỗi máy chủ khi lấy danh sách đơn của chủ máy', error: error.message });
+  }
+};
+
+// @desc    Update booking status by owner (approve/reject)
+// @route   PATCH /api/bookings/:id/status
+// @access  Private
+const updateBookingStatus = async (req, res) => {
+  try {
+    const bookingId = req.params.id;
+    const { status, reason } = req.body;
+    const userId = (req.auth && (req.auth.id || req.auth._id)) || (req.user && req.user._id);
+
+    if (!['approved', 'rejected', 'cancelled'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Trạng thái cập nhật không hợp lệ (approved/rejected)' });
+    }
+
+    const booking = await Booking.findById(bookingId)
+      .populate('deviceId', 'name')
+      .populate('renterId', 'name email phone avatar');
+
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy đơn thuê' });
+    }
+
+    const isOwner = String(booking.ownerId) === String(userId);
+    const userRole = (req.auth && req.auth.role) || (req.user && req.user.role);
+    const isAdmin = userRole === 'admin';
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'Bạn không có quyền thao tác trên đơn thuê của chủ khác' });
+    }
+
+    if (booking.status !== 'pending' && status === 'approved') {
+      return res.status(400).json({ success: false, message: `Không thể duyệt đơn đang ở trạng thái "${booking.status}"` });
+    }
+
+    booking.status = status;
+    if (status === 'rejected' || status === 'cancelled') {
+      booking.statusReason = reason || 'Chủ máy từ chối yêu cầu thuê';
+      booking.rejectReason = reason || 'Chủ máy từ chối yêu cầu thuê';
+    }
+
+    const actionText = status === 'approved'
+      ? 'Chủ máy đã phê duyệt yêu cầu thuê'
+      : `Chủ máy từ chối yêu cầu thuê. Lý do: ${reason || 'Không có'}`;
+
+    booking.timeline.push({
+      status,
+      timestamp: new Date(),
+      note: actionText,
+    });
+
+    await booking.save();
+
+    // Gửi thông báo đến người thuê
+    if (booking.renterId) {
+      const renterIdVal = booking.renterId._id || booking.renterId;
+      const deviceName = booking.deviceId?.name || 'thiết bị';
+      if (status === 'approved') {
+        await createAndSendNotification({
+          userId: renterIdVal,
+          title: 'Yêu cầu thuê đã được duyệt! 🎉',
+          body: `Chủ máy đã phê duyệt yêu cầu thuê "${deviceName}" (#${booking.bookingCode}). Vui lòng chuẩn bị nhận thiết bị!`,
+          type: 'order',
+          relatedId: booking._id,
+          data: {
+            bookingId: booking._id.toString(),
+            status: 'approved',
+          },
+        }).catch((err) => console.error('❌ Lỗi gửi thông báo duyệt cho khách:', err.message));
+      } else {
+        await createAndSendNotification({
+          userId: renterIdVal,
+          title: 'Yêu cầu thuê đã bị từ chối ❌',
+          body: `Chủ máy không thể đáp ứng yêu cầu thuê "${deviceName}" (#${booking.bookingCode}). Lý do: ${reason || 'Chủ máy bận vào thời gian này'}.`,
+          type: 'order',
+          relatedId: booking._id,
+          data: {
+            bookingId: booking._id.toString(),
+            status: 'rejected',
+          },
+        }).catch((err) => console.error('❌ Lỗi gửi thông báo từ chối cho khách:', err.message));
+      }
+    }
+
+    try {
+      const { getIO } = require('../socket');
+      const io = getIO();
+      if (io) {
+        if (booking.ownerId) {
+          io.to(`user_${booking.ownerId}`).emit('booking_status_updated', {
+            bookingId: booking._id.toString(),
+            status,
+          });
+        }
+        if (booking.renterId) {
+          const rId = booking.renterId._id || booking.renterId;
+          io.to(`user_${rId}`).emit('booking_status_updated', {
+            bookingId: booking._id.toString(),
+            status,
+          });
+        }
+      }
+    } catch {}
+
+    return res.status(200).json({
+      success: true,
+      message: status === 'approved' ? 'Đã phê duyệt yêu cầu thuê thành công!' : 'Đã từ chối yêu cầu thuê!',
+      data: booking,
+    });
+  } catch (error) {
+    console.error('Error updating booking status:', error);
+    return res.status(500).json({ success: false, message: 'Lỗi máy chủ khi cập nhật trạng thái đơn', error: error.message });
+  }
+};
+
 module.exports = {
   createBooking,
   getDeviceBusyDates,
@@ -604,4 +745,7 @@ module.exports = {
   getBookingById,
   requestExtension,
   updateBeforeRentalPhotos,
+  getOwnerBookings,
+  updateBookingStatus,
 };
+

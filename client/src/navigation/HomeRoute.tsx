@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,6 +10,7 @@ import { AiCompareScreen } from '../screens/ai/AiCompareScreen';
 import { BottomTabNavigator } from '../components/navigation/BottomTabNavigator';
 import { chatService } from '../services/chatService';
 import { socketService } from '../services/socketService';
+import { notificationService } from '../services/notificationService';
 import { ProfileScreen } from '../screens/user/ProfileScreen';
 import { theme } from '../constants/theme';
 import { ScreenType } from '../types';
@@ -26,8 +28,11 @@ export function HomeRoute({
 }: HomeRouteProps = {}) {
   const insets = useSafeAreaInsets();
   const onReturnToOwner = propOnReturnToOwner || route?.params?.onReturnToOwner;
-  const { isAuthenticated } = useAppSelector((state) => state.auth);
+  const { isAuthenticated, user: currentUser } = useAppSelector((state) => state.auth);
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [unreadNotifications, setUnreadNotifications] = useState(
+    notificationService.getUnreadCountCached()
+  );
   const [activeTab, setActiveTab] = useState<ScreenType>(route?.params?.initialTab || 'home');
 
   useEffect(() => {
@@ -58,11 +63,43 @@ export function HomeRoute({
       loadUnreadCount();
     });
 
+    const userId = currentUser?._id || (currentUser as any)?.id;
+    if (userId) {
+      notificationService.fetchUnreadCount(userId);
+    }
+    const unsubNotifCount = notificationService.onUnreadCountChange((count) => {
+      setUnreadNotifications(count);
+    });
+    const unsubNotif = socketService.onNotification(() => {
+      const uId = currentUser?._id || (currentUser as any)?.id;
+      if (uId) {
+        notificationService.fetchUnreadCount(uId);
+      }
+    });
+
     return () => {
       unsubNew();
       unsubRead();
+      unsubNotifCount();
+      unsubNotif();
     };
-  }, [loadUnreadCount]);
+  }, [loadUnreadCount, currentUser]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const userId = currentUser?._id || (currentUser as any)?.id;
+      if (userId) {
+        notificationService.fetchUnreadCount(userId);
+      }
+    }, [currentUser])
+  );
+
+  useEffect(() => {
+    const userId = currentUser?._id || (currentUser as any)?.id;
+    if (userId) {
+      notificationService.fetchUnreadCount(userId);
+    }
+  }, [activeTab, currentUser]);
 
   const handleNavigateToChat = () => {
     if (navigation?.navigate) {
@@ -105,7 +142,7 @@ export function HomeRoute({
             }}
             onNavigateToDeviceDetail={(deviceId) => {
               if (navigation?.navigate) {
-                navigation.navigate('BookingCreate', { deviceId });
+                navigation.navigate('DeviceDetail', { deviceId });
               }
             }}
             onNavigateToBookingCreate={(deviceId) => {
@@ -121,6 +158,8 @@ export function HomeRoute({
           navigation={navigation}
           onBack={() => setActiveTab('home')}
         />
+      ) : activeTab === 'compare' ? (
+        <AiCompareScreen />
       ) : (
         <HomeScreen
           navigation={navigation}
@@ -132,19 +171,20 @@ export function HomeRoute({
           showOwnerDashboard={!!onReturnToOwner}
           onNavigateToOwnerDashboard={onReturnToOwner}
           onNavigateToChat={handleNavigateToChat}
+          onNavigateToAiConsultant={() => navigation?.navigate('AiChatConsultant')}
           onNavigateToNotifications={handleNavigateToNotifications}
           onNavigateToDeviceDetail={(deviceId) => {
             if (navigation?.navigate) {
-              navigation.navigate('BookingCreate', { deviceId });
+              navigation.navigate('DeviceDetail', { deviceId });
             }
           }}
           unreadMessages={unreadMessages}
-          unreadNotifications={unreadMessages}
+          unreadNotifications={unreadNotifications}
         />
       )}
       <BottomTabNavigator
         activeTab={activeTab}
-        enabledTabs={['home', 'bookings', 'profile']}
+        enabledTabs={['home', 'bookings', 'compare', 'profile']}
         onTabPress={(tab) => setActiveTab(tab)}
         safeAreaBottom={insets.bottom}
       />

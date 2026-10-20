@@ -80,6 +80,27 @@ let server;
     }
     const sample = newest.find(d => validLocation(d) && d.name.length > 5);
     assert.ok(sample);
+    for (const category of categories) {
+      const original = visible.find(d => d.category === category);
+      const detail = (await get(`/${original._id}`)).data;
+      assert.equal(detail._id, String(original._id));
+      assert.equal(detail.name, original.name);
+      assert.equal(detail.pricePerDay, original.pricePerDay);
+      assert.equal(detail.title, original.name);
+      assert.equal(detail.dailyRate, original.pricePerDay);
+      assert.deepEqual(detail.images, original.images);
+      assert.deepEqual(detail.specs, original.specs);
+      assert.equal(detail.description, original.description);
+      assert.equal(detail.location.addressText, original.location.addressText);
+      if (detail.ownerId) {
+        assert.equal(detail.ownerId._id, String(original.ownerId));
+        assert.equal(typeof detail.ownerId.name, 'string');
+      }
+      console.log(`PASS live Device Detail ${category}: ID, name, daily price, images, specs, description, address, populated owner`);
+    }
+    assert.equal((await fetch(`${base}/not-an-id`)).status, 400);
+    const absentId = new mongoose.Types.ObjectId().toString();
+    assert.equal((await fetch(`${base}/${absentId}`)).status, 404);
     const partialName = sample.name.slice(1, Math.min(12, sample.name.length));
     for (const keyword of [sample.name, partialName, partialName.toUpperCase(),
       partialName.toLowerCase(), `  ${partialName}  `, 'no-device-with-this-name-832749', '', '   ', '[']) {

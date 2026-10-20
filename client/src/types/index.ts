@@ -176,6 +176,7 @@ export interface DeviceLocation {
 }
 
 export interface Device {
+  ownerId?: User | string | null;
   name?: string;
   pricePerDay?: number;
   stats?: { ratingAvg?: number; ratingCount?: number };

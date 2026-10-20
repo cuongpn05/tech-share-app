@@ -62,6 +62,20 @@ vm.runInNewContext(compiled.outputText, {
     await assert.rejects(deviceService.getNearbyDevicesPage({ latitude: 21, longitude: 105 }), /Invalid device page/);
   }
   apiClient.get = originalGet;
+  const detailId = '507f1f77bcf86cd799439011';
+  apiClient.get = async () => ({ data: { success: true, data: { _id: detailId, name: 'Real shape', specs: {} } } });
+  assert.equal((await deviceService.getDeviceById(detailId.toUpperCase(), { throwOnError: true }))._id, detailId);
+  for (const body of [{ success: false, message: 'not found' }, { success: true, data: { _id: 'wrong-id' } }, {}]) {
+    apiClient.get = async () => ({ data: body });
+    await assert.rejects(deviceService.getDeviceById(detailId, { throwOnError: true }), /Invalid device detail response/);
+    assert.equal(await deviceService.getDeviceById(detailId), null, 'existing Booking caller retains null-on-error behavior');
+  }
+  for (const status of [400, 404, 500]) {
+    const error = { response: { status } };
+    apiClient.get = async () => { throw error; };
+    await assert.rejects(deviceService.getDeviceById(detailId, { throwOnError: true }), e => e === error);
+  }
+  apiClient.get = originalGet;
   console.log('PASS Home service: coordinates, filters, page metadata and no fake fallback on network failure');
 
 })().catch(error => { console.error(error); process.exitCode = 1; });

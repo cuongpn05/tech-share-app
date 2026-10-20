@@ -341,11 +341,7 @@ export function HomeScreen({
             >
               <Ionicons name="close-circle" size={20} color={colors.light.textMuted} />
             </TouchableOpacity>
-          ) : (
-            <View style={styles.searchFilterIcon}>
-              <Ionicons name="options-outline" size={18} color={colors.light.primary} />
-            </View>
-          )}
+          ) : null}
         </View>
       </View>
 
@@ -739,9 +735,6 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.light.textPrimary,
     fontSize: 14,
-  },
-  searchFilterIcon: {
-    padding: 4,
   },
   columnWrapper: {
     paddingHorizontal: 16,
