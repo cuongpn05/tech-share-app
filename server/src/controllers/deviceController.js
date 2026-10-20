@@ -31,7 +31,7 @@ function applyDeviceFilters(query, filter) {
   if (query.q?.trim()) {
     const escaped = query.q.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const regex = new RegExp(escaped, "i");
-    filter.$or = [{ name: regex }, { brand: regex }, { description: regex }];
+    filter.name = regex;
   }
 }
 

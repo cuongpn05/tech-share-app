@@ -78,6 +78,26 @@ let server;
       await readPages('', { category: ` ${category.toUpperCase()} ` }, expected);
       console.log(`PASS Home/category=${category}: ${expected.length}`);
     }
+    const sample = newest.find(d => validLocation(d) && d.name.length > 5);
+    assert.ok(sample);
+    const partialName = sample.name.slice(1, Math.min(12, sample.name.length));
+    for (const keyword of [sample.name, partialName, partialName.toUpperCase(),
+      partialName.toLowerCase(), `  ${partialName}  `, 'no-device-with-this-name-832749', '', '   ', '[']) {
+      const expected = newest.filter(d => d.name.toLowerCase().includes(keyword.trim().toLowerCase()));
+      await readPages('', { q: keyword }, expected);
+      console.log(`PASS search full/partial/case/trim/empty/literal: ${expected.length} result(s)`);
+    }
+    const expectedCategorySearch = newest.filter(d => d.category === sample.category &&
+      d.name.toLowerCase().includes(partialName.toLowerCase()));
+    await readPages('', { q: partialName, category: sample.category }, expectedCategorySearch);
+    const [sampleLng, sampleLat] = sample.location.coordinates;
+    const expectedNearbySearch = visible.filter(d => validLocation(d) &&
+      d.name.toLowerCase().includes(partialName.toLowerCase()) &&
+      distanceMeters([sampleLng, sampleLat], d.location.coordinates) <= 10000)
+      .sort((a, b) => distanceMeters([sampleLng, sampleLat], a.location.coordinates) -
+        distanceMeters([sampleLng, sampleLat], b.location.coordinates) || String(a._id).localeCompare(String(b._id)));
+    await readPages('/nearby', { lat: sampleLat, lng: sampleLng, radius: 10000, q: partialName }, expectedNearbySearch);
+    console.log('PASS search combined with Category/Nearby using current DB names and coordinates');
     const centers = visible.filter(validLocation).filter((d, i, list) =>
       list.findIndex(other => distanceMeters(other.location.coordinates, d.location.coordinates) < 100000) === i);
     assert.ok(centers.length > 0);
@@ -106,7 +126,7 @@ let server;
     assert.equal((await get('/nearby', { lat: 0, lng: 0, radius: 1, page: 1, limit: 10 })).data.length, 0);
     assert.equal((await get('', { q: 'no-device-with-this-name-832749', page: 1, limit: 10 })).data.length, 0);
     assert.equal((await get('', { q: '[', page: 1, limit: 10 })).data.length,
-      visible.filter(d => [d.name, d.brand, d.description].some(value => value?.includes('['))).length);
+      visible.filter(d => d.name?.includes('[')).length);
     console.log('PASS real MongoDB → controller → routes → HTTP; empty and literal search; no writes.');
   } catch (error) {
     console.error(error.name === 'AssertionError' ? error.message : `Verification failed: ${error.name}`);

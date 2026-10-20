@@ -40,6 +40,8 @@ vm.runInNewContext(compiled.outputText, {
   assert.equal(allPage.pagination.page, 2);
   assert.equal(received.url, '/devices');
   assert.deepEqual(JSON.parse(JSON.stringify(received.params)), { page: 2, limit: 10, category: 'gaming', q: 'console' });
+  await deviceService.getDevicesPage({ page: 2, search: '   ' });
+  assert.equal(received.params.q, undefined, 'whitespace must not be sent as a search query');
   const categoryGet = apiClient.get;
   apiClient.get = async url => {
     assert.equal(url, '/devices/categories');

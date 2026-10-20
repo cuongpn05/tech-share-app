@@ -36,7 +36,7 @@ function harness(source, changes = {}, locationChanges = {}) {
   const completions = [];
   let locationCallback;
   const modes = [];
-  const useStateValues = [changes.nearby || false, ['gaming', 'tablet'], null, false, 0];
+  const useStateValues = [changes.nearby || false, ['gaming', 'tablet'], null, false, 0, ''];
   let stateIndex = 0;
   const location = { position: null, error: null, warning: null, isLocating: false,
     isRefreshingLocation: false, refresh: force => refreshCalls.push(force), ...locationChanges };
@@ -77,9 +77,8 @@ assert.equal(all.modes[0].enabled, false);
 const categoryBar = find(all.list.ListHeaderComponent, 'CategoryBar')[0];
 assert.deepEqual(plain(categoryBar.props.categories), ['gaming', 'tablet']);
 categoryBar.props.onSelectCategory('gaming');
-assert.equal(all.dispatched.at(-1).payload.nearby, false);
-assert.equal(all.dispatched.at(-1).payload.category, 'gaming');
-assert.equal(all.dispatched.at(-1).payload.latitude, undefined);
+assert.equal(all.dispatched.at(-1).type, 'setSelectedCategory');
+assert.equal(all.dispatched.at(-1).payload, 'gaming');
 all.list.refreshControl.props.onRefresh();
 assert.equal(all.dispatched.at(-1).type, 'refreshDevices');
 assert.equal(all.refreshCalls.length, 0);

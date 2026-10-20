@@ -44,9 +44,6 @@ interface HomeScreenProps {
   onNavigateToLogin?: () => void;
   onNavigateToDeviceDetail?: (deviceId: string) => void;
   showOwnerDashboard?: boolean;
-  searchValue?: string;
-  onSearchChange?: (value: string) => void;
-  onSearchSubmit?: () => void;
   onNavigateToWishlist?: () => void;
   onNavigateToSearch?: () => void;
   onNavigateToNotifications?: () => void;
@@ -64,9 +61,6 @@ export function HomeScreen({
   onNavigateToLogin,
   onNavigateToDeviceDetail,
   showOwnerDashboard = false,
-  searchValue = '',
-  onSearchChange,
-  onSearchSubmit,
   onNavigateToWishlist,
   onNavigateToNotifications,
   onNavigateToChat,
@@ -97,14 +91,13 @@ export function HomeScreen({
   } = useAppSelector(state => state.devices);
   const { isAuthenticated } = useAppSelector(state => state.auth);
 
-  const searchInput = searchValue;
-  const searchEnabled = !!onSearchChange;
-
   const [nearby, setNearby] = useState(false);
   const [categories, setCategories] = useState<DeviceCategory[]>([]);
   const [categoryError, setCategoryError] = useState<string | null>(null);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [categoryReload, setCategoryReload] = useState(0);
+  const [searchInput, setSearchInput] = useState('');
+  const normalizedSearch = searchInput.trim();
   useEffect(() => {
     let active = true;
     setIsLoadingCategories(true);
@@ -117,8 +110,8 @@ export function HomeScreen({
 
   const currentLocationRef = useRef<HomeCoordinate | null>(null);
   const isLoadingNextPageRef = useRef(false);
-  const latestFiltersRef = useRef({ category: selectedCategory, search: searchInput });
-  latestFiltersRef.current = { category: selectedCategory, search: searchInput };
+  const latestFiltersRef = useRef({ category: selectedCategory, search: normalizedSearch });
+  latestFiltersRef.current = { category: selectedCategory, search: normalizedSearch };
 
   // Callback GPS luôn đọc bộ lọc mới nhất, kể cả khi vừa đổi danh mục.
   const location = useHomeLocation(handleLocationChange, nearby);
@@ -169,7 +162,6 @@ export function HomeScreen({
     // Đổi danh mục phải tải trang 1 và xóa kết quả phân trang cũ.
     latestFiltersRef.current = { ...latestFiltersRef.current, category };
     dispatch(setSelectedCategory(category));
-    loadDevices(latestFiltersRef.current);
   };
 
   const handleRefresh = () => {
@@ -180,7 +172,7 @@ export function HomeScreen({
   const handleLoadMore = () => {
     const isRequestInProgress = isLoading || isRefreshing || isLoadingNextPageRef.current;
     const isLocationUnavailable = nearby && (!currentLocationRef.current || isLocating || !!locationError);
-    const hasSearchChanged = searchInput !== searchQuery;
+    const hasSearchChanged = normalizedSearch !== searchQuery;
     const isPaginationBlocked = !!error || page < 1 || !hasNextPage || hasSearchChanged;
     if (isLocationUnavailable || isRequestInProgress || isPaginationBlocked) return;
 
@@ -197,7 +189,7 @@ export function HomeScreen({
   };
 
   const handleRetry = () => {
-    loadDevices({ category: selectedCategory, search: searchInput });
+    loadDevices({ category: selectedCategory, search: normalizedSearch });
   };
 
   const handleRetryFailedPage = () => {
@@ -215,24 +207,30 @@ export function HomeScreen({
 
   const handleResetFilters = () => {
     latestFiltersRef.current = { category: 'all', search: '' };
-    onSearchChange?.('');
+    handleSearchChange('');
     dispatch(clearFilters());
-    loadDevices({ category: 'all', search: '' });
   };
 
+  function handleSearchChange(value: string) {
+    if (value.trim() !== normalizedSearch) {
+      // Invalidate the old request before the debounce starts a new one.
+      dispatch(resetDeviceDiscovery());
+    }
+    setSearchInput(value);
+  }
+
   useEffect(() => {
-    if (searchInput === searchQuery || (nearby && !currentLocationRef.current)) return;
-    const timeout = setTimeout(() => {
-      loadDevices({ category: selectedCategory, search: searchInput });
-    }, 250);
-    return () => clearTimeout(timeout);
-  }, [searchInput, nearby, selectedCategory]);
+    currentLocationRef.current = null;
+  }, [nearby]);
 
   useEffect(() => {
     dispatch(resetDeviceDiscovery());
-    currentLocationRef.current = null;
-    if (!nearby) loadDevices(latestFiltersRef.current);
-  }, [nearby]);
+    if (nearby && !currentLocationRef.current) return;
+    const timeout = setTimeout(() => {
+      loadDevices({ category: selectedCategory, search: normalizedSearch, page: 1 });
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [normalizedSearch, nearby, selectedCategory]);
 
   useEffect(() => {
     if (__DEV__) {
@@ -327,18 +325,14 @@ export function HomeScreen({
             style={styles.searchInput}
             placeholder={STRINGS.HOME_SCREEN.SEARCH_PLACEHOLDER}
             placeholderTextColor={colors.light.textSecondary}
-            editable={searchEnabled}
-            accessibilityState={{ disabled: !searchEnabled }}
             value={searchInput}
-            onChangeText={onSearchChange}
+            onChangeText={handleSearchChange}
             accessibilityLabel="Search devices"
-            onSubmitEditing={onSearchSubmit}
             returnKeyType="search"
           />
           {searchInput.length > 0 ? (
             <TouchableOpacity
-              onPress={() => onSearchChange?.('')}
-              disabled={!onSearchChange}
+              onPress={() => handleSearchChange('')}
               accessibilityRole="button"
               accessibilityLabel="Clear search"
               style={{ padding: 6 }}
@@ -391,7 +385,7 @@ export function HomeScreen({
         title={nearby ? 'Nearby devices (10 km)' : STRINGS.HOME_SCREEN.SECTION_DISCOVER_TITLE}
         subtitle={
           selectedCategory === 'all'
-            ? STRINGS.HOME_SCREEN.SECTION_DISCOVER_SUB_ALL
+            ? (nearby ? 'Nearest devices first within 10 km' : STRINGS.HOME_SCREEN.SECTION_DISCOVER_SUB_ALL)
             : STRINGS.HOME_SCREEN.SECTION_DISCOVER_SUB_FILTER(selectedCategory.toUpperCase())
         }
         badgeCount={hasLoaded && !(nearby && locationError) ? filteredDevices.length : undefined}
@@ -426,7 +420,12 @@ export function HomeScreen({
     if (nearby && locationError) return renderLocationError();
     if (error) return renderErrorState();
     if (isInitialLoading || (nearby && isLocating) || !hasLoaded) {
-      return renderLoadingSkeleton();
+      return (
+        <View>
+          {normalizedSearch ? <Text style={styles.emptySubtitle}>Searching devices...</Text> : null}
+          {renderLoadingSkeleton()}
+        </View>
+      );
     }
 
     return (
@@ -535,6 +534,7 @@ export function HomeScreen({
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={listHeader}
+        keyboardShouldPersistTaps="handled"
         ListEmptyComponent={renderEmptyState}
         ListFooterComponent={renderListFooter() ?? undefined}
         refreshControl={
