@@ -5,10 +5,12 @@ import { View, Text, StyleSheet } from 'react-native';
 import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen';
 import DeviceModerationListScreen from '../screens/admin/DeviceModerationListScreen';
 import DeviceModerationDetailScreen from '../screens/admin/DeviceModerationDetailScreen';
+import { UserManagementScreen } from '../screens/admin/UserManagementScreen';
 import ProfileScreen from '../screens/user/ProfileScreen';
 import AdminSidebarContent from './AdminSidebarContent';
 import { theme } from '../theme/tokens';
 import { ADMIN_STRINGS } from '../constants/adminStrings';
+
 
 const Drawer = createDrawerNavigator();
 const ModerationStack = createNativeStackNavigator();
@@ -58,9 +60,11 @@ export const AdminDrawerNavigator: React.FC = () => {
       }}
     >
       <Drawer.Screen name="AdminDashboard" component={AdminDashboardScreen} />
-      <Drawer.Screen name="UserManagement">
-        {() => <PlaceholderScreen title="User Management" />}
-      </Drawer.Screen>
+      <Drawer.Screen
+        name="UserManagement"
+        component={UserManagementScreen}
+      />
+
       <Drawer.Screen name="DeviceModeration" component={DeviceModerationStackNavigator} />
       <Drawer.Screen name="DepositDisputes">
         {() => <PlaceholderScreen title="Deposit Disputes" />}

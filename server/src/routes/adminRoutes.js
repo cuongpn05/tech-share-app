@@ -6,6 +6,8 @@ const {
   approveDevice,
   rejectDevice,
 } = require('../controllers/adminController');
+
+const userManagementRoutes = require('./userManagementRoutes');
 const { requireAuth } = require('../middlewares/authMiddleware');
 const { adminMiddleware } = require('../middlewares/adminMiddleware');
 
@@ -14,6 +16,9 @@ const router = express.Router();
 // Endpoint lấy số liệu Dashboard & Analytics từ MongoDB
 router.get('/dashboard', getDashboardStats);
 router.get('/analytics', getDashboardStats);
+
+// Phân hệ Quản lý Người dùng (tách riêng thành userManagementRoutes)
+router.use('/users', userManagementRoutes);
 
 // Endpoint lấy danh sách thiết bị kiểm duyệt - Backlog #51
 router.get('/devices/moderation', requireAuth, adminMiddleware, getModerationDevices);
