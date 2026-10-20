@@ -13,6 +13,7 @@ import OwnerMessagesScreen from '../screens/owner/OwnerMessagesScreen';
 import ChatDetailScreen from '../screens/chat/ChatDetailScreen';
 import NotificationScreen from '../screens/notification/NotificationScreen';
 import { BookingCreateScreen } from '../screens/booking/BookingCreateScreen';
+import { DeviceDetailScreen } from '../screens/device/DeviceDetailScreen';
 import { MyBookingsScreen } from '../screens/booking/MyBookingsScreen';
 import { BookingDetailScreen } from '../screens/booking/BookingDetailScreen';
 import { ProfileScreen } from '../screens/user/ProfileScreen';
@@ -43,6 +44,7 @@ export type RootStackParamList = {
   ChatDetail: { bookingId?: string; otherBookings?: any[] } | undefined;
   Notification: undefined;
   BookingCreate: { deviceId: string };
+  DeviceDetail: { deviceId: string };
   MyBookings: undefined;
   BookingDetail: { bookingId: string };
   AiChatConsultant: undefined;
@@ -50,6 +52,14 @@ export type RootStackParamList = {
 
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+const DeviceDetailRoute = ({ route, navigation }: any) => (
+  <DeviceDetailScreen
+    deviceId={route.params.deviceId}
+    onBack={() => navigation.goBack()}
+    onRent={(deviceId) => navigation.navigate('BookingCreate', { deviceId })}
+  />
+);
 
 const BookingCreateRoute = ({ route, navigation }: any) => (
   <BookingCreateScreen
@@ -64,7 +74,7 @@ const BookingCreateRoute = ({ route, navigation }: any) => (
 const MyBookingsRoute = ({ navigation }: any) => (
   <MyBookingsScreen
     onNavigateToBookingDetail={(bookingId) => navigation.navigate('BookingDetail', { bookingId })}
-    onNavigateToDeviceDetail={(deviceId) => navigation.navigate('BookingCreate', { deviceId })}
+    onNavigateToDeviceDetail={(deviceId) => navigation.navigate('DeviceDetail', { deviceId })}
     onNavigateToBookingCreate={(deviceId) => navigation.navigate('BookingCreate', { deviceId })}
     onNavigateToHome={() => navigation.navigate('Home')}
   />
@@ -190,6 +200,7 @@ export function RootNavigator() {
 
   return (
     <Stack.Navigator initialRouteName={getInitialRoute()} screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="DeviceDetail" component={DeviceDetailRoute} />
       {!hasCompletedOnboarding ? (
         <Stack.Screen name="Onboarding">
           {(props) => <OnboardingScreen {...props} onComplete={handleCompleteOnboarding} />}
