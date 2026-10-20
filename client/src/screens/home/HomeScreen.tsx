@@ -474,7 +474,7 @@ export function HomeScreen({
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.light.background} />
+      <StatusBar barStyle="dark-content" />
 
       <FlatList
         data={filteredDevices}
@@ -486,7 +486,7 @@ export function HomeScreen({
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={listHeader}
         ListEmptyComponent={renderEmptyState}
-        ListFooterComponent={renderListFooter()}
+        ListFooterComponent={renderListFooter() ?? undefined}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing || isRefreshingLocation}

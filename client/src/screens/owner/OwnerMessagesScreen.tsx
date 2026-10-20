@@ -627,8 +627,6 @@ export const OwnerMessagesScreen: React.FC<OwnerMessagesScreenProps> = ({ naviga
     <View style={[styles.screenContainer, { paddingTop: topInset }]}>
       <StatusBar
         barStyle="dark-content"
-        backgroundColor={theme.colors.background}
-        translucent={true}
       />
 
       {/* 1. Header Bar */}
