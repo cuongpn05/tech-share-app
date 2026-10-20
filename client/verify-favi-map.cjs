@@ -169,11 +169,13 @@ function screenHarness(apiKey = 'test-key') {
   const { HomeRoute } = load('src/navigation/HomeRoute.tsx', name => {
     if (name === 'react') return react;
     if (name === 'react-native') return { View: 'View', StyleSheet: { create: value => value } };
+    if (name === '@react-navigation/native') return { useFocusEffect() {} };
     if (name.includes('safe-area')) return { useSafeAreaInsets: () => ({ bottom: 20 }) };
     if (name.includes('store')) return { useAppSelector: fn => fn({ auth: { isAuthenticated: true } }) };
     if (name.includes('/theme')) return { theme: { spacing: {}, colors: {}, radii: {} } };
     if (name.includes('/MapScreen')) return { MapScreen: 'MapScreen' };
     if (name.includes('BottomTabNavigator')) return { BottomTabNavigator: 'BottomTabs' };
+    if (name.includes('notificationService')) return { notificationService: { getUnreadCountCached: () => 0 } };
     return {};
   });
   const routeTree = HomeRoute({ route: { params: { initialTab: 'map' } }, navigation: { navigate: (...args) => navigation.push(args) } });
