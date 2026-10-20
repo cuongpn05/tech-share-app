@@ -178,6 +178,24 @@ export const deviceService = {
     }
   },
 
+  async getNearbyDevices(params: Pick<GetDevicesParams, 'latitude' | 'longitude' | 'radius' | 'category'>): Promise<Device[]> {
+    if (typeof params.latitude !== 'number' || !Number.isFinite(params.latitude) || Math.abs(params.latitude) > 90 ||
+        typeof params.longitude !== 'number' || !Number.isFinite(params.longitude) || Math.abs(params.longitude) > 180) {
+      throw new Error('Nearby devices require a valid location');
+    }
+    // The existing endpoint returns the full radius when page/limit are omitted.
+    const response = await apiClient.get('/devices/nearby', { params: {
+      lat: params.latitude, lng: params.longitude,
+      radius: params.radius ?? HOME_NEARBY_RADIUS_METERS,
+      category: params.category !== 'all' ? params.category : undefined,
+    } });
+    if (response.data?.success !== true || !Array.isArray(response.data.data) ||
+        response.data.data.some((device: Device) => !device || typeof device._id !== 'string')) {
+      throw new Error('Invalid nearby devices response');
+    }
+    return response.data.data;
+  },
+
   /**
    * Lấy chi tiết thiết bị theo ID
    */
