@@ -705,7 +705,7 @@ export const DeviceModerationListScreen: React.FC<DeviceModerationListScreenProp
                   color={theme.colors.brand[500]}
                 />
               </View>
-            ) : null
+            ) : undefined
           }
         />
       )}

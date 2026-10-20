@@ -35,7 +35,8 @@
           "photosPermission": "Ứng dụng cần quyền truy cập thư viện ảnh để tải lên ảnh thiết bị."
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-status-bar"
     ]
   }
 }

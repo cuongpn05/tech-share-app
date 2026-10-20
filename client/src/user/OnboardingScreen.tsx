@@ -116,7 +116,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
     if (showTerms) {
         return (
             <SafeAreaView style={styles.container}>
-                <StatusBar barStyle="dark-content" backgroundColor={colors.light.background} />
+                <StatusBar barStyle="dark-content" />
                 <View style={styles.termsTopBar}>
                     <TouchableOpacity
                         style={styles.backButton}
@@ -154,7 +154,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
 
     return (
         <SafeAreaView style={styles.container}>
-            <StatusBar barStyle="dark-content" backgroundColor={colors.light.background} />
+            <StatusBar barStyle="dark-content" />
             <View style={styles.topBar}>
                 <View style={styles.brandMark}>
                     <Ionicons name="hardware-chip" size={17} color="#FFFFFF" />

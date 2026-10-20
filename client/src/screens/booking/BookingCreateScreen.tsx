@@ -446,7 +446,7 @@ export function BookingCreateScreen({
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.light.surface} />
+      <StatusBar barStyle="dark-content" />
 
       {/* Top Header */}
       <View style={[styles.header, { paddingTop: topInset + 8 }]}>

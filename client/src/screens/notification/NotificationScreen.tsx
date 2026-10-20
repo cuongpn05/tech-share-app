@@ -156,7 +156,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigati
 
   return (
     <View style={[styles.container, { paddingTop: topInset }]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" translucent={true} />
+      <StatusBar barStyle="dark-content" />
 
       {/* Header Bar */}
       <View style={styles.header}>
