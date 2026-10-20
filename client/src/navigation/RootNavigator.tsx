@@ -54,6 +54,7 @@ export type RootStackParamList = {
   DeviceDetail: { deviceId: string };
   MyBookings: undefined;
   BookingDetail: { bookingId: string };
+  BookingRequestDetail: { bookingId: string };
   AiChatConsultant: undefined;
 };
 
@@ -253,6 +254,11 @@ export function RootNavigator() {
           <Stack.Screen name="BookingCreate" component={BookingCreateRoute} />
           <Stack.Screen name="MyBookings" component={MyBookingsRoute} />
           <Stack.Screen name="BookingDetail" component={BookingDetailRoute} />
+          <Stack.Screen name="BookingRequestDetail" component={BookingDetailRoute} />
+          <Stack.Screen
+            name="AiChatConsultant"
+            component={AiChatConsultantRoute}
+          />
           <Stack.Screen name="ForgotPassword">
             {(props) => (
               <ForgotPasswordScreen
@@ -326,6 +332,7 @@ export function RootNavigator() {
           <Stack.Screen name="BookingCreate" component={BookingCreateRoute} />
           <Stack.Screen name="MyBookings" component={MyBookingsRoute} />
           <Stack.Screen name="BookingDetail" component={BookingDetailRoute} />
+          <Stack.Screen name="BookingRequestDetail" component={BookingDetailRoute} />
           <Stack.Screen
             name="AiChatConsultant"
             component={AiChatConsultantRoute}
