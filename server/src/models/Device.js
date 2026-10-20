@@ -8,7 +8,7 @@ const deviceSchema = new mongoose.Schema({
   brand: { type: String, required: true, trim: true, index: true },
   category: {
     type: String,
-    enum: ['smartphone', 'laptop', 'camera', 'drone', 'audio', 'gaming', 'accessory'],
+    enum: ['smartphone', 'laptop', 'camera', 'drone', 'audio', 'gaming', 'tablet', 'accessory'],
     required: true,
     index: true,
   },
@@ -32,7 +32,15 @@ const deviceSchema = new mongoose.Schema({
   // 4. Vị trí Địa lý GeoJSON (Dùng cho cả react-native-maps trên App & Google/Leaflet Map trên Web)
   location: {
     type: { type: String, enum: ['Point'], default: 'Point' },
-    coordinates: { type: [Number], required: true }, // [lng, lat]
+    coordinates: {
+      type: [Number],
+      required: true,
+      validate: {
+        validator: value => Array.isArray(value) && value.length === 2 &&
+          value.every(Number.isFinite) && Math.abs(value[0]) <= 180 && Math.abs(value[1]) <= 90,
+        message: 'coordinates must contain valid [longitude, latitude]',
+      },
+    }, // [lng, lat]
     addressText: { type: String, required: true },
   },
 

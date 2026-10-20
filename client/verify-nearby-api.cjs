@@ -40,7 +40,10 @@ app.use(errorHandler);
     assert.equal(result.body.success, true);
     assert.deepEqual(pipeline[0].$geoNear.near, { type: 'Point', coordinates: [105, 21] });
     assert.equal(pipeline[0].$geoNear.maxDistance, 10000);
-    assert.deepEqual(pipeline[0].$geoNear.query, { status: 'available', isDeleted: false, category: 'camera' });
+    assert.deepEqual(pipeline[0].$geoNear.query, {
+      status: 'available', isDeleted: false,
+      moderationStatus: { $in: ['approved', null] }, category: /^camera$/i,
+    });
     assert.deepEqual(pipeline[1].$sort, { distanceMeters: 1, _id: 1 });
     assert.deepEqual(pipeline[2].$facet.data, [{ $skip: 10 }, { $limit: 10 }]);
     assert.deepEqual(result.body.pagination, { page: 2, limit: 10, totalItems: 21, totalPages: 3, hasNextPage: true });

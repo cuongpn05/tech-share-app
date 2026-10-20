@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const {
   getAvailableDevices,
+  getDeviceCategories,
   getNearbyDevices,
   getMyDevices,
   createDevice,
@@ -13,6 +14,7 @@ const { uploadFlexibleImage } = require('../middlewares/uploadMiddleware');
 const router = Router();
 
 router.get('/', getAvailableDevices);
+router.get('/categories', getDeviceCategories);
 router.get('/nearby', getNearbyDevices);
 router.get('/myDevices', requireAuth, getMyDevices);
 router.get('/:id', getDeviceById);

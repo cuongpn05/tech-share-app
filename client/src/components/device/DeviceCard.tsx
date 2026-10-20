@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -20,14 +20,14 @@ interface DeviceCardProps {
   width?: number;
 }
 
-const formatPrice = (price: number): string => {
-  return `${price.toLocaleString('en-US')}${STRINGS.DEVICE_CARD.PRICE_SUFFIX}`;
+const formatPrice = (price?: number): string => {
+  if (!Number.isFinite(price)) return 'Price unavailable';
+  return `${price!.toLocaleString('en-US')}${STRINGS.DEVICE_CARD.PRICE_SUFFIX}`;
 };
 
 const resolveImageUri = (url?: string): string => {
-  const fallbackPlaceholder = 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=600';
   if (!url || typeof url !== 'string' || !url.trim()) {
-    return fallbackPlaceholder;
+    return '';
   }
   if (url.startsWith('http://') || url.startsWith('https://')) {
     return url;
@@ -56,11 +56,12 @@ export function DeviceCard({ device, onPress, width, onToggleFavorite, isFavorit
   const imageUrl = getDeviceImageUrl(device);
   const imageUri = resolveImageUri(imageUrl);
 
-  console.log('[DeviceCard IMAGE DEBUG]', {
-    name: device.title || device.name,
-    images: device.images,
-    finalUri: imageUri,
-  });
+  const [imageFailed, setImageFailed] = useState(false);
+  useEffect(() => setImageFailed(false), [imageUri]);
+  const address = device.location?.addressText || device.location?.address || device.addressText;
+  const rating = device.stats?.ratingAvg ?? device.rating;
+  const reviewCount = device.stats?.ratingCount ?? device.reviewCount ?? 0;
+  const distance = device.distanceMeters;
 
   const isAvailable = device.status === 'available';
 
@@ -74,11 +75,15 @@ export function DeviceCard({ device, onPress, width, onToggleFavorite, isFavorit
     >
       {/* Device image & status badge */}
       <View style={styles.imageContainer}>
-        <Image
-          source={{ uri: imageUri }}
-          style={styles.image}
-          resizeMode="cover"
-        />
+        {imageUri && !imageFailed ? (
+          <Image source={{ uri: imageUri }} style={styles.image} resizeMode="cover"
+            onError={() => setImageFailed(true)} />
+        ) : (
+          <View style={[styles.image, { alignItems: 'center', justifyContent: 'center' }]}>
+            <Ionicons name="image-outline" size={32} color={colors.light.textSecondary} />
+            <Text style={styles.locationText}>Image unavailable</Text>
+          </View>
+        )}
 
         {/* Brand badge */}
         <View style={styles.brandBadge}>
@@ -128,25 +133,32 @@ export function DeviceCard({ device, onPress, width, onToggleFavorite, isFavorit
       {/* Device info content */}
       <View style={styles.content}>
         <Text style={styles.title} numberOfLines={2}>
-          {device.title}
+          {device.name || device.title}
         </Text>
+
+        <Text style={styles.locationText}>{device.category}</Text>
+        {Number.isFinite(distance) && distance! >= 0 && (
+          <Text style={styles.locationText}>
+            {distance! < 1000 ? Math.round(distance!) + ' m' : (distance! / 1000).toFixed(1) + ' km'}
+          </Text>
+        )}
 
         {/* Rating & Lượt đánh giá */}
         <View style={styles.metaRow}>
           <View style={styles.ratingBox}>
             <Ionicons name="star" size={13} color={colors.light.ratingStar} />
             <Text style={styles.ratingText}>
-              {device.rating ? device.rating.toFixed(1) : '5.0'}
+              {Number.isFinite(rating) ? rating.toFixed(1) : '?'}
             </Text>
-            <Text style={styles.reviewCount}>({device.reviewCount || 0})</Text>
+            <Text style={styles.reviewCount}>({reviewCount})</Text>
           </View>
 
           {/* Địa điểm */}
-          {device.location?.address ? (
+          {address ? (
             <View style={styles.locationBox}>
               <Ionicons name="location-outline" size={12} color={colors.light.textSecondary} />
               <Text style={styles.locationText} numberOfLines={1}>
-                {device.location.address.split(',').slice(-2).join(',').trim()}
+                {address.split(',').slice(-2).join(',').trim()}
               </Text>
             </View>
           ) : null}
@@ -156,7 +168,7 @@ export function DeviceCard({ device, onPress, width, onToggleFavorite, isFavorit
         <View style={styles.bottomRow}>
           <View>
             <Text style={styles.priceLabel}>{STRINGS.DEVICE_CARD.DAILY_RATE}</Text>
-            <Text style={styles.priceText}>{formatPrice(device.dailyRate)}</Text>
+            <Text style={styles.priceText}>{formatPrice(device.pricePerDay ?? device.dailyRate)}</Text>
           </View>
 
           <View style={styles.arrowBtn}>

@@ -157,5 +157,13 @@ async function verify(source) {
   const before = execFileSync('git', ['show', `HEAD:${file}`], { cwd: __dirname, encoding: 'utf8' });
   await verify(before);
   await verify(fs.readFileSync(`${__dirname}/src/hooks/useHomeLocation.ts`, 'utf8'));
+  const cachedFix = createModule(fs.readFileSync(`${__dirname}/src/hooks/useHomeLocation.ts`, 'utf8')).mount(coordinate(21, 1000));
+  await tick();
+  assert.equal(cachedFix.callbacks.length, 1);
+  cachedFix.requests[0].resolve(coordinate(21.0001));
+  await tick();
+  assert.equal(cachedFix.callbacks.length, 2, 'current GPS must replace cached query even below 150m');
+  assert.equal(cachedFix.callbacks.at(-1).position.latitude, 21.0001);
+  cachedFix.cleanup();
   console.log('PASS GPS before/after: delayed permission/services/cache after unmount, watch precedence, overlapping refresh, forced refresh, unmount, cache selection/expiry/future timestamp, 15s timeout/cleanup, focus and AppState lifecycle.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -60,7 +60,7 @@ async function getCurrentLocationWithTimeout(): Promise<Location.LocationObject>
 }
 
 // Hook quản lý quyền, cache và vòng đời GPS riêng cho Home.
-export function useHomeLocation(onLocation: (coordinate: HomeCoordinate, force: boolean) => void) {
+export function useHomeLocation(onLocation: (coordinate: HomeCoordinate, force: boolean) => void, enabled = true) {
   const callbackRef = useRef(onLocation);
   callbackRef.current = onLocation;
   const [position, setPosition] = useState<HomeCoordinate | null>(null);
@@ -98,9 +98,10 @@ export function useHomeLocation(onLocation: (coordinate: HomeCoordinate, force: 
       debug('latitude:', coordinate.latitude);
       debug('longitude:', coordinate.longitude);
     }
-    // Mốc truy vấn khác vị trí mới nhất: chỉ gọi API lại khi đi đủ 150 m.
+    // GPS mới thay thế cache ngay; các lần cập nhật GPS sau dùng ngưỡng 150 m.
     const queryLocation = queryLocationRef.current;
-    if (force || !queryLocation || homeDistanceMeters(queryLocation, coordinate) >= HOME_LOCATION_MOVEMENT_METERS) {
+    const hasCurrentFix = sourceChanged && locationSource === 'CURRENT';
+    if (force || hasCurrentFix || !queryLocation || homeDistanceMeters(queryLocation, coordinate) >= HOME_LOCATION_MOVEMENT_METERS) {
       queryLocationRef.current = coordinate;
       callbackRef.current(coordinate, force);
     }
@@ -142,6 +143,12 @@ export function useHomeLocation(onLocation: (coordinate: HomeCoordinate, force: 
 
     debug('permission:', permission.status);
     if (!permission.granted) {
+      locationSubscriptionRef.current?.remove();
+      locationSubscriptionRef.current = null;
+      latestLocationRef.current = null;
+      queryLocationRef.current = null;
+      cachedLocation = null;
+      setPosition(null);
       throw new Error('Allow location access to find nearby devices.');
     }
     return true;
@@ -190,6 +197,7 @@ export function useHomeLocation(onLocation: (coordinate: HomeCoordinate, force: 
 
   // Giữ refresh ổn định để các effect không đăng ký lại listener sau mỗi render.
   const refresh = useCallback(async (force = false) => {
+    if (!enabled) return;
     const refreshAttempt = ++refreshAttemptRef.current;
     // Bỏ qua kết quả khi đã unmount hoặc có lần refresh mới hơn.
     const isCurrentAttempt = () => isMountedRef.current && refreshAttempt === refreshAttemptRef.current;
@@ -230,9 +238,10 @@ export function useHomeLocation(onLocation: (coordinate: HomeCoordinate, force: 
         setIsRefreshingLocation(false);
       }
     }
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
+    if (!enabled) return;
     isMountedRef.current = true;
     void refresh();
     const lifecycle = AppState.addEventListener('change', (state: string) => {
@@ -245,6 +254,8 @@ export function useHomeLocation(onLocation: (coordinate: HomeCoordinate, force: 
       lifecycle.remove();
       locationSubscriptionRef.current?.remove();
       locationSubscriptionRef.current = null;
+      queryLocationRef.current = null;
+      latestLocationRef.current = null;
     };
   }, [refresh]);
   const firstFocusRef = useRef(true);
