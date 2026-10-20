@@ -4,10 +4,11 @@
  * Tuân thủ 100% Design Tokens từ src/constants/theme.ts (theme-skill.md).
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, TouchableOpacity, StyleSheet, Text, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../constants/theme';
+import { notificationService } from '../../services/notificationService';
 
 interface HeaderActionsProps {
   /** Số tin nhắn chưa đọc — hiện chấm đỏ nếu > 0 */
@@ -21,12 +22,26 @@ interface HeaderActionsProps {
 
 export function HeaderActions({
   unreadMessages = 0,
-  unreadNotifications,
+  unreadNotifications: propUnreadNotifications,
   onPressWishlist,
   onPressChat,
   onPressNotifications,
 }: HeaderActionsProps) {
-  const effectiveUnread = unreadNotifications ?? 0;
+  const [internalUnread, setInternalUnread] = useState(
+    notificationService.getUnreadCountCached()
+  );
+
+  useEffect(() => {
+    const unsub = notificationService.onUnreadCountChange((count) => {
+      setInternalUnread(count);
+    });
+    return unsub;
+  }, []);
+
+  const effectiveUnread =
+    propUnreadNotifications !== undefined
+      ? propUnreadNotifications
+      : internalUnread;
 
   const notifScale = useRef(new Animated.Value(1)).current;
   const prevUnreadRef = useRef(effectiveUnread);
@@ -139,6 +154,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+    overflow: 'visible',
   },
   /** Chấm đỏ tin nhắn */
   dotBadge: {
@@ -155,19 +171,19 @@ const styles = StyleSheet.create({
   /** Badge số lượng thông báo nhảy số — tông đỏ danger nổi bật */
   badge: {
     position: 'absolute',
-    top: -3,
+    top: -4,
     right: -4,
     minWidth: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: theme.colors.danger[500],
+    backgroundColor: '#EF4444',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
     borderWidth: 1.5,
-    borderColor: theme.card, // viền trắng tách biệt icon
-    zIndex: 10,
-    elevation: 4,
+    borderColor: '#FFFFFF', // viền trắng tách biệt icon
+    zIndex: 99,
+    elevation: 5,
   },
   badgeText: {
     color: '#FFFFFF',

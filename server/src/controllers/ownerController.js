@@ -6,15 +6,30 @@ const Account = require('../models/Account');
 const Role = require('../models/Role');
 const jwt = require('jsonwebtoken');
 
+const { createAndSendNotification } = require('../services/notificationService');
+
 /**
  * Tìm kiếm thông tin User chủ thiết bị từ request
  */
 async function resolveOwnerUser(req) {
   let ownerUser = null;
-  if (req.query.userId) {
-    ownerUser = await User.findById(req.query.userId).lean();
+  // 1. Kiểm tra từ req.user (khi qua middleware requireAuth)
+  if (req.user && req.user._id) {
+    ownerUser = await User.findById(req.user._id).lean();
+    if (ownerUser) return ownerUser;
   }
-  if (!ownerUser && req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+  if (req.auth && req.auth.id) {
+    ownerUser = await User.findById(req.auth.id).lean();
+    if (ownerUser) return ownerUser;
+  }
+  // 2. Kiểm tra từ query params userId hoặc ownerId
+  const requestedId = req.query.userId || req.query.ownerId;
+  if (requestedId) {
+    ownerUser = await User.findById(requestedId).lean();
+    if (ownerUser) return ownerUser;
+  }
+  // 3. Kiểm tra từ JWT Bearer token trong Header
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
     const token = req.headers.authorization.split(' ')[1];
     try {
       const secret = process.env.JWT_SECRET || 'techshare_mma301_super_secret_jwt_key_2026';
@@ -26,14 +41,18 @@ async function resolveOwnerUser(req) {
       }
       if (decoded?.id) {
         ownerUser = await User.findById(decoded.id).lean();
+        if (ownerUser) return ownerUser;
       }
     } catch {}
   }
-  if (!ownerUser && req.query.username) {
+  // 4. Kiểm tra từ username
+  if (req.query.username) {
     ownerUser = await User.findOne({
       $or: [{ name: req.query.username }, { username: req.query.username }],
     }).lean();
+    if (ownerUser) return ownerUser;
   }
+  // 5. Fallback tài khoản chủ máy cho môi trường phát triển / kiểm thử
   if (!ownerUser) {
     const ownerRole = await Role.findOne({ code: 'owner' }).lean();
     if (ownerRole) {
@@ -381,3 +400,205 @@ exports.getOwnerCustomerMessages = async (req, res) => {
     });
   }
 };
+
+/**
+ * Lấy danh sách các yêu cầu thuê mới từ khách hàng đang chờ phê duyệt (status: 'pending')
+ * Lưu ý lấy chính xác theo User ID của Chủ máy (Owner)
+ */
+exports.getOwnerPendingBookings = async (req, res) => {
+  try {
+    const ownerUser = await resolveOwnerUser(req);
+    if (!ownerUser) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy thông tin chủ thiết bị' });
+    }
+
+    const bookings = await Booking.find({
+      ownerId: ownerUser._id,
+      status: 'pending',
+    })
+      .populate('renterId', 'name username email phone avatar isVerified trust trustScore rating totalReviews address')
+      .populate('deviceId', 'name images brand model category pricePerDay dailyRate depositAmount depositValue condition description location addressText specs')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      count: bookings.length,
+      owner: {
+        id: ownerUser._id,
+        name: ownerUser.name || ownerUser.username,
+      },
+      data: bookings,
+    });
+  } catch (error) {
+    console.error('[Owner Controller] Lỗi khi lấy danh sách pending bookings:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi máy chủ khi lấy danh sách yêu cầu chờ duyệt',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Lấy toàn bộ danh sách đơn thuê của Chủ máy (hỗ trợ lọc status: pending, approved, active, completed, etc.)
+ */
+exports.getOwnerBookings = async (req, res) => {
+  try {
+    const ownerUser = await resolveOwnerUser(req);
+    if (!ownerUser) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy thông tin chủ thiết bị' });
+    }
+
+    const query = { ownerId: ownerUser._id };
+    if (req.query.status && req.query.status !== 'all') {
+      query.status = req.query.status;
+    }
+
+    const bookings = await Booking.find(query)
+      .populate('renterId', 'name username email phone avatar isVerified trust trustScore rating totalReviews address')
+      .populate('deviceId', 'name images brand model category pricePerDay dailyRate depositAmount depositValue condition description location addressText specs')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      count: bookings.length,
+      owner: {
+        id: ownerUser._id,
+        name: ownerUser.name || ownerUser.username,
+      },
+      data: bookings,
+    });
+  } catch (error) {
+    console.error('[Owner Controller] Lỗi khi lấy danh sách bookings của owner:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi máy chủ khi lấy danh sách đơn thuê',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Phê duyệt (approved) hoặc Từ chối (rejected) yêu cầu thuê từ khách
+ */
+exports.updateBookingStatus = async (req, res) => {
+  try {
+    const bookingId = req.params.id;
+    const { status, reason } = req.body;
+    const ownerUser = await resolveOwnerUser(req);
+
+    if (!ownerUser) {
+      return res.status(401).json({ success: false, message: 'Chưa xác thực thông tin chủ thiết bị' });
+    }
+
+    if (!['approved', 'rejected', 'cancelled'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Trạng thái xử lý không hợp lệ (approved/rejected)' });
+    }
+
+    const booking = await Booking.findById(bookingId)
+      .populate('deviceId', 'name')
+      .populate('renterId', 'name email phone');
+
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy đơn thuê' });
+    }
+
+    // Kiểm tra quyền sở hữu đơn
+    const isOwner = String(booking.ownerId) === String(ownerUser._id);
+    const userRole = (req.auth && req.auth.role) || (req.user && req.user.role) || ownerUser.role;
+    const isAdmin = userRole === 'admin';
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'Bạn không có quyền thao tác trên đơn thuê của chủ khác' });
+    }
+
+    if (booking.status !== 'pending' && status === 'approved') {
+      return res.status(400).json({ success: false, message: `Không thể duyệt đơn đang ở trạng thái "${booking.status}"` });
+    }
+
+    booking.status = status;
+    if (status === 'rejected' || status === 'cancelled') {
+      booking.statusReason = reason || 'Chủ máy từ chối yêu cầu thuê';
+      booking.rejectReason = reason || 'Chủ máy từ chối yêu cầu thuê';
+    }
+
+    const actionText = status === 'approved'
+      ? 'Chủ máy đã phê duyệt yêu cầu thuê'
+      : `Chủ máy từ chối yêu cầu thuê. Lý do: ${reason || 'Không có'}`;
+
+    booking.timeline.push({
+      status,
+      timestamp: new Date(),
+      note: actionText,
+    });
+
+    await booking.save();
+
+    // Bắn thông báo tự động cho người thuê
+    if (booking.renterId) {
+      const renterIdVal = booking.renterId._id || booking.renterId;
+      const deviceName = booking.deviceId?.name || 'thiết bị';
+      if (status === 'approved') {
+        await createAndSendNotification({
+          userId: renterIdVal,
+          title: 'Yêu cầu thuê đã được duyệt! 🎉',
+          body: `Chủ máy ${ownerUser.name || 'chủ máy'} đã duyệt đơn thuê "${deviceName}" (#${booking.bookingCode}). Vui lòng chuẩn bị nhận máy.`,
+          type: 'order',
+          relatedId: booking._id,
+          data: {
+            bookingId: booking._id.toString(),
+            status: 'approved',
+          },
+        }).catch((err) => console.error('❌ Lỗi gửi thông báo duyệt cho khách:', err.message));
+      } else {
+        await createAndSendNotification({
+          userId: renterIdVal,
+          title: 'Yêu cầu thuê đã bị từ chối ❌',
+          body: `Chủ máy không thể đáp ứng đơn thuê "${deviceName}" (#${booking.bookingCode}). Lý do: ${reason || 'Chủ máy bận vào thời gian này'}.`,
+          type: 'order',
+          relatedId: booking._id,
+          data: {
+            bookingId: booking._id.toString(),
+            status: 'rejected',
+          },
+        }).catch((err) => console.error('❌ Lỗi gửi thông báo từ chối cho khách:', err.message));
+      }
+    }
+
+    try {
+      const { getIO } = require('../socket');
+      const io = getIO();
+      if (io) {
+        if (booking.ownerId) {
+          io.to(`user_${booking.ownerId}`).emit('booking_status_updated', {
+            bookingId: booking._id.toString(),
+            status,
+          });
+        }
+        if (booking.renterId) {
+          const rId = booking.renterId._id || booking.renterId;
+          io.to(`user_${rId}`).emit('booking_status_updated', {
+            bookingId: booking._id.toString(),
+            status,
+          });
+        }
+      }
+    } catch {}
+
+    return res.status(200).json({
+      success: true,
+      message: status === 'approved' ? 'Đã phê duyệt yêu cầu thuê thành công!' : 'Đã từ chối yêu cầu thuê!',
+      data: booking,
+    });
+  } catch (error) {
+    console.error('[Owner Controller] Lỗi cập nhật trạng thái đơn:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi máy chủ khi cập nhật trạng thái đơn',
+      error: error.message,
+    });
+  }
+};
+

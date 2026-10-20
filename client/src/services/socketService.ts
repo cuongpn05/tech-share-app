@@ -1,6 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 import { API_BASE_URL } from '../config/api';
 import { ChatMessage } from '../types';
+import { notificationService } from './notificationService';
 
 let socket: Socket | null = null;
 let currentUserId: string | null = null;
@@ -92,7 +93,29 @@ export const socketService = {
     });
 
     socket.on('new_notification', (notification: InAppNotification) => {
+      try {
+        notificationService.incrementUnreadCount();
+      } catch (err) {
+        console.warn('[SocketService] Lỗi tăng số thông báo chưa đọc:', err);
+      }
       notificationListeners.forEach((fn) => fn(notification));
+    });
+
+    socket.on('booking_status_updated', () => {
+      try {
+        if (currentUserId) {
+          notificationService.fetchUnreadCount(currentUserId);
+        }
+      } catch {}
+      notificationListeners.forEach((fn) =>
+        fn({
+          _id: `bs_${Date.now()}`,
+          userId: currentUserId || '',
+          title: 'Cập nhật trạng thái đơn thuê',
+          body: '',
+          type: 'order',
+        })
+      );
     });
 
     socket.on('messages_read', (data: { bookingId: string; readBy: string }) => {

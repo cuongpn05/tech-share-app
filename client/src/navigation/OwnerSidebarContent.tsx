@@ -16,6 +16,8 @@ import { theme } from '../theme/tokens';
 import { OWNER_STRINGS } from '../constants/ownerStrings';
 import { chatService } from '../services/chatService';
 import { socketService } from '../services/socketService';
+import { bookingService } from '../services/bookingService';
+import { notificationService } from '../services/notificationService';
 import { apiClient } from '../config/api';
 import { useAppDispatch, useAppSelector } from '../store';
 import { clearAuth } from '../store/slices/authSlice';
@@ -48,6 +50,9 @@ export const OwnerSidebarContent: React.FC<OwnerSidebarContentProps> = ({
   const bottomInset = Math.max(insets.bottom, theme.spacing.lg);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [pendingBookings, setPendingBookings] = useState(propPendingCount ?? 0);
+  const [unreadNotifications, setUnreadNotifications] = useState(
+    notificationService.getUnreadCountCached()
+  );
 
   const loadSidebarData = useCallback(async () => {
     try {
@@ -60,28 +65,84 @@ export const OwnerSidebarContent: React.FC<OwnerSidebarContentProps> = ({
 
     try {
       const userId = currentUser?._id || (currentUser as any)?.id;
+      // 1. Lấy chính xác số đơn đang chờ duyệt theo tài khoản Owner hiện tại
+      const pendingRes = await apiClient.get('/owner/pending-bookings', {
+        params: userId ? { userId, ownerId: userId } : {},
+      });
+      if (pendingRes.data?.success && Array.isArray(pendingRes.data?.data)) {
+        setPendingBookings(pendingRes.data.data.length);
+        return;
+      }
+    } catch {}
+
+    try {
+      const userId = currentUser?._id || (currentUser as any)?.id;
       const res = await apiClient.get('/owner/dashboard', {
         params: userId ? { userId } : {},
       });
       if (res.data?.success && res.data?.data) {
-        setPendingBookings(res.data.data.pendingBookingsCount || 0);
+        setPendingBookings(res.data.data.pendingBookingsCount ?? 0);
+      }
+    } catch {}
+
+    try {
+      const userId = currentUser?._id || (currentUser as any)?.id;
+      if (userId) {
+        notificationService.fetchUnreadCount(userId);
       }
     } catch {}
   }, [currentUser]);
 
   useEffect(() => {
     loadSidebarData();
-    const unsub = socketService.onNewMessage(() => {
+
+    const unsubMsg = socketService.onNewMessage(() => {
       loadSidebarData();
     });
     const unsubRead = socketService.onMessagesRead(() => {
       loadSidebarData();
     });
+    const unsubNotif = socketService.onNotification(() => {
+      loadSidebarData();
+    });
+    const unsubBooking = bookingService.onBookingsUpdated(() => {
+      loadSidebarData();
+    });
+    const unsubNotifCount = notificationService.onUnreadCountChange((count) => {
+      setUnreadNotifications(count);
+    });
+
     return () => {
-      unsub();
+      unsubMsg();
       unsubRead();
+      unsubNotif();
+      unsubBooking();
+      unsubNotifCount();
     };
   }, [loadSidebarData]);
+
+  // Cập nhật lại số liệu tức thì khi màn hình/route thay đổi
+  useEffect(() => {
+    loadSidebarData();
+  }, [activeRoute, loadSidebarData]);
+
+  // Lắng nghe sự kiện chuyển đổi trạng thái drawer / navigation
+  useEffect(() => {
+    if (!navigation?.addListener) return;
+    const unsubNav = navigation.addListener('state', () => {
+      loadSidebarData();
+    });
+    return () => {
+      unsubNav?.();
+    };
+  }, [navigation, loadSidebarData]);
+
+  // Đồng bộ propPendingCount nếu được truyền từ bên ngoài
+  useEffect(() => {
+    if (propPendingCount !== undefined) {
+      setPendingBookings(propPendingCount);
+    }
+  }, [propPendingCount]);
 
   const menuItems: MenuItem[] = [
     {
@@ -145,7 +206,7 @@ export const OwnerSidebarContent: React.FC<OwnerSidebarContentProps> = ({
       title: OWNER_STRINGS.SIDEBAR.SYSTEM_NOTIFICATIONS,
       icon: 'notifications-outline',
       routeName: 'OwnerNotifications',
-      badge: unreadMessages > 0 ? unreadMessages : undefined,
+      badge: unreadNotifications > 0 ? unreadNotifications : undefined,
     },
   ];
 

@@ -10,6 +10,7 @@ const loginRoutes = require('./routes/loginRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const aiRoutes= require("./routes/aiRoutes")
 const morgan = require('morgan');
 const { notFound, errorHandler } = require('./middlewares/errorHandler');
@@ -34,6 +35,7 @@ app.use('/api/owner', ownerRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

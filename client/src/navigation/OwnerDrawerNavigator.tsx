@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { HomeRoute } from './HomeRoute';
 import OwnerDashboardScreen from '../screens/owner/OwnerDashboardScreen';
+import OwnerPendingBookingsScreen from '../screens/owner/OwnerPendingBookingsScreen';
 import { PostDeviceScreen } from '../screens/device/PostDeviceScreen';
 import OwnerMessagesScreen from '../screens/owner/OwnerMessagesScreen';
 import NotificationScreen from '../screens/notification/NotificationScreen';
@@ -97,15 +98,7 @@ export const OwnerDrawerNavigator: React.FC = () => {
         )}
       </Drawer.Screen>
 
-      <Drawer.Screen name="OwnerPendingBookings">
-        {({ navigation }: any) => (
-          <OwnerPlaceholderScreen
-            title="Pending Bookings"
-            subtitle="Quản lý và phê duyệt các yêu cầu đặt thuê thiết bị"
-            navigation={navigation}
-          />
-        )}
-      </Drawer.Screen>
+      <Drawer.Screen name="OwnerPendingBookings" component={OwnerPendingBookingsScreen} />
 
       <Drawer.Screen name="OwnerMessages" component={OwnerMessagesScreen} />
 
