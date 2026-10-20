@@ -17,6 +17,7 @@ import { DeviceDetailScreen } from '../screens/device/DeviceDetailScreen';
 import { MyBookingsScreen } from '../screens/booking/MyBookingsScreen';
 import { BookingDetailScreen } from '../screens/booking/BookingDetailScreen';
 import { ProfileScreen } from '../screens/user/ProfileScreen';
+import { EkycVerificationScreen } from '../screens/user/EkycVerificationScreen';
 import { AiChatConsultant } from '../screens/ai/AiChatConsultant';
 import { socketService } from '../services/socketService';
 import { setAuthToken } from '../config/api';
