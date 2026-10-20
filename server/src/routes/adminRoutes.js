@@ -6,12 +6,16 @@ const {
   approveDevice,
   rejectDevice,
 } = require('../controllers/adminController');
+const { getAdminEkycSubmissions } = require('../controllers/ekycController');
 
 const userManagementRoutes = require('./userManagementRoutes');
 const { requireAuth } = require('../middlewares/authMiddleware');
 const { adminMiddleware } = require('../middlewares/adminMiddleware');
 
 const router = express.Router();
+
+// Endpoint lấy danh sách đơn xác thực eKYC (UC eKYC Reviews List)
+router.get('/ekyc', requireAuth, adminMiddleware, getAdminEkycSubmissions);
 
 // Endpoint lấy số liệu Dashboard & Analytics từ MongoDB
 router.get('/dashboard', getDashboardStats);
