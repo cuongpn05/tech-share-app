@@ -44,6 +44,7 @@ export function DeviceDetailScreen({ deviceId, onBack, onRent }: DeviceDetailScr
   const [retry, setRetry] = useState(0);
   const [selectedImage, setSelectedImage] = useState(0);
   const [failedImages, setFailedImages] = useState<string[]>([]);
+  const [avatarFailed, setAvatarFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -52,6 +53,7 @@ export function DeviceDetailScreen({ deviceId, onBack, onRent }: DeviceDetailScr
     setNotFound(false);
     setSelectedImage(0);
     setFailedImages([]);
+    setAvatarFailed(false);
     setLoading(true);
     if (!/^[a-fA-F0-9]{24}$/.test(deviceId)) {
       setError('Invalid device ID.');
@@ -96,6 +98,7 @@ export function DeviceDetailScreen({ deviceId, onBack, onRent }: DeviceDetailScr
           <Ionicons name="chevron-back" size={24} color={colors.light.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Device details</Text>
+        <View style={styles.headerSpacer} />
       </View>
       {loading ? (
         <View style={styles.state}><ActivityIndicator color={colors.light.primary} /><Text>Loading device...</Text></View>
@@ -111,7 +114,7 @@ export function DeviceDetailScreen({ deviceId, onBack, onRent }: DeviceDetailScr
         </View>
       ) : (
         <>
-          <ScrollView contentContainerStyle={styles.content}>
+          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             <View style={styles.album}>
               {currentImage && !failedImages.includes(currentImage) ? (
                 <Image source={{ uri: currentImage }} style={styles.image} resizeMode="contain"
@@ -123,34 +126,56 @@ export function DeviceDetailScreen({ deviceId, onBack, onRent }: DeviceDetailScr
                   <Text style={styles.muted}>Image unavailable</Text>
                 </View>
               )}
-            </View>
+              {device.brand ? <View style={styles.brandBadge}>
+                <Text style={styles.brandText} numberOfLines={1}>{device.brand}</Text>
+              </View> : null}
             {images.length > 1 && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photos}>
+              <View style={styles.photos}>
                 {images.map((_, index) => (
                   <TouchableOpacity key={index} onPress={() => setSelectedImage(index)} accessibilityRole="button"
                     accessibilityLabel={`View photo ${index + 1}`} accessibilityState={{ selected: index === selectedImage }}
-                    style={[styles.photoButton, index === selectedImage && styles.photoSelected]}>
-                    <Text style={styles.muted}>Photo {index + 1}</Text>
+                    style={styles.photoButton} hitSlop={8}>
+                    <View style={[styles.photoDot, index === selectedImage && styles.photoSelected]} />
                   </TouchableOpacity>
                 ))}
-              </ScrollView>
-            )}
-            <View style={styles.section}>
-              <Text style={styles.title}>{device.name || device.title || 'Name unavailable'}</Text>
-              <View style={styles.badges}>
-                {device.category ? <Text style={styles.badge}>{device.category}</Text> : null}
-                <Text style={styles.badge}>{device.status || 'Status unavailable'}</Text>
               </View>
-              <Text style={styles.price}>{hasPrice ? `${price.toLocaleString('en-US')} VND / day` : 'Price unavailable'}</Text>
-              {typeof address === 'string' && address.trim() ? <Text style={styles.muted}>{address}</Text> : null}
+            )}
             </View>
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Description</Text>
+              <Text style={styles.title}>{device.name || device.title || 'Name unavailable'}</Text>
+              <View style={styles.summaryRow}>
+                <View style={styles.badges}>
+                  {device.category ? <View style={styles.badge}>
+                    <Ionicons name={device.category === 'camera' ? 'camera-outline' : 'hardware-chip-outline'}
+                      size={13} color={colors.light.primaryDark} />
+                    <Text style={styles.badgeText}>{device.category}</Text>
+                  </View> : null}
+                  <View style={[styles.badge, device.status === 'available' && styles.availableBadge]}>
+                    <Ionicons name={device.status === 'available' ? 'checkmark-circle' : 'time-outline'}
+                      size={13} color={device.status === 'available' ? colors.light.success : colors.light.textSecondary} />
+                    <Text style={styles.badgeText}>{device.status || 'Status unavailable'}</Text>
+                  </View>
+                </View>
+                <Text style={styles.price}>{hasPrice ? `${price.toLocaleString('en-US')} VND / day` : 'Price unavailable'}</Text>
+              </View>
+              {typeof address === 'string' && address.trim() ? <View style={styles.addressRow}>
+                <Ionicons name="location" size={14} color={colors.light.textMuted} />
+                <Text style={styles.addressText}>{address}</Text>
+              </View> : null}
+            </View>
+            <View style={styles.section}>
+              <View style={styles.sectionHeading}>
+                <View style={styles.sectionIcon}><Ionicons name="document-text-outline" size={17} color={colors.light.primaryDark} /></View>
+                <Text style={styles.sectionTitle}>Description</Text>
+              </View>
               <Text style={styles.body}>{typeof device.description === 'string' && device.description.trim()
                 ? device.description : 'No description available.'}</Text>
             </View>
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Technical Specifications</Text>
+              <View style={styles.sectionHeading}>
+                <View style={styles.sectionIcon}><Ionicons name="settings-outline" size={17} color={colors.light.primaryDark} /></View>
+                <Text style={styles.sectionTitle}>Technical Specifications</Text>
+              </View>
               {specs.length ? specs.map((row, index) => (
                 <View key={index} style={styles.specRow}>
                   <Text style={styles.specLabel}>{row.label}</Text>
@@ -159,12 +184,25 @@ export function DeviceDetailScreen({ deviceId, onBack, onRent }: DeviceDetailScr
               )) : <Text style={styles.muted}>No specifications available.</Text>}
             </View>
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Owner</Text>
+              <View style={styles.sectionHeading}>
+                <View style={styles.sectionIcon}><Ionicons name="person-outline" size={17} color={colors.light.primaryDark} /></View>
+                <Text style={styles.sectionTitle}>Owner</Text>
+              </View>
               {owner && typeof owner.name === 'string' && owner.name.trim() ? (
-                <>
-                  <Text style={styles.body}>{owner.name}</Text>
-                  {typeof ownerAddress === 'string' && ownerAddress.trim() ? <Text style={styles.muted}>{ownerAddress}</Text> : null}
-                </>
+                <View style={styles.ownerRow}>
+                  {typeof owner.avatar === 'string' && owner.avatar.trim() && !avatarFailed ? (
+                    <Image source={{ uri: imageUri(owner.avatar) }} style={styles.avatar} onError={() => setAvatarFailed(true)} />
+                  ) : <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                    <Ionicons name="person" size={22} color={colors.light.primaryDark} />
+                  </View>}
+                  <View style={styles.ownerInfo}>
+                    <Text style={styles.ownerName}>{owner.name}</Text>
+                    {typeof ownerAddress === 'string' && ownerAddress.trim() ? <View style={styles.addressRow}>
+                      <Ionicons name="location" size={12} color={colors.light.textMuted} />
+                      <Text style={styles.addressText}>{ownerAddress}</Text>
+                    </View> : null}
+                  </View>
+                </View>
               ) : <Text style={styles.muted}>Owner information unavailable.</Text>}
             </View>
           </ScrollView>
@@ -172,6 +210,7 @@ export function DeviceDetailScreen({ deviceId, onBack, onRent }: DeviceDetailScr
             <TouchableOpacity style={[styles.button, !canRent && styles.disabled]} disabled={!canRent}
               accessibilityRole="button" accessibilityLabel="Rent device" accessibilityState={{ disabled: !canRent }}
               onPress={() => onRent(device._id)}>
+              <Ionicons name="calendar-outline" size={18} color={colors.light.white} />
               <Text style={styles.buttonText}>{canRent ? 'Rent device' : 'Currently unavailable'}</Text>
             </TouchableOpacity>
           </View>
@@ -183,30 +222,49 @@ export function DeviceDetailScreen({ deviceId, onBack, onRent }: DeviceDetailScr
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.light.background },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 },
-  back: { padding: 6 },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: colors.light.textPrimary },
-  content: { padding: 16, gap: 16, paddingBottom: 24 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8 },
+  back: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.light.surface, alignItems: 'center', justifyContent: 'center' },
+  headerSpacer: { width: 32 },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '700', color: colors.light.textPrimary },
+  content: { paddingHorizontal: 10, paddingBottom: 12, gap: 8 },
   state: { flex: 1, padding: 24, gap: 16, alignItems: 'center', justifyContent: 'center' },
-  album: { borderRadius: 16, backgroundColor: colors.light.surface, overflow: 'hidden' },
-  image: { width: '100%', aspectRatio: 4 / 3 },
-  placeholder: { width: '100%', aspectRatio: 4 / 3, alignItems: 'center', justifyContent: 'center', gap: 8 },
-  photos: { gap: 8 },
-  photoButton: { padding: 10, borderWidth: 1, borderColor: colors.light.border, borderRadius: 8 },
-  photoSelected: { borderColor: colors.light.primary, backgroundColor: colors.light.primaryLight },
-  section: { padding: 16, gap: 12, borderRadius: 16, backgroundColor: colors.light.surface },
-  title: { fontSize: 22, fontWeight: '700', color: colors.light.textPrimary },
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: colors.light.textPrimary },
-  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  badge: { color: colors.light.primary, backgroundColor: colors.light.primaryLight, padding: 8, borderRadius: 8 },
-  price: { fontSize: 21, fontWeight: '700', color: colors.light.primary },
-  body: { fontSize: 15, lineHeight: 23, color: colors.light.textPrimary },
-  muted: { fontSize: 14, lineHeight: 21, color: colors.light.textSecondary },
-  specRow: { flexDirection: 'row', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderColor: colors.light.border },
-  specLabel: { flex: 1, fontSize: 14, lineHeight: 21, color: colors.light.textSecondary },
-  specValue: { flex: 1.4, fontSize: 14, lineHeight: 21, color: colors.light.textPrimary },
-  footer: { padding: 16, backgroundColor: colors.light.surface, borderTopWidth: 1, borderColor: colors.light.border },
-  button: { backgroundColor: colors.light.primary, borderRadius: 12, padding: 16, alignItems: 'center' },
-  buttonText: { color: colors.light.white, fontSize: 16, fontWeight: '600' },
+  album: { borderRadius: 16, backgroundColor: colors.light.border, overflow: 'hidden' },
+  image: { width: '100%', aspectRatio: 1.85 },
+  placeholder: { width: '100%', aspectRatio: 1.85, alignItems: 'center', justifyContent: 'center', gap: 8 },
+  brandBadge: { position: 'absolute', top: 12, left: 12, maxWidth: '70%', paddingHorizontal: 12,
+    paddingVertical: 5, backgroundColor: colors.light.surface, borderRadius: 14 },
+  brandText: { fontSize: 11, fontWeight: '700', color: colors.light.textPrimary },
+  photos: { position: 'absolute', bottom: 8, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap' },
+  photoButton: { padding: 4 },
+  photoDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.light.textMuted },
+  photoSelected: { backgroundColor: colors.light.primaryHover },
+  section: { padding: 12, gap: 8, borderRadius: 16, backgroundColor: colors.light.surface },
+  title: { fontSize: 20, lineHeight: 26, fontWeight: '800', color: colors.light.textPrimary },
+  sectionHeading: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionIcon: { width: 29, height: 29, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.light.primaryLight },
+  sectionTitle: { flexShrink: 1, fontSize: 14, fontWeight: '700', color: colors.light.textPrimary },
+  summaryRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  badge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.light.primaryLight,
+    paddingHorizontal: 7, paddingVertical: 5, borderRadius: 8 },
+  availableBadge: { backgroundColor: colors.light.successLight },
+  badgeText: { fontSize: 10, textTransform: 'capitalize', color: colors.light.primaryDark },
+  price: { flexShrink: 1, fontSize: 16, fontWeight: '800', color: colors.light.primaryHover },
+  addressRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5 },
+  addressText: { flex: 1, minWidth: 0, fontSize: 11, lineHeight: 16, color: colors.light.textSecondary },
+  body: { fontSize: 12, lineHeight: 18, color: colors.light.textSecondary },
+  muted: { fontSize: 12, lineHeight: 18, color: colors.light.textSecondary },
+  specRow: { flexDirection: 'row', gap: 12, paddingVertical: 8, borderBottomWidth: 1, borderColor: colors.light.border },
+  specLabel: { flex: 1, fontSize: 11, lineHeight: 17, color: colors.light.textSecondary },
+  specValue: { flex: 1.2, fontSize: 11, lineHeight: 17, color: colors.light.textPrimary },
+  ownerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  avatar: { width: 44, height: 44, borderRadius: 22 },
+  avatarPlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.light.primaryLight },
+  ownerInfo: { flex: 1, minWidth: 0, gap: 4 },
+  ownerName: { fontSize: 12, lineHeight: 17, fontWeight: '700', color: colors.light.textPrimary },
+  footer: { paddingHorizontal: 12, paddingTop: 8, backgroundColor: colors.light.surface, borderTopWidth: 1, borderColor: colors.light.border },
+  button: { flexDirection: 'row', justifyContent: 'center', gap: 8, backgroundColor: colors.light.primaryHover,
+    borderRadius: 12, padding: 14, alignItems: 'center' },
+  buttonText: { color: colors.light.white, fontSize: 14, fontWeight: '600' },
   disabled: { opacity: 0.5 },
 });

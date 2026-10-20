@@ -177,7 +177,7 @@ export function LoginScreen({
                 />
                 <TextInput
                   style={styles.inputField}
-                  placeholder="Nhập mật khẩu"
+                  placeholder="Enter password"
                   placeholderTextColor={theme.colors.text.subtle}
                   value={password}
                   onChangeText={(text) => {
@@ -228,7 +228,7 @@ export function LoginScreen({
                 }}
                 activeOpacity={0.7}
               >
-                <Text style={styles.forgotPasswordText}>Quên mật khẩu?</Text>
+                <Text style={styles.forgotPasswordText}>Forgot password?</Text>
               </TouchableOpacity>
             </View>
 
@@ -243,7 +243,7 @@ export function LoginScreen({
                 <ActivityIndicator color="#ffffff" size="small" />
               ) : (
                 <View style={styles.btnSubmitContent}>
-                  <Text style={styles.btnSubmitText}>ĐĂNG NHẬP</Text>
+                  <Text style={styles.btnSubmitText}>SIGN IN</Text>
                   <Ionicons name="arrow-forward" size={18} color="#ffffff" style={styles.btnArrowIcon} />
                 </View>
               )}
@@ -252,7 +252,7 @@ export function LoginScreen({
 
           {/* Navigate to Register screen (nằm ngoài khung như trong ảnh) */}
           <View style={styles.footerRow}>
-            <Text style={styles.footerText}>Chưa có tài khoản?</Text>
+            <Text style={styles.footerText}>Don't have an account?</Text>
             <TouchableOpacity
               onPress={() => {
                 if (onNavigateToRegister) onNavigateToRegister();
@@ -260,7 +260,7 @@ export function LoginScreen({
               }}
               activeOpacity={0.7}
             >
-              <Text style={styles.registerLink}>Đăng ký ngay</Text>
+              <Text style={styles.registerLink}>Sign up</Text>
             </TouchableOpacity>
           </View>
         </View>
