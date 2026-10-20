@@ -49,6 +49,11 @@ export const CATEGORIES: CategoryItem[] = [
     icon: 'headset-outline',
   },
   {
+    id: 'gaming',
+    name: 'Gaming',
+    icon: 'game-controller-outline',
+  },
+  {
     id: 'tablet',
     name: 'Tablets',
     icon: 'tablet-portrait-outline',
@@ -61,11 +66,17 @@ export const CATEGORIES: CategoryItem[] = [
 ];
 
 interface CategoryBarProps {
+  categories?: DeviceCategory[];
   selectedCategory: DeviceCategory | 'all';
   onSelectCategory: (category: DeviceCategory | 'all') => void;
 }
 
-export function CategoryBar({ selectedCategory, onSelectCategory }: CategoryBarProps) {
+export function CategoryBar({ selectedCategory, onSelectCategory, categories }: CategoryBarProps) {
+  const items: CategoryItem[] = categories
+    ? [CATEGORIES[0], ...categories.map(id => CATEGORIES.find(item => item.id === id) || {
+        id, name: id, icon: 'hardware-chip-outline' as const,
+      })]
+    : CATEGORIES;
   return (
     <View style={styles.container}>
       <ScrollView
@@ -73,7 +84,7 @@ export function CategoryBar({ selectedCategory, onSelectCategory }: CategoryBarP
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {CATEGORIES.map(category => {
+        {items.map(category => {
           const isSelected = selectedCategory === category.id;
 
           return (

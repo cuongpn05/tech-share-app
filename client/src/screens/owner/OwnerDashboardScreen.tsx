@@ -285,8 +285,6 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
     <View style={[styles.screenContainer, { paddingTop: topInset }]}>
       <StatusBar
         barStyle="dark-content"
-        backgroundColor={theme.colors.background}
-        translucent={true}
       />
       {/* 1. Header Navigation Bar */}
       <View style={styles.headerBar}>

@@ -14,9 +14,12 @@ import OwnerPendingBookingsScreen from '../screens/owner/OwnerPendingBookingsScr
 import ChatDetailScreen from '../screens/chat/ChatDetailScreen';
 import NotificationScreen from '../screens/notification/NotificationScreen';
 import { BookingCreateScreen } from '../screens/booking/BookingCreateScreen';
+import { DeviceDetailScreen } from '../screens/device/DeviceDetailScreen';
 import { MyBookingsScreen } from '../screens/booking/MyBookingsScreen';
 import { BookingDetailScreen } from '../screens/booking/BookingDetailScreen';
 import { ProfileScreen } from '../screens/user/ProfileScreen';
+import { EkycVerificationScreen } from '../screens/user/EkycVerificationScreen';
+import { AiChatConsultant } from '../screens/ai/AiChatConsultant';
 import { socketService } from '../services/socketService';
 import { firebaseMessagingService } from '../services/firebaseMessagingService';
 import { notificationService } from '../services/notificationService';
@@ -41,23 +44,34 @@ export type RootStackParamList = {
   Home: { initialTab?: ScreenType } | undefined;
   Profile: undefined;
   OwnerPendingBookings: undefined;
+  EkycVerification: undefined;
   OwnerMessages: undefined;
   ChatDetail: { bookingId?: string; otherBookings?: any[] } | undefined;
   Notification: undefined;
   BookingCreate: { deviceId: string };
+  DeviceDetail: { deviceId: string };
   MyBookings: undefined;
   BookingDetail: { bookingId: string };
+  AiChatConsultant: undefined;
 };
 
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+const DeviceDetailRoute = ({ route, navigation }: any) => (
+  <DeviceDetailScreen
+    deviceId={route.params.deviceId}
+    onBack={() => navigation.goBack()}
+    onRent={(deviceId) => navigation.navigate('BookingCreate', { deviceId })}
+  />
+);
 
 const BookingCreateRoute = ({ route, navigation }: any) => (
   <BookingCreateScreen
     deviceId={route.params.deviceId}
     onBack={() => navigation.goBack()}
     onSuccess={() => navigation.navigate('Home', { initialTab: 'bookings' })}
-    onNavigateToVerification={() => navigation.navigate('Home')}
+    onNavigateToVerification={() => navigation.navigate('EkycVerification')}
     onNavigateToLogin={() => navigation.navigate('Login')}
   />
 );
@@ -65,7 +79,7 @@ const BookingCreateRoute = ({ route, navigation }: any) => (
 const MyBookingsRoute = ({ navigation }: any) => (
   <MyBookingsScreen
     onNavigateToBookingDetail={(bookingId) => navigation.navigate('BookingDetail', { bookingId })}
-    onNavigateToDeviceDetail={(deviceId) => navigation.navigate('BookingCreate', { deviceId })}
+    onNavigateToDeviceDetail={(deviceId) => navigation.navigate('DeviceDetail', { deviceId })}
     onNavigateToBookingCreate={(deviceId) => navigation.navigate('BookingCreate', { deviceId })}
     onNavigateToHome={() => navigation.navigate('Home')}
   />
@@ -77,6 +91,15 @@ const BookingDetailRoute = ({ route, navigation }: any) => (
     onBack={() => navigation.goBack()}
     onNavigateToChat={(bookingId) => navigation.navigate('ChatDetail', { bookingId })}
     onNavigateToBookingCreate={(deviceId) => navigation.navigate('BookingCreate', { deviceId })}
+  />
+);
+
+const AiChatConsultantRoute = ({ navigation }: any) => (
+  <AiChatConsultant
+    onBack={() => navigation.goBack()}
+    onNavigateToDeviceDetail={(deviceId) =>
+      navigation.navigate('BookingCreate', { deviceId })
+    }
   />
 );
 
@@ -188,6 +211,7 @@ export function RootNavigator() {
 
   return (
     <Stack.Navigator initialRouteName={getInitialRoute()} screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="DeviceDetail" component={DeviceDetailRoute} />
       {!hasCompletedOnboarding ? (
         <Stack.Screen name="Onboarding">
           {(props) => <OnboardingScreen {...props} onComplete={handleCompleteOnboarding} />}
@@ -223,9 +247,14 @@ export function RootNavigator() {
           <Stack.Screen name="Profile">
             {({ navigation }) => <ProfileScreen navigation={navigation} onBack={() => navigation.goBack()} />}
           </Stack.Screen>
+          <Stack.Screen name="EkycVerification" component={EkycVerificationScreen} />
           <Stack.Screen name="BookingCreate" component={BookingCreateRoute} />
           <Stack.Screen name="MyBookings" component={MyBookingsRoute} />
           <Stack.Screen name="BookingDetail" component={BookingDetailRoute} />
+          <Stack.Screen
+            name="AiChatConsultant"
+            component={AiChatConsultantRoute}
+          />
         </>
       ) : (
         // ── PHÂN HỆ KHÁCH CHƯA ĐĂNG NHẬP (Guest) ────────────────────────
@@ -277,9 +306,14 @@ export function RootNavigator() {
           <Stack.Screen name="Profile">
             {({ navigation }) => <ProfileScreen navigation={navigation} onBack={() => navigation.goBack()} />}
           </Stack.Screen>
+          <Stack.Screen name="EkycVerification" component={EkycVerificationScreen} />
           <Stack.Screen name="BookingCreate" component={BookingCreateRoute} />
           <Stack.Screen name="MyBookings" component={MyBookingsRoute} />
           <Stack.Screen name="BookingDetail" component={BookingDetailRoute} />
+          <Stack.Screen
+            name="AiChatConsultant"
+            component={AiChatConsultantRoute}
+          />
         </>
       )}
     </Stack.Navigator>

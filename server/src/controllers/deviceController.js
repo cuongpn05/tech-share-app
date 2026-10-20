@@ -11,6 +11,37 @@ const positiveInteger = (value, fallback) => {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 };
 
+const publicDeviceFilter = () => ({
+  status: "available",
+  moderationStatus: { $in: ["approved", null] },
+  isDeleted: false,
+});
+
+function applyDeviceFilters(query, filter) {
+  for (const key of ["category", "q"]) {
+    if (query[key] !== undefined && typeof query[key] !== "string") {
+      return key + " must be a single string";
+    }
+  }
+  const category = query.category?.trim().toLowerCase();
+  if (category && category !== "all") {
+    const escaped = category.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    filter.category = new RegExp("^" + escaped + "$", "i");
+  }
+  if (query.q?.trim()) {
+    const escaped = query.q.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(escaped, "i");
+    filter.name = regex;
+  }
+}
+
+const getDeviceCategories = asyncHandler(async (req, res) => {
+  const categories = await Device.distinct("category", publicDeviceFilter());
+  const data = [...new Set(categories.filter(value => typeof value === "string")
+    .map(value => value.trim().toLowerCase()).filter(Boolean))].sort();
+  res.json({ success: true, data });
+});
+
 const getAvailableDevices = asyncHandler(async (req, res) => {
   const rawLimit = req.query.limit;
   const requestedLimit = rawLimit === undefined ? 100 : Number(rawLimit);
@@ -19,20 +50,21 @@ const getAvailableDevices = asyncHandler(async (req, res) => {
         !Number.isSafeInteger(requestedLimit) || requestedLimit < 1)) {
     return res.status(400).json({ success: false, message: "limit must be a positive integer" });
   }
+  const filter = publicDeviceFilter();
+  const filterError = applyDeviceFilters(req.query, filter);
+  if (filterError) return res.status(400).json({ success: false, message: filterError });
   const limit = Math.min(requestedLimit, 100);
-  const devices = await Device.find({
-    status: "available",
-    moderationStatus: { $in: ["approved", null] },
-    isDeleted: false,
-  })
-    .sort({ createdAt: -1, _id: 1 })
-    .limit(limit);
-
-  return res.status(200).json({
-    success: true,
-    count: devices.length,
-    data: devices,
-  });
+  const requestedPage = positiveInteger(req.query.page, 1);
+  const page = Number.isSafeInteger((requestedPage - 1) * limit) ? requestedPage : 1;
+  const devices = await Device.find(filter).sort({ createdAt: -1, _id: 1 })
+    .skip(req.query.page === undefined ? 0 : (page - 1) * limit).limit(limit);
+  const body = { success: true, count: devices.length, data: devices };
+  if (req.query.page !== undefined) {
+    const totalItems = await Device.countDocuments(filter);
+    const totalPages = Math.ceil(totalItems / limit);
+    body.pagination = { page, limit, totalItems, totalPages, hasNextPage: page < totalPages };
+  }
+  return res.status(200).json(body);
 });
 
 const getNearbyDevices = asyncHandler(async (req, res) => {
@@ -53,28 +85,21 @@ const getNearbyDevices = asyncHandler(async (req, res) => {
   if (Math.abs(lat) > 90 || Math.abs(lng) > 180 || maxDistance <= 0) {
     return res.status(400).json({ success: false, message: "lat/lng must be valid and maxDistance must be greater than 0 meters" });
   }
-  const { category, q } = req.query;
-  for (const [key, value] of Object.entries({ category, q })) {
-    if (value !== undefined && typeof value !== "string") {
-      return res.status(400).json({ success: false, message: `${key} must be a single string` });
-    }
-  }
-  const filter = {
-    status: "available",
-    moderationStatus: { $in: ["approved", null] },
-    isDeleted: false,
-  };
-  if (category && category !== "all") filter.category = category.trim().toLowerCase();
-  if (q?.trim()) {
-    const escaped = q.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const regex = new RegExp(escaped, "i");
-    filter.$or = [{ name: regex }, { brand: regex }, { description: regex }];
-  }
+  const filter = publicDeviceFilter();
+  const filterError = applyDeviceFilters(req.query, filter);
+  if (filterError) return res.status(400).json({ success: false, message: filterError });
   // Preserve the Map endpoint's existing full-radius result contract.
   if (req.query.page === undefined && req.query.limit === undefined) {
-    const devices = await Device.find({ ...filter, location: { $nearSphere: {
-      $geometry: { type: "Point", coordinates: [lng, lat] }, $maxDistance: maxDistance,
-    } } });
+    const records = await Device.aggregate([
+      { $geoNear: {
+        near: { type: "Point", coordinates: [lng, lat] }, key: "location",
+        distanceField: "distanceMeters", spherical: true, maxDistance, query: filter,
+      } },
+      { $sort: { distanceMeters: 1, _id: 1 } },
+    ]);
+    const devices = records.map(record => ({
+      ...Device.hydrate(record).toJSON(), distanceMeters: record.distanceMeters,
+    }));
     return res.status(200).json({ success: true, count: devices.length, data: devices });
   }
   const limit = Math.min(positiveInteger(req.query.limit, 10), 10);
@@ -210,6 +235,7 @@ const getDeviceById = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  getDeviceCategories,
   getAvailableDevices,
   getNearbyDevices,
   getMyDevices,

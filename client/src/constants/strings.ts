@@ -37,13 +37,13 @@ export const STRINGS = {
     OWNER_SWITCH_BOLD: 'Owner Dashboard',
     SEARCH_PLACEHOLDER: 'Search devices...',
     SECTION_DISCOVER_TITLE: 'Discover Devices',
-    SECTION_DISCOVER_SUB_ALL: 'Nearest devices first within 10 km',
+    SECTION_DISCOVER_SUB_ALL: 'Explore available devices',
     SECTION_DISCOVER_SUB_FILTER: (cat: string) => `Filtered by: ${cat}`,
     SEE_ALL: 'See All',
-    EMPTY_TITLE: 'No nearby devices found',
+    EMPTY_TITLE: 'No devices found',
     EMPTY_SUBTITLE_FILTER: 'No matching devices were found for your current filters.',
-    EMPTY_SUBTITLE_ALL: 'There are no available devices within 10 km of your location.',
-    ERROR_TITLE: 'Unable to load nearby devices',
+    EMPTY_SUBTITLE_ALL: 'There are no available devices for your current search area.',
+    ERROR_TITLE: 'Unable to load devices',
     TRY_AGAIN: 'Try Again',
   },
 
@@ -1137,10 +1137,10 @@ export const STRINGS = {
   },
 
   AUTH_VERIFY_ALERT: {
-    TITLE: 'Identity Verification Required',
-    MSG: 'You must complete Identity Verification (eKYC) before renting a device.',
-    LATER: 'Later',
-    VERIFY_NOW: 'Verify Now',
+    TITLE: 'Yêu cầu xác thực danh tính (eKYC)',
+    MSG: 'Bạn cần hoàn tất Xác thực danh tính (eKYC) trước khi đặt thuê thiết bị.',
+    LATER: 'Để sau',
+    VERIFY_NOW: 'Xác thực ngay',
   },
 
 

@@ -311,8 +311,6 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
     >
       <StatusBar
         barStyle="dark-content"
-        backgroundColor={theme.colors.surface}
-        translucent={true}
       />
 
       {/* Header Bar */}

@@ -156,7 +156,7 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navi
 
   return (
     <View style={[styles.safeArea, { paddingTop: topInset }]}>
-      <StatusBar barStyle="dark-content" backgroundColor={theme.colors.background} translucent={true} />
+      <StatusBar barStyle="dark-content" />
 
       {/* 1. TOP HEADER BAR */}
       <View style={styles.header}>

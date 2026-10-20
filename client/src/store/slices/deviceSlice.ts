@@ -59,7 +59,9 @@ const requestPage = async (params: GetDevicesParams | undefined, context: { requ
     }));
   }
   try {
-    const devicePage = await deviceService.getNearbyDevicesPage({ ...params, limit: 10 });
+    const devicePage = params?.nearby === false
+      ? await deviceService.getDevicesPage({ ...params, limit: 10 })
+      : await deviceService.getNearbyDevicesPage({ ...params, limit: 10 });
     if (debug) {
       console.log(logPrefix + ' ' + JSON.stringify({
         event: 'response',
@@ -188,7 +190,7 @@ export const deviceSlice = createSlice({
         const requestedPage = action.meta.arg?.page || 1;
         const isRefreshRequest = action.type === refreshDevices.rejected.type;
         state.failedPage = isRefreshRequest ? 1 : requestedPage;
-        state.error = action.error.message || 'Unable to load nearby devices';
+        state.error = action.error.message || 'Unable to load devices';
       });
     }
   },

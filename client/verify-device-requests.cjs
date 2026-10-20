@@ -6,6 +6,7 @@ const toolkit = require('@reduxjs/toolkit');
 
 const pending = [];
 const deviceService = {
+  getDevicesPage: params => new Promise((resolve, reject) => pending.push({ params, resolve, reject, allDevices: true })),
   getNearbyDevicesPage: params => new Promise((resolve, reject) => pending.push({ params, resolve, reject })),
 };
 const exported = {};
@@ -23,6 +24,18 @@ const result = (ids, page = 1, totalPages = 2) => ({
 });
 
 (async () => {
+  {
+    const store = toolkit.configureStore({ reducer });
+    const all = store.dispatch(fetchDevices({ nearby: false, category: 'gaming' }));
+    const allRequest = pending.shift();
+    assert.equal(allRequest.allDevices, true);
+    const nearby = store.dispatch(fetchDevices({ nearby: true, latitude: 21, longitude: 105 }));
+    const nearbyRequest = pending.shift();
+    nearbyRequest.resolve(result(['nearby'], 1, 1)); await nearby;
+    allRequest.resolve(result(['old-all'], 1, 1)); await all;
+    assert.deepEqual(Array.from(store.getState().devices, d => d._id), ['nearby']);
+    console.log('PASS All without coordinates, switching to Nearby ignores stale All response');
+  }
   for (const [oldThunk, newThunk] of [
     [refreshDevices, fetchDevices], [fetchDevices, refreshDevices],
     [refreshDevices, refreshDevices], [fetchDevices, fetchDevices],

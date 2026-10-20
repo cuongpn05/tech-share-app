@@ -17,8 +17,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppDispatch } from '../../store';
 import { setAuth } from '../../store/slices/authSlice';
-import { apiClient, setAuthToken } from '../../config/api';
+import { setAuthToken } from '../../config/api';
 import { socketService } from '../../services/socketService';
+import { registerService } from '../../services/registerService';
 import { theme } from '../../theme/tokens';
 
 export interface RegisterScreenProps {
@@ -75,23 +76,26 @@ export function RegisterScreen({
 
   // Xử lý gửi OTP bước 1
   const handleSendOtp = async () => {
-    const trimmedUsername = username.trim();
-    const trimmedName = name.trim();
-    const trimmedEmail = email.trim();
-    const trimmedPhone = phone.trim();
+    // ── Bước 1: Validate form phía client (không cần gọi API) ──
+    const validation = registerService.validate({
+      username,
+      name,
+      email,
+      phone,
+      password,
+      confirmPassword,
+    });
 
-    if (!trimmedUsername || !trimmedName || !trimmedEmail || !trimmedPhone || !password) {
-      setErrorMessage('Vui lòng điền đầy đủ tất cả các trường thông tin.');
-      return;
-    }
-
-    if (password.length < 6) {
-      setErrorMessage('Mật khẩu phải có độ dài ít nhất 6 ký tự.');
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setErrorMessage('Mật khẩu và xác nhận mật khẩu không trùng khớp.');
+    if (!validation.isValid) {
+      setErrorMessage(
+        validation.usernameError ||
+        validation.nameError ||
+        validation.emailError ||
+        validation.phoneError ||
+        validation.passwordError ||
+        validation.confirmPwError ||
+        'Vui lòng kiểm tra lại thông tin.'
+      );
       return;
     }
 
@@ -99,24 +103,25 @@ export function RegisterScreen({
     setErrorMessage(null);
 
     try {
-      const response = await apiClient.post('/auth/register/send-otp', {
-        username: trimmedUsername,
-        name: trimmedName,
-        email: trimmedEmail,
-        phone: trimmedPhone,
+      // ── Bước 2: Gọi registerService → POST /api/register/send-otp ──
+      const data = await registerService.sendOtp({
+        username: username.trim(),
+        name    : name.trim(),
+        email   : email.trim(),
+        phone   : phone.trim(),
         password,
       });
 
-      if (response.data?.success) {
+      if (data.success) {
         setStep('otp');
         setCountdown(60);
         setCanResend(false);
         setOtp('');
       } else {
-        setErrorMessage(response.data?.message || 'Không thể gửi mã OTP. Vui lòng thử lại.');
+        setErrorMessage(data.message || 'Không thể gửi mã OTP. Vui lòng thử lại.');
       }
     } catch (err: any) {
-      console.error('Send OTP error:', err.response?.data || err.message);
+      console.error('[RegisterScreen] Lỗi gửi OTP:', err.response?.data || err.message);
       if (err.response?.data?.message) {
         setErrorMessage(err.response.data.message);
       } else if (err.message === 'Network Error' || !err.response) {
@@ -141,33 +146,36 @@ export function RegisterScreen({
     setErrorMessage(null);
 
     try {
-      const response = await apiClient.post('/auth/register/verify-otp', {
+      // ── Gọi registerService → POST /api/register/verify-otp ──
+      const data = await registerService.verifyOtp({
         email: email.trim(),
-        otp: trimmedOtp,
+        otp  : trimmedOtp,
       });
 
-      if (response.data?.success && response.data?.token && response.data?.user) {
-        const { token, user } = response.data;
-        setAuthToken(token);
+      if (data.success && data.token && data.user) {
+        // Lưu token vào axios headers
+        setAuthToken(data.token);
 
-        const userId = user._id || (user as any).id;
+        // Kết nối Socket.IO
+        const userId = data.user._id || (data.user as any).id;
         if (userId) {
           socketService.connect(userId);
         }
 
-        dispatch(setAuth({ token, user }));
+        // Cập nhật Redux store
+        dispatch(setAuth({ token: data.token, user: data.user }));
 
-        // Tự động chuyển thẳng về trang Home, không hiển thị bất kỳ cửa sổ thông báo nào
+        // Chuyển màn hình theo role
         if (onRegisterSuccess) {
-          onRegisterSuccess(user.role || 'renter');
+          onRegisterSuccess(data.user.role || 'renter');
         } else if (navigation?.navigate) {
           navigation.navigate('Home');
         }
       } else {
-        setErrorMessage(response.data?.message || 'Mã OTP không hợp lệ hoặc đã hết hạn.');
+        setErrorMessage(data.message || 'Mã OTP không hợp lệ hoặc đã hết hạn.');
       }
     } catch (err: any) {
-      console.error('Verify OTP error:', err.response?.data || err.message);
+      console.error('[RegisterScreen] Lỗi xác thực OTP:', err.response?.data || err.message);
       if (err.response?.data?.message) {
         setErrorMessage(err.response.data.message);
       } else {
@@ -186,17 +194,16 @@ export function RegisterScreen({
     setErrorMessage(null);
 
     try {
-      const response = await apiClient.post('/auth/register/resend-otp', {
-        email: email.trim(),
-      });
+      // ── Gọi registerService → POST /api/register/resend-otp ──
+      const data = await registerService.resendOtp(email.trim());
 
-      if (response.data?.success) {
+      if (data.success) {
         setCountdown(60);
         setCanResend(false);
         setOtp('');
         Alert.alert('Thành công', 'Mã OTP mới đã được gửi vào email của bạn.');
       } else {
-        setErrorMessage(response.data?.message || 'Không thể gửi lại mã OTP.');
+        setErrorMessage(data.message || 'Không thể gửi lại mã OTP.');
       }
     } catch (err: any) {
       if (err.response?.data?.message) {

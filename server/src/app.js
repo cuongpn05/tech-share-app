@@ -6,11 +6,14 @@ const deviceRoutes = require('./routes/deviceRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const ownerRoutes = require('./routes/ownerRoutes');
 const authRoutes = require('./routes/authRoutes');
-const loginRoutes = require('./routes/loginRoutes');
+const loginRoutes    = require('./routes/loginRoutes');
+const registerRoutes = require('./routes/registerRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const userManagementRoutes = require('./routes/userManagementRoutes');
+const ekycRoutes = require('./routes/ekycRoutes');
 const aiRoutes= require("./routes/aiRoutes")
 const morgan = require('morgan');
 const { notFound, errorHandler } = require('./middlewares/errorHandler');
@@ -29,6 +32,7 @@ app.get('/api/health', (req, res) => {
 app.use("/api/ai", aiRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/login', loginRoutes);
+app.use('/api/register', registerRoutes);
 app.use('/api/devices', deviceRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/owner', ownerRoutes);
@@ -36,6 +40,8 @@ app.use('/api/chats', chatRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/user-management', userManagementRoutes);
+app.use('/api/ekyc', ekycRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

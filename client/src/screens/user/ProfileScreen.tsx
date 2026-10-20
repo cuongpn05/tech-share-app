@@ -186,7 +186,35 @@ export function ProfileScreen({ navigation, onBack }: ProfileScreenProps) {
   const displayAddress =
     typeof profile.address === 'string'
       ? profile.address
-      : profile.address?.fullAddress || 'Chưa cập nhật địa chỉ';
+      : profile.address?.fullAddress || '';
+
+  const isUserVerified = Boolean(
+    authUser?.isVerified ||
+    (authUser as any)?.trust?.isVerified ||
+    (profile as any)?.isVerified ||
+    (profile as any)?.trust?.isVerified
+  );
+
+  // Điều hướng xác thực eKYC
+  const handleNavigateToEkyc = () => {
+    const rawAddress = (displayAddress || '').trim();
+
+    if (!rawAddress) {
+      Alert.alert(
+        'Yêu cầu cập nhật địa chỉ',
+        'Theo quy định, bạn cần cập nhật địa chỉ liên hệ trong hồ sơ trước khi tiến hành xác thực danh tính (eKYC).',
+        [
+          { text: 'Để sau', style: 'cancel' },
+          { text: 'Cập nhật ngay', onPress: openEditModal },
+        ]
+      );
+      return;
+    }
+
+    if (navigation?.navigate) {
+      navigation.navigate('EkycVerification');
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -338,12 +366,51 @@ export function ProfileScreen({ navigation, onBack }: ProfileScreenProps) {
             </View>
             <View style={styles.infoTextContainer}>
               <Text style={styles.infoLabel}>Địa chỉ</Text>
-              <Text style={styles.infoValue}>{displayAddress}</Text>
+              <Text style={styles.infoValue}>{displayAddress || 'Chưa cập nhật'}</Text>
             </View>
           </View>
         </View>
 
-        {/* ─── 3. MÃ GIỚI THIỆU (REFERRAL CODE) ─── */}
+        {/* ─── 3. ĐỊNH DANH ĐIỆN TỬ (eKYC) ─── */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Xác thực danh tính</Text>
+          <TouchableOpacity
+            style={styles.ekycRow}
+            onPress={handleNavigateToEkyc}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.infoIconCircle, { backgroundColor: isUserVerified ? '#ECFDF5' : '#EEF2FF' }]}>
+              <Ionicons
+                name={isUserVerified ? 'shield-checkmark' : 'shield-outline'}
+                size={20}
+                color={isUserVerified ? '#10B981' : theme.primary}
+              />
+            </View>
+            <View style={styles.infoTextContainer}>
+              <View style={styles.ekycTitleRow}>
+                <Text style={styles.ekycTitle}>Xác thực eKYC (CCCD)</Text>
+                {isUserVerified ? (
+                  <View style={styles.verifiedBadge}>
+                    <Ionicons name="checkmark-circle" size={12} color="#10B981" />
+                    <Text style={styles.verifiedBadgeText}>Đã xác thực</Text>
+                  </View>
+                ) : (
+                  <View style={styles.unverifiedBadge}>
+                    <Text style={styles.unverifiedBadgeText}>Chưa xác thực</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.ekycDescText}>
+                {isUserVerified
+                  ? 'Tài khoản đã hoàn tất xác thực CCCD, đủ điều kiện thuê thiết bị.'
+                  : 'Xác thực CCCD để mở khóa quyền đặt thuê thiết bị trên TechShare.'}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
+          </TouchableOpacity>
+        </View>
+
+        {/* ─── 4. MÃ GIỚI THIỆU (REFERRAL CODE) ─── */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Mã giới thiệu</Text>
           <View style={styles.referralContainer}>
@@ -778,6 +845,58 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+
+  /* eKYC Row Styles */
+  ekycRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  ekycTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  ekycTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.textPrimary,
+  },
+  ekycDescText: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    lineHeight: 16,
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    gap: 3,
+  },
+  verifiedBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#065F46',
+  },
+  unverifiedBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  unverifiedBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#92400E',
   },
 });
 
