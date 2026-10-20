@@ -105,7 +105,7 @@ export function HomeRoute({
             }}
             onNavigateToDeviceDetail={(deviceId) => {
               if (navigation?.navigate) {
-                navigation.navigate('BookingCreate', { deviceId });
+                navigation.navigate('DeviceDetail', { deviceId });
               }
             }}
             onNavigateToBookingCreate={(deviceId) => {
@@ -135,7 +135,7 @@ export function HomeRoute({
           onNavigateToNotifications={handleNavigateToNotifications}
           onNavigateToDeviceDetail={(deviceId) => {
             if (navigation?.navigate) {
-              navigation.navigate('BookingCreate', { deviceId });
+              navigation.navigate('DeviceDetail', { deviceId });
             }
           }}
           unreadMessages={unreadMessages}
