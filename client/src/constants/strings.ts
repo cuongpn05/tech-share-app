@@ -1137,10 +1137,10 @@ export const STRINGS = {
   },
 
   AUTH_VERIFY_ALERT: {
-    TITLE: 'Identity Verification Required',
-    MSG: 'You must complete Identity Verification (eKYC) before renting a device.',
-    LATER: 'Later',
-    VERIFY_NOW: 'Verify Now',
+    TITLE: 'Yêu cầu xác thực danh tính (eKYC)',
+    MSG: 'Bạn cần hoàn tất Xác thực danh tính (eKYC) trước khi đặt thuê thiết bị.',
+    LATER: 'Để sau',
+    VERIFY_NOW: 'Xác thực ngay',
   },
 
 
