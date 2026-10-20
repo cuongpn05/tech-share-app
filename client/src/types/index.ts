@@ -157,6 +157,7 @@ export type DeviceCategory =
   | 'drone'
   | 'audio'
   | 'tablet'
+  | 'gaming'
   | 'accessory';
 
 export interface DeviceAiAnalysis {
@@ -171,10 +172,13 @@ export interface DeviceLocation {
   type: 'Point';
   coordinates: [number, number]; // [lng, lat]
   address: string;
+  addressText?: string;
 }
 
 export interface Device {
   name?: string;
+  pricePerDay?: number;
+  stats?: { ratingAvg?: number; ratingCount?: number };
   distanceMeters?: number;
   _id: string;
   addressText?: string;

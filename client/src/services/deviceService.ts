@@ -5,6 +5,7 @@ export const HOME_NEARBY_RADIUS_METERS = 10000;
 export type DeviceSort = "price_asc" | "price_desc" | "rating_desc" | "newest";
 
 export interface GetDevicesParams {
+  nearby?: boolean;
   category?: DeviceCategory | "all";
   search?: string;
   q?: string;
@@ -28,7 +29,7 @@ export interface DevicePage {
 }
 
 // Kiểm tra dữ liệu trước khi Redux dùng để hiển thị và phân trang.
-function validateNearbyResponse(
+function validateDevicePageResponse(
   responseBody: DevicePage & { success: boolean },
   requestedPage: number,
 ): void {
@@ -38,7 +39,7 @@ function validateNearbyResponse(
     !Array.isArray(responseBody.data) ||
     !pagination
   ) {
-    throw new Error("Invalid nearby device response");
+    throw new Error("Invalid device page response");
   }
 
   const isValidPagination =
@@ -51,7 +52,7 @@ function validateNearbyResponse(
     pagination.totalPages >= 0 &&
     typeof pagination.hasNextPage === "boolean";
   if (!isValidPagination) {
-    throw new Error("Invalid nearby device response");
+    throw new Error("Invalid device page response");
   }
 
   const hasInvalidDevice = responseBody.data.some(
@@ -63,11 +64,30 @@ function validateNearbyResponse(
       !device.name.trim(),
   );
   if (responseBody.data.length > 10 || hasInvalidDevice) {
-    throw new Error("Invalid nearby device response");
+    throw new Error("Invalid device page response");
   }
 }
 
 export const deviceService = {
+  async getCategories(): Promise<DeviceCategory[]> {
+    const response = await apiClient.get('/devices/categories');
+    if (response.data?.success !== true || !Array.isArray(response.data.data) ||
+        response.data.data.some((category: unknown) => typeof category !== 'string')) {
+      throw new Error('Invalid device categories response');
+    }
+    return response.data.data;
+  },
+
+  async getDevicesPage(params: GetDevicesParams): Promise<DevicePage> {
+    const page = params.page || 1;
+    const response = await apiClient.get('/devices', { params: {
+      page, limit: 10,
+      category: params.category !== 'all' ? params.category : undefined,
+      q: (params.q || params.search || '').trim() || undefined,
+    } });
+    validateDevicePageResponse(response.data, page);
+    return response.data;
+  },
   async getDevices(
     params?: Pick<GetDevicesParams, "limit">,
   ): Promise<Device[]> {
@@ -123,7 +143,7 @@ export const deviceService = {
         console.log("[HOME NEARBY] received:", responseBody?.data?.length);
         console.log("[HOME NEARBY] pagination:", responseBody?.pagination);
       }
-      validateNearbyResponse(responseBody, requestParams.page);
+      validateDevicePageResponse(responseBody, requestParams.page);
       if (debug) {
         const invalidLocationCount = responseBody.data.filter((device) => {
           const coordinates = device.location?.coordinates;

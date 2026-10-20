@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const ts = require('typescript');
 const compiled = ts.transpileModule(fs.readFileSync(`${__dirname}/src/hooks/useHomeLocation.ts`,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText;
 const tick = async () => { for(let i=0;i<12;i++) await new Promise(resolve=>setImmediate(resolve)); };
-function harness() {
+function harness(enabled = true) {
   let cursor=0, granted=false, services=true, currentFails=false, watch, removals=0;
   const slots=[], effects=[], callbacks=[];
   const coordinate=(lat=21,lng=105)=>({coords:{latitude:lat,longitude:lng},timestamp:Date.now()});
@@ -12,8 +12,8 @@ function harness() {
   const location={Accuracy:{High:4},getForegroundPermissionsAsync:async()=>({granted,status:granted?'granted':'denied'}),requestForegroundPermissionsAsync:async()=>({granted,status:granted?'granted':'denied'}),hasServicesEnabledAsync:async()=>services,getLastKnownPositionAsync:async()=>null,watchPositionAsync:async(options,fn)=>{watch=fn;return {remove:()=>removals++}},getCurrentPositionAsync:async()=>{if(currentFails)throw new Error('GPS unavailable');return coordinate()}};
   const exports={};
   vm.runInNewContext(compiled,{exports,__DEV__:false,Error,setTimeout,clearTimeout,console,require:name=>name==='react'?react:name==='expo-location'?location:name==='react-native'?{AppState:{addEventListener:()=>({remove:()=>removals++})}}:{useFocusEffect:()=>{}}});
-  const render=()=>{cursor=0;return exports.useHomeLocation((position,force)=>callbacks.push({position,force}))};
-  const initial=render();const cleanup=effects[0]();
+  const render=()=>{cursor=0;return exports.useHomeLocation((position,force)=>callbacks.push({position,force}), enabled)};
+  const initial=render();const cleanup=effects[0]() || (() => {});
   return {render,initial,callbacks,coordinate,cleanup,setGranted:v=>granted=v,setServices:v=>services=v,setCurrentFails:v=>currentFails=v,move:p=>watch(p),removals:()=>removals};
 }
 (async()=>{
@@ -28,7 +28,16 @@ function harness() {
   h.setCurrentFails(true);await h.render().refresh(true);
   assert.equal(h.render().error,null);assert.match(h.render().warning,/GPS unavailable/);assert.equal(h.callbacks.at(-1).force,true);
   assert.equal(h.render().isRefreshingLocation,false);
+  h.setGranted(false);await h.render().refresh();
+  assert.match(h.render().error,/Allow location access/);
+  assert.equal(h.render().position,null);
   h.cleanup();assert.equal(h.removals(),2);
+  const disabled=harness(false);await tick();
+  disabled.setGranted(true);await disabled.render().refresh();
+  assert.equal(disabled.callbacks.length,0);
+  assert.equal(disabled.removals(),0);
+  disabled.cleanup();
+  console.log('PASS disabled GPS and revoked permission clears previous location');
   console.log('PASS mocked GPS hook: permission denied, services off, retry, movement threshold, transient error fallback, forced refresh, cleanup.');
   console.log('NOT TESTED: actual device permissions, GPS hardware or native lifecycle.');
 })().catch(error=>{console.error(error.message);process.exitCode=1});

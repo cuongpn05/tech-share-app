@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -29,7 +29,7 @@ import { CategoryBar } from '../../components/home/CategoryBar';
 import { PromoBanner } from '../../components/home/PromoBanner';
 import { SectionHeader } from '../../components/home/SectionHeader';
 import { DeviceCard } from '../../components/device/DeviceCard';
-import { GetDevicesParams, HOME_NEARBY_RADIUS_METERS } from '../../services/deviceService';
+import { deviceService, GetDevicesParams, HOME_NEARBY_RADIUS_METERS } from '../../services/deviceService';
 import { Device, DeviceCategory } from '../../types';
 import { colors } from '../../theme/colors';
 import { STRINGS } from '../../constants/strings';
@@ -100,19 +100,35 @@ export function HomeScreen({
   const searchInput = searchValue;
   const searchEnabled = !!onSearchChange;
 
+  const [nearby, setNearby] = useState(false);
+  const [categories, setCategories] = useState<DeviceCategory[]>([]);
+  const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+  const [categoryReload, setCategoryReload] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setIsLoadingCategories(true);
+    setCategoryError(null);
+    deviceService.getCategories().then(data => { if (active) setCategories(data); })
+      .catch(() => { if (active) setCategoryError('Unable to load categories'); })
+      .finally(() => { if (active) setIsLoadingCategories(false); });
+    return () => { active = false; };
+  }, [categoryReload]);
+
   const currentLocationRef = useRef<HomeCoordinate | null>(null);
   const isLoadingNextPageRef = useRef(false);
   const latestFiltersRef = useRef({ category: selectedCategory, search: searchInput });
   latestFiltersRef.current = { category: selectedCategory, search: searchInput };
 
   // Callback GPS luôn đọc bộ lọc mới nhất, kể cả khi vừa đổi danh mục.
-  const location = useHomeLocation(handleLocationChange);
+  const location = useHomeLocation(handleLocationChange, nearby);
 
-  function loadNearbyDevices(params: GetDevicesParams) {
-    if (!currentLocationRef.current) return;
+  function loadDevices(params: GetDevicesParams) {
+    if (nearby && !currentLocationRef.current) return;
     return dispatch(fetchDevices({
       ...params,
-      ...currentLocationRef.current,
+      nearby,
+      ...(nearby ? currentLocationRef.current : {}),
       radius: HOME_NEARBY_RADIUS_METERS,
       page: params.page || 1,
       limit: DEVICES_PER_PAGE,
@@ -120,10 +136,12 @@ export function HomeScreen({
   }
 
   function handleLocationChange(coordinate: HomeCoordinate, force: boolean) {
+    if (!nearby) return;
     const previousLocation = currentLocationRef.current;
     currentLocationRef.current = coordinate;
     const requestParams = {
       ...latestFiltersRef.current,
+      nearby: true,
       ...coordinate,
       radius: HOME_NEARBY_RADIUS_METERS,
       page: 1,
@@ -140,10 +158,10 @@ export function HomeScreen({
     dispatch(fetchDevices(requestParams));
   }
   const { error: locationError, warning: locationWarning, isLocating, isRefreshingLocation } = location;
-  let locationLabel = 'Location unavailable';
-  if (location.position) {
-    locationLabel = `${location.position.latitude.toFixed(4)}, ${location.position.longitude.toFixed(4)}`;
-  } else if (isLocating) {
+  let locationLabel = nearby ? 'Location unavailable' : 'Browse all devices';
+  if (nearby && location.position) {
+    locationLabel = `${location.position.latitude.toFixed(4)}, ${location.position.longitude.toFixed(4)}${location.source === 'CURRENT' ? '' : ' (last known)'}`;
+  } else if (nearby && isLocating) {
     locationLabel = 'Getting your location...';
   }
 
@@ -151,23 +169,24 @@ export function HomeScreen({
     // Đổi danh mục phải tải trang 1 và xóa kết quả phân trang cũ.
     latestFiltersRef.current = { ...latestFiltersRef.current, category };
     dispatch(setSelectedCategory(category));
-    loadNearbyDevices(latestFiltersRef.current);
+    loadDevices(latestFiltersRef.current);
   };
 
   const handleRefresh = () => {
-    void location.refresh(true);
+    if (nearby) void location.refresh(true);
+    else dispatch(refreshDevices({ ...latestFiltersRef.current, nearby: false }));
   };
 
   const handleLoadMore = () => {
     const isRequestInProgress = isLoading || isRefreshing || isLoadingNextPageRef.current;
-    const isLocationUnavailable = !currentLocationRef.current || isLocating || !!locationError;
+    const isLocationUnavailable = nearby && (!currentLocationRef.current || isLocating || !!locationError);
     const hasSearchChanged = searchInput !== searchQuery;
     const isPaginationBlocked = !!error || page < 1 || !hasNextPage || hasSearchChanged;
     if (isLocationUnavailable || isRequestInProgress || isPaginationBlocked) return;
 
     // FlatList có thể báo cuối danh sách nhiều lần trước khi Redux render lại.
     isLoadingNextPageRef.current = true;
-    const request = loadNearbyDevices({
+    const request = loadDevices({
       category: selectedCategory,
       search: searchQuery,
       page: page + 1,
@@ -178,12 +197,12 @@ export function HomeScreen({
   };
 
   const handleRetry = () => {
-    loadNearbyDevices({ category: selectedCategory, search: searchInput });
+    loadDevices({ category: selectedCategory, search: searchInput });
   };
 
   const handleRetryFailedPage = () => {
     const pageToRetry = failedPage || 1;
-    loadNearbyDevices({
+    loadDevices({
       category: selectedCategory,
       search: searchQuery,
       page: pageToRetry,
@@ -198,8 +217,22 @@ export function HomeScreen({
     latestFiltersRef.current = { category: 'all', search: '' };
     onSearchChange?.('');
     dispatch(clearFilters());
-    loadNearbyDevices({ category: 'all', search: '' });
+    loadDevices({ category: 'all', search: '' });
   };
+
+  useEffect(() => {
+    if (searchInput === searchQuery || (nearby && !currentLocationRef.current)) return;
+    const timeout = setTimeout(() => {
+      loadDevices({ category: selectedCategory, search: searchInput });
+    }, 250);
+    return () => clearTimeout(timeout);
+  }, [searchInput, nearby, selectedCategory]);
+
+  useEffect(() => {
+    dispatch(resetDeviceDiscovery());
+    currentLocationRef.current = null;
+    if (!nearby) loadDevices(latestFiltersRef.current);
+  }, [nearby]);
 
   useEffect(() => {
     if (__DEV__) {
@@ -322,8 +355,25 @@ export function HomeScreen({
         </View>
       </View>
 
+      <View style={{ flexDirection: 'row', gap: 16, paddingHorizontal: 16 }}>
+        {([false, true] as const).map(value => (
+          <TouchableOpacity key={String(value)} onPress={() => setNearby(value)}
+            accessibilityRole="button" accessibilityState={{ selected: nearby === value }}>
+            <Text style={{ color: nearby === value ? colors.light.primary : colors.light.textSecondary }}>
+              {value ? 'Nearby (10 km)' : 'All devices'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      {isLoadingCategories && <ActivityIndicator color={colors.light.primary} />}
+      {categoryError && (
+        <TouchableOpacity onPress={() => setCategoryReload(value => value + 1)}>
+          <Text style={styles.errorSubtitle}>{categoryError}. Tap to retry.</Text>
+        </TouchableOpacity>
+      )}
       {/* DEVICE CATEGORIES */}
       <CategoryBar
+        categories={categories}
         selectedCategory={selectedCategory}
         onSelectCategory={handleSelectCategory}
       />
@@ -331,20 +381,20 @@ export function HomeScreen({
       {/* PROMO BANNER CAROUSEL */}
       <PromoBanner />
 
-      {locationWarning && (
+      {nearby && locationWarning && (
         <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
           <Text style={{ color: colors.light.textSecondary }}>{locationWarning} Showing your last known area.</Text>
         </View>
       )}
       {/* SECTION HEADER */}
       <SectionHeader
-        title={STRINGS.HOME_SCREEN.SECTION_DISCOVER_TITLE}
+        title={nearby ? 'Nearby devices (10 km)' : STRINGS.HOME_SCREEN.SECTION_DISCOVER_TITLE}
         subtitle={
           selectedCategory === 'all'
             ? STRINGS.HOME_SCREEN.SECTION_DISCOVER_SUB_ALL
             : STRINGS.HOME_SCREEN.SECTION_DISCOVER_SUB_FILTER(selectedCategory.toUpperCase())
         }
-        badgeCount={hasLoaded && !locationError ? filteredDevices.length : undefined}
+        badgeCount={hasLoaded && !(nearby && locationError) ? filteredDevices.length : undefined}
         actionText={selectedCategory !== 'all' ? STRINGS.HOME_SCREEN.SEE_ALL : undefined}
         onActionPress={
           selectedCategory !== 'all'
@@ -373,9 +423,9 @@ export function HomeScreen({
 
   // Empty State
   const renderEmptyState = () => {
-    if (locationError) return renderLocationError();
+    if (nearby && locationError) return renderLocationError();
     if (error) return renderErrorState();
-    if (isInitialLoading || isLocating || !hasLoaded) {
+    if (isInitialLoading || (nearby && isLocating) || !hasLoaded) {
       return renderLoadingSkeleton();
     }
 
@@ -450,7 +500,7 @@ export function HomeScreen({
     if (filteredDevices.length === 0) return null;
 
     let footerContent;
-    if (isLoadingMore || isRefreshing || isLocating) {
+    if (isLoadingMore || isRefreshing || (nearby && isLocating)) {
       footerContent = <ActivityIndicator color={colors.light.primary} />;
     } else if (error) {
       footerContent = (
@@ -477,7 +527,7 @@ export function HomeScreen({
       <StatusBar barStyle="dark-content" />
 
       <FlatList
-        data={filteredDevices}
+        data={nearby && locationError ? [] : filteredDevices}
         keyExtractor={(item: Device) => item._id}
         renderItem={renderDeviceCard}
         numColumns={2}
@@ -489,7 +539,7 @@ export function HomeScreen({
         ListFooterComponent={renderListFooter() ?? undefined}
         refreshControl={
           <RefreshControl
-            refreshing={isRefreshing || isRefreshingLocation}
+            refreshing={isRefreshing || (nearby && isRefreshingLocation)}
             onRefresh={handleRefresh}
             tintColor={colors.light.primary}
             colors={[colors.light.primary, colors.light.primaryHover]}

@@ -36,7 +36,20 @@ vm.runInNewContext(compiled.outputText, {
   assert.deepEqual(JSON.parse(JSON.stringify(received.params)), {
     lat: 21, lng: 105, radius: 10000, category: 'camera', q: 'sony', page: 2, limit: 10,
   });
+  const allPage = await deviceService.getDevicesPage({ page: 2, category: 'gaming', search: ' console ' });
+  assert.equal(allPage.pagination.page, 2);
+  assert.equal(received.url, '/devices');
+  assert.deepEqual(JSON.parse(JSON.stringify(received.params)), { page: 2, limit: 10, category: 'gaming', q: 'console' });
+  const categoryGet = apiClient.get;
+  apiClient.get = async url => {
+    assert.equal(url, '/devices/categories');
+    return { data: { success: true, data: ['gaming', 'tablet'] } };
+  };
+  assert.deepEqual(await deviceService.getCategories(), ['gaming', 'tablet']);
+  apiClient.get = categoryGet;
   offline = true;
+  await assert.rejects(deviceService.getDevicesPage({ page: 1 }), /Offline test/);
+  await assert.rejects(deviceService.getCategories(), /Offline test/);
   await assert.rejects(deviceService.getNearbyDevicesPage({ latitude: 21, longitude: 105 }), /Offline test/);
   offline = false;
   await assert.rejects(deviceService.getNearbyDevicesPage({}), /require your location/);
@@ -44,7 +57,7 @@ vm.runInNewContext(compiled.outputText, {
   for (const body of [{ success: true, data: [] }, { success: false, data: [], pagination: {} },
     { success: true, data: [{ _id: 'broken' }], pagination: { page: 1, limit: 10, totalItems: 1, totalPages: 1, hasNextPage: false } }]) {
     apiClient.get = async () => ({ status: 200, data: body });
-    await assert.rejects(deviceService.getNearbyDevicesPage({ latitude: 21, longitude: 105 }), /Invalid nearby/);
+    await assert.rejects(deviceService.getNearbyDevicesPage({ latitude: 21, longitude: 105 }), /Invalid device page/);
   }
   apiClient.get = originalGet;
   console.log('PASS Home service: coordinates, filters, page metadata and no fake fallback on network failure');
