@@ -164,8 +164,88 @@ export async function submitEkycRequest(payload: SubmitEkycPayload): Promise<Sub
   return response.data;
 }
 
+// ─────────────────────────────────────────────────────────
+//  Phân hệ Admin: Quản lý duyệt eKYC (View eKYC Submissions)
+// ─────────────────────────────────────────────────────────
+
+export interface AdminEkycUser {
+  _id     : string | null;
+  name    : string;
+  email   : string;
+  phone   : string;
+  address : string;
+  avatar  : string | null;
+  joinedAt: string | null;
+}
+
+export interface AdminEkycItem {
+  _id           : string;
+  idCardNumber  : string;
+  idCardFrontUrl: string;
+  idCardBackUrl : string;
+  selfieUrl     : string;
+  status        : 'pending' | 'approved' | 'rejected';
+  rejectReason  : string;
+  reviewedAt    : string | null;
+  createdAt     : string;
+  user          : AdminEkycUser;
+}
+
+export interface AdminEkycCounts {
+  totalAll     : number;
+  totalPending : number;
+  totalApproved: number;
+  totalRejected: number;
+}
+
+export interface AdminEkycListParams {
+  status?: string;
+  search?: string;
+  page?  : number;
+  limit? : number;
+}
+
+export interface AdminEkycListResponse {
+  success   : boolean;
+  message   : string;
+  data      : AdminEkycItem[];
+  counts    : AdminEkycCounts;
+  pagination: {
+    page       : number;
+    limit      : number;
+    total      : number;
+    totalPages : number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
+  filters: {
+    status: string;
+    search: string;
+  };
+}
+
+/**
+ * 4. Lấy danh sách đơn eKYC dành cho Admin (View eKYC Submissions List)
+ */
+export async function getAdminEkycList(params: AdminEkycListParams = {}): Promise<AdminEkycListResponse> {
+  const queryRecord: Record<string, string> = {};
+
+  if (params.page)                     queryRecord.page   = String(params.page);
+  if (params.limit)                    queryRecord.limit  = String(params.limit);
+  if (params.status && params.status !== 'all') queryRecord.status = params.status;
+  if (params.search && params.search.trim()) queryRecord.search = params.search.trim();
+
+  const queryString = new URLSearchParams(queryRecord).toString();
+  const url = queryString ? `/admin/ekyc?${queryString}` : '/admin/ekyc';
+
+  const response = await apiClient.get<AdminEkycListResponse>(url);
+  return response.data;
+}
+
 export default {
   getEkycStatus,
   uploadEkycPhoto,
   submitEkycRequest,
+  getAdminEkycList,
 };
+

@@ -232,8 +232,135 @@ const submitEkycRequest = async (req, res) => {
   }
 };
 
+/**
+ * ─────────────────────────────────────────────────────────────
+ *  4. GET ADMIN EKYC SUBMISSIONS LIST (Dành cho Admin Dashboard)
+ * ─────────────────────────────────────────────────────────────
+ *  Route: GET /api/admin/ekyc hoặc GET /api/ekyc/admin/submissions
+ *  Quyền: Admin (requireAuth, adminMiddleware)
+ *  Tính năng:
+ *   - Lấy danh sách các đơn xác thực từ collection ekyc_requests
+ *   - Lọc theo status: 'all' | 'pending' | 'approved' | 'rejected'
+ *   - Tìm kiếm theo số CCCD (idCardNumber), họ tên, email, SĐT
+ *   - Phân trang, đếm tổng số lượng cho từng tab
+ *   - Mới load list lên, chưa xử lý duyệt / từ chối
+ */
+const getAdminEkycSubmissions = async (req, res) => {
+  try {
+    const statusFilter = String(req.query.status || 'all').trim().toLowerCase();
+    const search = String(req.query.search || '').trim();
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
+    const skip = (page - 1) * limit;
+
+    // ── Bước 1: Build filter cơ bản theo status ─────────────
+    const filter = {};
+    if (statusFilter && ['pending', 'approved', 'rejected'].includes(statusFilter)) {
+      filter.status = statusFilter;
+    }
+
+    // ── Bước 2: Xử lý tìm kiếm ──────────────────────────────
+    if (search) {
+      const escapeRegex = (text) => text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+      const searchRegex = new RegExp(escapeRegex(search), 'i');
+
+      // Tìm các user có tên hoặc phone khớp search
+      const matchedUsers = await User.find({
+        $or: [{ name: searchRegex }, { phone: searchRegex }],
+      }).select('_id').lean();
+
+      const matchedUserIds = matchedUsers.map((u) => u._id);
+
+      filter.$or = [
+        { idCardNumber: searchRegex },
+        { userId: { $in: matchedUserIds } },
+      ];
+    }
+
+    // ── Bước 3: Đếm tổng số lượng cho từng trạng thái ───────
+    const [totalAll, totalPending, totalApproved, totalRejected, totalMatched] = await Promise.all([
+      EkycRequest.countDocuments({}),
+      EkycRequest.countDocuments({ status: 'pending' }),
+      EkycRequest.countDocuments({ status: 'approved' }),
+      EkycRequest.countDocuments({ status: 'rejected' }),
+      EkycRequest.countDocuments(filter),
+    ]);
+
+    // ── Bước 4: Truy vấn danh sách eKYC kèm thông tin user ──
+    const submissions = await EkycRequest
+      .find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate({
+        path: 'userId',
+        select: 'name phone email address avatar accountId createdAt',
+        populate: {
+          path: 'accountId',
+          select: 'email username',
+        },
+      })
+      .lean();
+
+    // ── Bước 5: Chuẩn hóa dữ liệu trả về ────────────────────
+    const formattedData = submissions.map((sub) => {
+      const u = sub.userId || {};
+      const acc = u.accountId || {};
+      return {
+        _id: sub._id,
+        idCardNumber: sub.idCardNumber || '',
+        idCardFrontUrl: sub.idCardFrontUrl || '',
+        idCardBackUrl: sub.idCardBackUrl || '',
+        selfieUrl: sub.selfieUrl || '',
+        status: sub.status || 'pending',
+        rejectReason: sub.rejectReason || '',
+        reviewedAt: sub.reviewedAt || null,
+        createdAt: sub.createdAt,
+        user: {
+          _id: u._id || null,
+          name: u.name || 'Người dùng',
+          email: acc.email || u.email || 'Chưa cập nhật',
+          phone: u.phone || 'Chưa cập nhật',
+          address: u.address || 'Chưa cập nhật',
+          avatar: u.avatar || null,
+          joinedAt: u.createdAt || null,
+        },
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Tìm thấy ${totalMatched} đơn eKYC.`,
+      data: formattedData,
+      counts: {
+        totalAll,
+        totalPending,
+        totalApproved,
+        totalRejected,
+      },
+      pagination: {
+        page,
+        limit,
+        total: totalMatched,
+        totalPages: Math.ceil(totalMatched / limit) || 1,
+        hasNextPage: page < Math.ceil(totalMatched / limit),
+        hasPrevPage: page > 1,
+      },
+      filters: { status: statusFilter, search },
+    });
+  } catch (error) {
+    console.error('[EkycController] Lỗi trong getAdminEkycSubmissions:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi máy chủ khi lấy danh sách đơn xác thực eKYC.',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getMyEkycStatus,
   uploadEkycImage,
   submitEkycRequest,
+  getAdminEkycSubmissions,
 };

@@ -18,8 +18,10 @@ const {
   getMyEkycStatus,
   uploadEkycImage,
   submitEkycRequest,
+  getAdminEkycSubmissions,
 } = require('../controllers/ekycController');
 const { requireAuth } = require('../middlewares/authMiddleware');
+const { adminMiddleware } = require('../middlewares/adminMiddleware');
 const { uploadFlexibleImage } = require('../middlewares/uploadMiddleware');
 
 const router = express.Router();
@@ -35,5 +37,8 @@ router.post('/upload-image', uploadFlexibleImage, uploadEkycImage);
 
 // 3. Nộp đơn yêu cầu xác thực eKYC
 router.post('/submit', submitEkycRequest);
+
+// 4. Lấy danh sách đơn xác thực eKYC (Admin)
+router.get('/admin/submissions', adminMiddleware, getAdminEkycSubmissions);
 
 module.exports = router;
