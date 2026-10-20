@@ -4,7 +4,6 @@ import {
   View,
   Text,
   ScrollView,
-  type ScrollViewInstance,
   Image,
   Dimensions,
   TouchableOpacity,
@@ -62,7 +61,7 @@ interface PromoBannerProps {
 
 export function PromoBanner({ onPressBanner }: PromoBannerProps) {
   const [activeIndex, setActiveIndex] = useState(0);
-  const scrollRef = useRef<ScrollViewInstance | null>(null);
+  const scrollRef = useRef<ScrollView | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const startAutoScroll = () => {
