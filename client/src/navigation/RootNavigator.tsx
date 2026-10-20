@@ -16,6 +16,7 @@ import { BookingCreateScreen } from '../screens/booking/BookingCreateScreen';
 import { MyBookingsScreen } from '../screens/booking/MyBookingsScreen';
 import { BookingDetailScreen } from '../screens/booking/BookingDetailScreen';
 import { ProfileScreen } from '../screens/user/ProfileScreen';
+import { EkycVerificationScreen } from '../screens/user/EkycVerificationScreen';
 import { socketService } from '../services/socketService';
 import { setAuthToken } from '../config/api';
 import { navigationRef } from './navigationRef';
@@ -37,6 +38,7 @@ export type RootStackParamList = {
   Admin: undefined;
   Home: { initialTab?: ScreenType } | undefined;
   Profile: undefined;
+  EkycVerification: undefined;
   OwnerMessages: undefined;
   ChatDetail: { bookingId?: string; otherBookings?: any[] } | undefined;
   Notification: undefined;
@@ -53,7 +55,7 @@ const BookingCreateRoute = ({ route, navigation }: any) => (
     deviceId={route.params.deviceId}
     onBack={() => navigation.goBack()}
     onSuccess={() => navigation.navigate('Home', { initialTab: 'bookings' })}
-    onNavigateToVerification={() => navigation.navigate('Home')}
+    onNavigateToVerification={() => navigation.navigate('EkycVerification')}
     onNavigateToLogin={() => navigation.navigate('Login')}
   />
 );
@@ -212,6 +214,7 @@ export function RootNavigator() {
           <Stack.Screen name="Profile">
             {({ navigation }) => <ProfileScreen navigation={navigation} onBack={() => navigation.goBack()} />}
           </Stack.Screen>
+          <Stack.Screen name="EkycVerification" component={EkycVerificationScreen} />
           <Stack.Screen name="BookingCreate" component={BookingCreateRoute} />
           <Stack.Screen name="MyBookings" component={MyBookingsRoute} />
           <Stack.Screen name="BookingDetail" component={BookingDetailRoute} />
@@ -263,6 +266,7 @@ export function RootNavigator() {
           <Stack.Screen name="Profile">
             {({ navigation }) => <ProfileScreen navigation={navigation} onBack={() => navigation.goBack()} />}
           </Stack.Screen>
+          <Stack.Screen name="EkycVerification" component={EkycVerificationScreen} />
           <Stack.Screen name="BookingCreate" component={BookingCreateRoute} />
           <Stack.Screen name="MyBookings" component={MyBookingsRoute} />
           <Stack.Screen name="BookingDetail" component={BookingDetailRoute} />
