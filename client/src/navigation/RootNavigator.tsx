@@ -16,6 +16,7 @@ import { BookingCreateScreen } from '../screens/booking/BookingCreateScreen';
 import { MyBookingsScreen } from '../screens/booking/MyBookingsScreen';
 import { BookingDetailScreen } from '../screens/booking/BookingDetailScreen';
 import { ProfileScreen } from '../screens/user/ProfileScreen';
+import { AiChatConsultant } from '../screens/ai/AiChatConsultant';
 import { socketService } from '../services/socketService';
 import { setAuthToken } from '../config/api';
 import { navigationRef } from './navigationRef';
@@ -43,6 +44,7 @@ export type RootStackParamList = {
   BookingCreate: { deviceId: string };
   MyBookings: undefined;
   BookingDetail: { bookingId: string };
+  AiChatConsultant: undefined;
 };
 
 
@@ -73,6 +75,15 @@ const BookingDetailRoute = ({ route, navigation }: any) => (
     onBack={() => navigation.goBack()}
     onNavigateToChat={(bookingId) => navigation.navigate('ChatDetail', { bookingId })}
     onNavigateToBookingCreate={(deviceId) => navigation.navigate('BookingCreate', { deviceId })}
+  />
+);
+
+const AiChatConsultantRoute = ({ navigation }: any) => (
+  <AiChatConsultant
+    onBack={() => navigation.goBack()}
+    onNavigateToDeviceDetail={(deviceId) =>
+      navigation.navigate('BookingCreate', { deviceId })
+    }
   />
 );
 
@@ -215,6 +226,10 @@ export function RootNavigator() {
           <Stack.Screen name="BookingCreate" component={BookingCreateRoute} />
           <Stack.Screen name="MyBookings" component={MyBookingsRoute} />
           <Stack.Screen name="BookingDetail" component={BookingDetailRoute} />
+          <Stack.Screen
+            name="AiChatConsultant"
+            component={AiChatConsultantRoute}
+          />
         </>
       ) : (
         // ── PHÂN HỆ KHÁCH CHƯA ĐĂNG NHẬP (Guest) ────────────────────────
@@ -266,6 +281,10 @@ export function RootNavigator() {
           <Stack.Screen name="BookingCreate" component={BookingCreateRoute} />
           <Stack.Screen name="MyBookings" component={MyBookingsRoute} />
           <Stack.Screen name="BookingDetail" component={BookingDetailRoute} />
+          <Stack.Screen
+            name="AiChatConsultant"
+            component={AiChatConsultantRoute}
+          />
         </>
       )}
     </Stack.Navigator>

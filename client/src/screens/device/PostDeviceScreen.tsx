@@ -17,8 +17,10 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AiGenerateButton from '../../components/ai/AiGenerateButton';
 import { ImageUploadGrid } from '../../components/device/ImageUploadGrid';
 import { STRINGS } from '../../constants/strings';
+import { generateDescription } from '../../services/aiService';
 import { devicePostService } from '../../services/devicePostService';
 import { useAppSelector } from '../../store';
 import { colors } from '../../theme/colors';
@@ -73,6 +75,7 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
   const [validateSignal, setValidateSignal] = useState(0);
   const [submitted, setSubmitted] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [publishError, setPublishError] = useState('');
   const [devices, setDevices] = useState<Device[]>([]);
   const [devicePage, setDevicePage] = useState(1);
@@ -83,6 +86,64 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
     (devicePage - 1) * DEVICES_PER_PAGE,
     devicePage * DEVICES_PER_PAGE,
   );
+
+  const handleGenerateDescription = async () => {
+    const pricePerDay = Number(price);
+    const deposit = Number(depositAmount);
+
+    if (!deviceName.trim() || !brand.trim()) {
+      Alert.alert('Missing device details', 'Enter the device name and brand first.');
+      return;
+    }
+    if (
+      !price.trim() ||
+      !depositAmount.trim() ||
+      !Number.isFinite(pricePerDay) ||
+      !Number.isFinite(deposit) ||
+      pricePerDay <= 0 ||
+      deposit <= 0
+    ) {
+      Alert.alert(
+        'Invalid price',
+        'Enter a rental price and deposit greater than zero.',
+      );
+      return;
+    }
+
+    const specs: Record<string, string> = {};
+    specifications.forEach((item) => {
+      const name = item.name.trim();
+      const value = item.value.trim();
+      if (name && value) specs[name] = value;
+    });
+
+    setIsGenerating(true);
+    try {
+      const response = await generateDescription({
+        name: deviceName.trim(),
+        brand: brand.trim(),
+        category: category.trim(),
+        pricePerDay,
+        depositAmount: deposit,
+        specs,
+      });
+      setDescription(response.description);
+    } catch (error: unknown) {
+      console.error('[PostDeviceScreen] Cannot generate description:', error);
+      const serverMessage: unknown = axios.isAxiosError(error)
+        ? error.response?.data?.message
+        : undefined;
+      const message =
+        typeof serverMessage === 'string'
+          ? serverMessage
+          : error instanceof Error
+            ? error.message
+            : 'Could not generate the description. Please try again.';
+      Alert.alert('Description generation failed', message);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   useEffect(() => {
     let isCurrent = true;
@@ -499,6 +560,10 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
             />
             <Text style={styles.counter}>{description.length} / 500</Text>
           </View>
+          <AiGenerateButton
+            onPress={handleGenerateDescription}
+            loading={isGenerating}
+          />
           {submitted && !description.trim() ? <Text style={styles.errorText}>{STRINGS.POST_DEVICE.ERR_DESCRIPTION_REQUIRED}</Text> : null}
         </View>
 

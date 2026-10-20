@@ -121,6 +121,8 @@ export function HomeRoute({
           navigation={navigation}
           onBack={() => setActiveTab('home')}
         />
+      ) : activeTab === 'compare' ? (
+        <AiCompareScreen />
       ) : (
         <HomeScreen
           navigation={navigation}
@@ -132,6 +134,7 @@ export function HomeRoute({
           showOwnerDashboard={!!onReturnToOwner}
           onNavigateToOwnerDashboard={onReturnToOwner}
           onNavigateToChat={handleNavigateToChat}
+          onNavigateToAiConsultant={() => navigation?.navigate('AiChatConsultant')}
           onNavigateToNotifications={handleNavigateToNotifications}
           onNavigateToDeviceDetail={(deviceId) => {
             if (navigation?.navigate) {
@@ -144,7 +147,7 @@ export function HomeRoute({
       )}
       <BottomTabNavigator
         activeTab={activeTab}
-        enabledTabs={['home', 'bookings', 'profile']}
+        enabledTabs={['home', 'bookings', 'compare', 'profile']}
         onTabPress={(tab) => setActiveTab(tab)}
         safeAreaBottom={insets.bottom}
       />
