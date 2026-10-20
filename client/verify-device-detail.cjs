@@ -35,6 +35,7 @@ let effects = [];
 let updates = 0;
 let tree;
 const rented = [];
+const viewedOwners = [];
 let backs = 0;
 const react = {
   createElement: (type, props, ...children) => ({ type, props: { ...props, children } }),
@@ -69,7 +70,8 @@ const { DeviceDetailScreen } = compile(read(detailPath), name => {
 let id = '507f1f77bcf86cd799439011';
 function render(nextId = id) {
   id = nextId; cursor = 0; effects = [];
-  tree = DeviceDetailScreen({ deviceId: id, onBack: () => backs++, onRent: value => rented.push(value) });
+  tree = DeviceDetailScreen({ deviceId: id, onBack: () => backs++, onRent: value => rented.push(value),
+    onViewOwner: value => viewedOwners.push(value) });
   effects.forEach(effect => effect());
 }
 const tick = async () => { for (let i = 0; i < 8; i++) await new Promise(resolve => setImmediate(resolve)); };
@@ -79,7 +81,7 @@ const data = {
   _id: id, name: 'Database camera', category: 'camera', pricePerDay: 450000, status: 'available',
   description: 'A long description from the database.', images: ['/uploads/camera.jpg', 'https://example.com/second.jpg'],
   specs: { cpu_model: 'M3', RAM: '32GB', videoResolution: '4K', nil: null, absent: 'undefined', bad: { nested: true }, zero: 0 },
-  ownerId: { name: 'Database owner', address: { fullAddress: 'Owner area' } },
+  ownerId: { _id: '507f1f77bcf86cd799439099', name: 'Database owner', address: { fullAddress: 'Owner area' } },
   location: { addressText: 'District 1, Ho Chi Minh City' },
 };
 const navigationCalls = [];
@@ -109,6 +111,13 @@ function navDependencies(name) {
   const detailRoute = find(root, 'Screen').find(screen => screen.props.name === 'DeviceDetail');
   const detailElement = detailRoute.props.component({ route: { params: { deviceId: id } }, navigation });
   assert.equal(detailElement.props.deviceId, id);
+  detailElement.props.onViewOwner(data.ownerId._id);
+  assert.deepEqual(plain(navigationCalls.pop()), ['OwnerProfile', { ownerId: data.ownerId._id }]);
+  const ownerRoute = find(root, 'Screen').find(screen => screen.props.name === 'OwnerProfile');
+  const ownerElement = ownerRoute.props.component({ route: { params: { ownerId: data.ownerId._id } }, navigation });
+  assert.equal(ownerElement.props.ownerId, data.ownerId._id);
+  ownerElement.props.onMessage();
+  assert.deepEqual(plain(navigationCalls.pop()), ['OwnerMessages']);
   detailElement.props.onRent(id);
   assert.deepEqual(plain(navigationCalls.pop()), ['BookingCreate', { deviceId: id }]);
   const bookingRoute = find(root, 'Screen').find(screen => screen.props.name === 'BookingCreate');
@@ -130,6 +139,7 @@ function navDependencies(name) {
   press('View photo 2'); render();
   assert.equal(find(tree, 'Image')[0].props.source.uri, 'https://example.com/second.jpg');
   press('Rent device'); assert.deepEqual(rented, [id]);
+  press('View owner profile'); assert.deepEqual(viewedOwners, [data.ownerId._id]);
   press('Back'); assert.equal(backs, 1);
   render('507f1f77bcf86cd799439012');
   requests.shift().resolve({ _id: id, name: 'Missing fields', status: 'maintenance', specs: null, images: null, ownerId: null });
