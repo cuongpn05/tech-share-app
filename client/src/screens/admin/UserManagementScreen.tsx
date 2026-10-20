@@ -30,6 +30,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation, DrawerActions } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../theme/tokens';
 import {
@@ -153,6 +154,24 @@ const UserListItem: React.FC<{ item: MemberUser }> = ({ item }) => (
 
 export function UserManagementScreen({ navigation }: UserManagementScreenProps) {
   const insets = useSafeAreaInsets();
+  const internalNav = useNavigation<any>();
+  const nav = navigation || internalNav;
+
+  const handleOpenDrawer = useCallback(() => {
+    try {
+      if (nav?.dispatch) {
+        nav.dispatch(DrawerActions.openDrawer());
+      } else if (nav?.openDrawer) {
+        nav.openDrawer();
+      } else if (nav?.getParent?.()?.dispatch) {
+        nav.getParent().dispatch(DrawerActions.openDrawer());
+      } else if (nav?.getParent?.()?.openDrawer) {
+        nav.getParent().openDrawer();
+      }
+    } catch (e) {
+      console.warn('[UserManagement] Không thể mở drawer:', e);
+    }
+  }, [nav]);
 
   const [search,         setSearch]         = useState('');
   const [roleFilter,     setRoleFilter]     = useState<RoleFilter>('');
@@ -243,7 +262,14 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
 
       {/* HEADER */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation?.openDrawer?.() ?? navigation?.goBack?.()} style={styles.headerBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <TouchableOpacity
+          onPress={handleOpenDrawer}
+          style={styles.headerBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Mở menu quản trị"
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          activeOpacity={0.7}
+        >
           <Ionicons name="menu-outline" size={24} color={theme.colors.text.primary} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
@@ -252,7 +278,14 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
             {loading ? 'Đang tải...' : `${totalCount.toLocaleString('vi-VN')} thành viên`}
           </Text>
         </View>
-        <TouchableOpacity onPress={handleRefresh} style={styles.headerBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <TouchableOpacity
+          onPress={handleRefresh}
+          style={styles.headerBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Làm mới"
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          activeOpacity={0.7}
+        >
           <Ionicons name="refresh-outline" size={22} color={theme.colors.brand[500]} />
         </TouchableOpacity>
       </View>
@@ -371,7 +404,7 @@ const styles = StyleSheet.create({
 
   // Header
   header          : { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0', gap: 10 },
-  headerBtn       : { padding: 4 },
+  headerBtn       : { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
   headerCenter    : { flex: 1 },
   headerTitle     : { fontSize: 17, fontWeight: '700', color: theme.colors.text.primary },
   headerSub       : { fontSize: 12, color: theme.colors.text.muted, marginTop: 2 },
