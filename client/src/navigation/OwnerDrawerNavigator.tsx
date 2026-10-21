@@ -10,6 +10,7 @@ import { PostDeviceScreen } from '../screens/device/PostDeviceScreen';
 import OwnerMessagesScreen from '../screens/owner/OwnerMessagesScreen';
 import NotificationScreen from '../screens/notification/NotificationScreen';
 import ProfileScreen from '../screens/user/ProfileScreen';
+import { MyDevicesScreen } from '../screens/user/MyDevicesScreen';
 import OwnerSidebarContent from './OwnerSidebarContent';
 import { theme } from '../theme/tokens';
 
@@ -104,10 +105,8 @@ export const OwnerDrawerNavigator: React.FC = () => {
 
       <Drawer.Screen name="OwnerDeviceInventory">
         {({ navigation }: any) => (
-          <OwnerPlaceholderScreen
-            title="My Device Inventory"
-            subtitle="Quản lý và theo dõi danh mục thiết bị công nghệ của bạn"
-            navigation={navigation}
+          <MyDevicesScreen
+            onBack={() => navigation.navigate('OwnerDashboard')}
           />
         )}
       </Drawer.Screen>

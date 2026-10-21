@@ -1,5 +1,10 @@
 import { apiClient } from "../config/api";
-import { Device, DeviceCategory } from "../types";
+import {
+  BlockedDate,
+  Device,
+  DeviceCategory,
+  ManagedDeviceStatus,
+} from "../types";
 export const HOME_NEARBY_RADIUS_METERS = 10000;
 
 export type DeviceSort = "price_asc" | "price_desc" | "rating_desc" | "newest";
@@ -216,5 +221,35 @@ export const deviceService = {
       if (options?.throwOnError) throw error;
     }
     return null;
+  },
+
+  async updateDeviceStatus(
+    token: string,
+    deviceId: string,
+    status: ManagedDeviceStatus,
+  ): Promise<void> {
+    const response = await apiClient.patch(
+      `/devices/${deviceId}/status`,
+      { status },
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (response.data?.success !== true) {
+      throw new Error("The server did not confirm the device status update.");
+    }
+  },
+
+  async updateBlockDate(
+    token: string,
+    deviceId: string,
+    blockedDates: BlockedDate[],
+  ): Promise<void> {
+    const response = await apiClient.patch(
+      `/devices/${deviceId}/blocked-dates`,
+      { blockedDates },
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (response.data?.success !== true) {
+      throw new Error("The server did not confirm the availability update.");
+    }
   },
 };

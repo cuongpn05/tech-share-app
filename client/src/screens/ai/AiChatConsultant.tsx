@@ -155,7 +155,7 @@ export function AiChatConsultant({
             />
           </TouchableOpacity>
           <View style={styles.headerIcon}>
-            <Ionicons name="sparkles" size={19} color={colors.light.ai} />
+            <Ionicons name="sparkles" size={19} color={colors.light.primary} />
           </View>
           <Text style={styles.headerTitle}>{STRINGS.AI_CHAT.HEADER_TITLE}</Text>
         </View>
@@ -180,7 +180,7 @@ export function AiChatConsultant({
             >
               {message.sender === 'assistant' && (
                 <View style={styles.messageAvatar}>
-                  <Ionicons name="sparkles" size={15} color={colors.light.ai} />
+                  <Ionicons name="sparkles" size={15} color={colors.light.primary} />
                 </View>
               )}
               <View
@@ -339,7 +339,7 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: colors.light.aiLight,
+    backgroundColor: colors.light.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,

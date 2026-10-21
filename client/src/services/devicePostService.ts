@@ -19,10 +19,26 @@ export type CreateDevicePayload = {
 
 export const devicePostService = {
   async getMyDevices(token: string): Promise<Device[]> {
-    const response = await apiClient.get<{ data?: Device[] }>('/devices/myDevices', {
+    const response = await apiClient.get<{
+      success?: boolean;
+      data?: Device[];
+    }>('/devices/myDevices', {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!Array.isArray(response.data?.data)) {
+    if (
+      response.data?.success !== true ||
+      !Array.isArray(response.data.data) ||
+      response.data.data.some(
+        (device) =>
+          !device ||
+          typeof device._id !== 'string' ||
+          typeof device.title !== 'string' ||
+          typeof device.category !== 'string' ||
+          !Number.isFinite(device.dailyRate) ||
+          !Array.isArray(device.images) ||
+          !['available', 'rented', 'maintenance', 'hidden'].includes(device.status),
+      )
+    ) {
       throw new Error('The server returned an invalid device list.');
     }
     return response.data.data;
