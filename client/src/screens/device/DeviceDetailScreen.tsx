@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator, StyleSheet, Modal,
+  View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator, StyleSheet, Modal, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,6 +9,9 @@ import { reviewService, ReviewItem } from '../../services/reviewService';
 import { API_BASE_URL } from '../../config/api';
 import { Device } from '../../types';
 import { colors } from '../../theme/colors';
+import { STRINGS } from '../../constants/strings';
+import { useAppDispatch, useAppSelector } from '../../store';
+import { toggleFavoriteDevice } from '../../store/slices/wishlistSlice';
 
 interface DeviceDetailScreenProps {
   deviceId: string;
@@ -62,6 +65,11 @@ function renderStars(score: number, size = 13) {
 
 export function DeviceDetailScreen({ deviceId, onBack, onRent, onViewOwner }: DeviceDetailScreenProps) {
   const insets = useSafeAreaInsets();
+  const dispatch = useAppDispatch();
+  const { isAuthenticated } = useAppSelector(state => state.auth);
+  const favoriteIds = useAppSelector(state => state.wishlist?.favoriteIds || []);
+  const isFavorite = favoriteIds.includes(deviceId);
+
   const [device, setDevice] = useState<Device | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -174,6 +182,19 @@ export function DeviceDetailScreen({ deviceId, onBack, onRent, onViewOwner }: De
 
   const displayedReviews = showAllReviews ? filteredReviews : filteredReviews.slice(0, 3);
 
+  const handleToggleFavorite = () => {
+    if (!isAuthenticated) {
+      Alert.alert(
+        STRINGS.DEVICE_DETAIL.LOGIN_REQUIRED_TITLE,
+        STRINGS.DEVICE_DETAIL.LOGIN_REQUIRED_MSG
+      );
+      return;
+    }
+    if (device) {
+      dispatch(toggleFavoriteDevice(device));
+    }
+  };
+
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <View style={styles.header}>
@@ -181,7 +202,19 @@ export function DeviceDetailScreen({ deviceId, onBack, onRent, onViewOwner }: De
           <Ionicons name="chevron-back" size={24} color={colors.light.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Device details</Text>
-        <View style={styles.headerSpacer} />
+        <TouchableOpacity
+          onPress={handleToggleFavorite}
+          accessibilityRole="button"
+          accessibilityLabel={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+          style={styles.heartBtn}
+          activeOpacity={0.7}
+        >
+          <Ionicons
+            name={isFavorite ? 'heart' : 'heart-outline'}
+            size={20}
+            color={isFavorite ? colors.light.danger : colors.light.textPrimary}
+          />
+        </TouchableOpacity>
       </View>
       {loading ? (
         <View style={styles.state}><ActivityIndicator color={colors.light.primary} /><Text>Loading device...</Text></View>
@@ -548,6 +581,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.light.background },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8 },
   back: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.light.surface, alignItems: 'center', justifyContent: 'center' },
+  heartBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.light.surface, alignItems: 'center', justifyContent: 'center' },
   headerSpacer: { width: 32 },
   headerTitle: { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '700', color: colors.light.textPrimary },
   content: { paddingHorizontal: 10, paddingBottom: 12, gap: 8 },
