@@ -1757,5 +1757,86 @@ export const STRINGS = {
     INCOMING_MESSAGE_TITLE: 'New Message',
     VIEW_MESSAGE: 'View',
   },
+
+  FORGOT_PASSWORD: {
+    // Header & Branding
+    BRAND_TITLE: 'TechShare',
+    BRAND_SUBTITLE: 'Securely recover access to your account',
+
+    // Progress Bar Steps
+    STEPS: {
+      ACCOUNT: 'Account',
+      VERIFY_OTP: 'Verify OTP',
+      NEW_PASSWORD: 'New Password',
+    },
+
+    // Step 1: Find Account
+    STEP_1: {
+      TITLE: 'Find Your Account',
+      SUBTITLE: 'Enter the username or email associated with your TechShare account',
+      INPUT_LABEL: 'Username or Email',
+      INPUT_PLACEHOLDER: 'e.g. phucai or user@gmail.com',
+      BTN_CONTINUE: 'CONTINUE',
+      BACK_TO_LOGIN: 'Back to Log In',
+    },
+
+    // Step 2: Verify OTP
+    STEP_2: {
+      TITLE: 'Verify OTP Code',
+      SUBTITLE: 'A 6-digit verification code has been sent to:',
+      INPUT_LABEL: 'Enter 6-digit OTP code',
+      INPUT_PLACEHOLDER: '000000',
+      RESEND_ACTIVE: 'Resend OTP code',
+      RESEND_COUNTDOWN_PREFIX: 'Resend code in ',
+      BTN_VERIFY: 'VERIFY CODE',
+      USE_DIFFERENT_ACCOUNT: 'Use a different username or email',
+      SUCCESS_VERIFIED: 'OTP verified successfully! Please set your new password.',
+      SUCCESS_RESEND: 'A new OTP code has been sent to your email.',
+    },
+
+    // Step 3: Create New Password
+    STEP_3: {
+      TITLE: 'Create New Password',
+      SUBTITLE: 'Please set a new secure password for your account',
+      NEW_PASSWORD_LABEL: 'New Password (minimum 6 characters)',
+      NEW_PASSWORD_PLACEHOLDER: 'Enter new password',
+      CONFIRM_PASSWORD_LABEL: 'Confirm New Password',
+      CONFIRM_PASSWORD_PLACEHOLDER: 'Re-enter new password',
+      BTN_RESET: 'RESET PASSWORD',
+    },
+
+    // Step 4: Success
+    SUCCESS: {
+      TITLE: 'Password Reset Successful!',
+      SUBTITLE: 'Your password has been successfully updated. You can now log in using your new credentials.',
+      BTN_LOGIN_NOW: 'LOG IN NOW',
+    },
+
+    // Validation Messages
+    VALIDATION: {
+      EMPTY_IDENTIFIER: 'Please enter your username or email.',
+      IDENTIFIER_TOO_SHORT: 'Username or email must be at least 3 characters.',
+      EMPTY_OTP: 'Please enter the 6-digit OTP code.',
+      INVALID_OTP_FORMAT: 'OTP must be a 6-digit number.',
+      EMPTY_PASSWORD: 'Please enter a new password.',
+      PASSWORD_TOO_SHORT: 'Password must be at least 6 characters.',
+      EMPTY_CONFIRM_PASSWORD: 'Please confirm your new password.',
+      PASSWORDS_MISMATCH: 'Passwords do not match.',
+    },
+
+    // Errors & Network
+    ERRORS: {
+      SEND_OTP_FAILED: 'Unable to send OTP code. Please try again.',
+      NETWORK_ERROR: 'Unable to connect to the server. Please check your network connection.',
+      FIND_ACCOUNT_ERROR: 'An error occurred while finding your account. Please try again.',
+      INVALID_OTP_CODE: 'Invalid OTP code.',
+      OTP_EXPIRED_OR_INVALID: 'Verification code is invalid or has expired.',
+      RESEND_FAILED: 'Unable to resend OTP code.',
+      RESEND_ERROR: 'Failed to resend OTP code.',
+      RESET_PASSWORD_FAILED: 'Unable to reset password.',
+      RESET_PASSWORD_SERVER_ERROR: 'Server error occurred while resetting password.',
+    },
+  },
 } as const;
+
 
