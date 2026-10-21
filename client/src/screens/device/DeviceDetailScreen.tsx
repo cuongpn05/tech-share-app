@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator, StyleSheet,
+  View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator, StyleSheet, Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { deviceService } from '../../services/deviceService';
+import { reviewService, ReviewItem } from '../../services/reviewService';
 import { API_BASE_URL } from '../../config/api';
 import { Device } from '../../types';
 import { colors } from '../../theme/colors';
@@ -36,6 +37,29 @@ function imageUri(value: string): string {
   return value.startsWith('/') ? API_BASE_URL.replace(/\/api\/?$/, '') + value : value;
 }
 
+function renderStars(score: number, size = 13) {
+  return (
+    <View style={styles.starsRow}>
+      {[1, 2, 3, 4, 5].map(index => {
+        let iconName: 'star' | 'star-half' | 'star-outline' = 'star-outline';
+        if (index <= score) {
+          iconName = 'star';
+        } else if (index - 0.5 <= score) {
+          iconName = 'star-half';
+        }
+        return (
+          <Ionicons
+            key={index}
+            name={iconName}
+            size={size}
+            color={colors.light.ratingStar}
+          />
+        );
+      })}
+    </View>
+  );
+}
+
 export function DeviceDetailScreen({ deviceId, onBack, onRent, onViewOwner }: DeviceDetailScreenProps) {
   const insets = useSafeAreaInsets();
   const [device, setDevice] = useState<Device | null>(null);
@@ -47,6 +71,14 @@ export function DeviceDetailScreen({ deviceId, onBack, onRent, onViewOwner }: De
   const [failedImages, setFailedImages] = useState<string[]>([]);
   const [avatarFailed, setAvatarFailed] = useState(false);
 
+  // Reviews state
+  const [reviews, setReviews] = useState<ReviewItem[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+  const [reviewsError, setReviewsError] = useState(false);
+  const [reviewFilter, setReviewFilter] = useState<number | 'all'>('all');
+  const [showAllReviews, setShowAllReviews] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+
   useEffect(() => {
     let active = true;
     setDevice(null);
@@ -56,11 +88,20 @@ export function DeviceDetailScreen({ deviceId, onBack, onRent, onViewOwner }: De
     setFailedImages([]);
     setAvatarFailed(false);
     setLoading(true);
+    setReviews([]);
+    setLoadingReviews(true);
+    setReviewsError(false);
+    setReviewFilter('all');
+    setShowAllReviews(false);
+    setPreviewImage(null);
+
     if (!/^[a-fA-F0-9]{24}$/.test(deviceId)) {
       setError('Invalid device ID.');
       setLoading(false);
+      setLoadingReviews(false);
       return;
     }
+
     deviceService.getDeviceById(deviceId, { throwOnError: true })
       .then(data => {
         if (!active) return;
@@ -74,6 +115,20 @@ export function DeviceDetailScreen({ deviceId, onBack, onRent, onViewOwner }: De
         else setError(status === 400 ? 'Invalid device ID.' : 'Unable to load this device. Please try again.');
       })
       .finally(() => { if (active) setLoading(false); });
+
+    reviewService.getDeviceReviews(deviceId)
+      .then(data => {
+        if (!active) return;
+        setReviews(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (!active) return;
+        setReviewsError(true);
+      })
+      .finally(() => {
+        if (active) setLoadingReviews(false);
+      });
+
     return () => { active = false; };
   }, [deviceId, retry]);
 
@@ -91,6 +146,33 @@ export function DeviceDetailScreen({ deviceId, onBack, onRent, onViewOwner }: De
   const hasPrice = typeof price === 'number' && Number.isFinite(price) && price >= 0;
   const canRent = device?.status === 'available' && hasPrice;
   const address = device?.location?.addressText || device?.location?.address || device?.addressText;
+
+  // Rating & review statistics
+  const totalReviewsCount = reviews.length > 0
+    ? reviews.length
+    : (typeof device?.stats?.ratingCount === 'number' && device.stats.ratingCount > 0
+        ? device.stats.ratingCount
+        : (typeof device?.reviewCount === 'number' ? device.reviewCount : 0));
+
+  const averageRating = reviews.length > 0
+    ? Number((reviews.reduce((acc, r) => acc + (Number(r.rating) || 5), 0) / reviews.length).toFixed(1))
+    : (typeof device?.stats?.ratingAvg === 'number' && device.stats.ratingAvg > 0
+        ? Number(device.stats.ratingAvg.toFixed(1))
+        : (typeof device?.rating === 'number' && device.rating > 0 ? Number(device.rating.toFixed(1)) : 5.0));
+
+  const hasRatings = totalReviewsCount > 0 || reviews.length > 0;
+
+  const ratingDistribution = [5, 4, 3, 2, 1].map(star => {
+    const count = reviews.filter(r => Math.round(Number(r.rating)) === star).length;
+    const percent = reviews.length > 0 ? Math.round((count / reviews.length) * 100) : 0;
+    return { star, count, percent };
+  });
+
+  const filteredReviews = reviewFilter === 'all'
+    ? reviews
+    : reviews.filter(r => Math.round(Number(r.rating)) === reviewFilter);
+
+  const displayedReviews = showAllReviews ? filteredReviews : filteredReviews.slice(0, 3);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -156,6 +238,15 @@ export function DeviceDetailScreen({ deviceId, onBack, onRent, onViewOwner }: De
                       size={13} color={device.status === 'available' ? colors.light.success : colors.light.textSecondary} />
                     <Text style={styles.badgeText}>{device.status || 'Status unavailable'}</Text>
                   </View>
+                  <View style={[styles.badge, styles.ratingBadge]}>
+                    <Ionicons name="star" size={13} color={colors.light.ratingStar} />
+                    <Text style={styles.ratingBadgeText}>
+                      {hasRatings ? averageRating.toFixed(1) : 'New'}
+                    </Text>
+                    {totalReviewsCount > 0 ? (
+                      <Text style={styles.ratingCountText}>({totalReviewsCount})</Text>
+                    ) : null}
+                  </View>
                 </View>
                 <Text style={styles.price}>{hasPrice ? `${price.toLocaleString('en-US')} VND / day` : 'Price unavailable'}</Text>
               </View>
@@ -208,6 +299,210 @@ export function DeviceDetailScreen({ deviceId, onBack, onRent, onViewOwner }: De
                 </TouchableOpacity>
               ) : <Text style={styles.muted}>Owner information unavailable.</Text>}
             </View>
+
+            {/* ── CUSTOMER REVIEWS & RATINGS SECTION ── */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeadingBetween}>
+                <View style={styles.sectionHeading}>
+                  <View style={[styles.sectionIcon, styles.reviewSectionIcon]}>
+                    <Ionicons name="star" size={17} color={colors.light.ratingStar} />
+                  </View>
+                  <Text style={styles.sectionTitle}>Reviews & Ratings</Text>
+                </View>
+                {totalReviewsCount > 0 ? (
+                  <View style={styles.reviewCountPill}>
+                    <Text style={styles.reviewCountPillText}>
+                      {totalReviewsCount} {totalReviewsCount === 1 ? 'review' : 'reviews'}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+
+              {loadingReviews ? (
+                <View style={styles.reviewsLoadingWrap}>
+                  <ActivityIndicator size="small" color={colors.light.primary} />
+                  <Text style={styles.muted}>Loading reviews...</Text>
+                </View>
+              ) : reviewsError ? (
+                <View style={styles.reviewsEmptyWrap}>
+                  <Ionicons name="alert-circle-outline" size={32} color={colors.light.textMuted} />
+                  <Text style={styles.muted}>Unable to load reviews for this device.</Text>
+                </View>
+              ) : reviews.length === 0 ? (
+                <View style={styles.reviewsEmptyWrap}>
+                  <View style={styles.emptyIconCircle}>
+                    <Ionicons name="chatbox-ellipses-outline" size={28} color={colors.light.primaryHover} />
+                  </View>
+                  <Text style={styles.emptyReviewsTitle}>No reviews yet</Text>
+                  <Text style={styles.emptyReviewsSubtitle}>
+                    Be the first to rent and share your experience with this device!
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  {/* Rating Overview Summary Card */}
+                  <View style={styles.ratingOverviewCard}>
+                    <View style={styles.ratingScoreCol}>
+                      <Text style={styles.ratingBigScore}>{averageRating.toFixed(1)}</Text>
+                      {renderStars(averageRating, 14)}
+                      <Text style={styles.ratingTotalText}>
+                        {totalReviewsCount} {totalReviewsCount === 1 ? 'review' : 'reviews'}
+                      </Text>
+                    </View>
+
+                    <View style={styles.ratingDivider} />
+
+                    <View style={styles.ratingBarsCol}>
+                      {ratingDistribution.map(({ star, count, percent }) => (
+                        <TouchableOpacity
+                          key={star}
+                          style={styles.ratingBarRow}
+                          onPress={() => setReviewFilter(prev => prev === star ? 'all' : star)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.ratingBarStarLabel, reviewFilter === star && styles.ratingBarLabelActive]}>
+                            {star}★
+                          </Text>
+                          <View style={styles.ratingBarTrack}>
+                            <View style={[styles.ratingBarFill, { width: `${percent}%` }]} />
+                          </View>
+                          <Text style={styles.ratingBarCountLabel}>{count}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+
+                  {/* Star Filter Chips */}
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+                    <TouchableOpacity
+                      style={[styles.filterChip, reviewFilter === 'all' && styles.filterChipActive]}
+                      onPress={() => setReviewFilter('all')}
+                      accessibilityRole="button"
+                    >
+                      <Text style={[styles.filterChipText, reviewFilter === 'all' && styles.filterChipTextActive]}>
+                        All ({reviews.length})
+                      </Text>
+                    </TouchableOpacity>
+                    {[5, 4, 3, 2, 1].map(star => {
+                      const starMatches = reviews.filter(r => Math.round(Number(r.rating)) === star).length;
+                      if (starMatches === 0 && reviewFilter !== star) return null;
+                      return (
+                        <TouchableOpacity
+                          key={star}
+                          style={[styles.filterChip, reviewFilter === star && styles.filterChipActive]}
+                          onPress={() => setReviewFilter(prev => prev === star ? 'all' : star)}
+                          accessibilityRole="button"
+                        >
+                          <Ionicons
+                            name="star"
+                            size={11}
+                            color={reviewFilter === star ? colors.light.white : colors.light.ratingStar}
+                          />
+                          <Text style={[styles.filterChipText, reviewFilter === star && styles.filterChipTextActive]}>
+                            {star} ({starMatches})
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+
+                  {/* Filter Empty Notice */}
+                  {displayedReviews.length === 0 ? (
+                    <View style={styles.reviewsFilterEmpty}>
+                      <Text style={styles.muted}>No reviews matching {reviewFilter}★.</Text>
+                      <TouchableOpacity onPress={() => setReviewFilter('all')}>
+                        <Text style={styles.filterResetText}>View all reviews</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : null}
+
+                  {/* Reviews List */}
+                  {displayedReviews.map((review, index) => {
+                    const reviewer = review.reviewerId || review.renterId;
+                    const reviewerName = (reviewer && typeof reviewer === 'object' && reviewer.name)
+                      ? reviewer.name
+                      : 'Renter';
+                    const reviewerAvatar = (reviewer && typeof reviewer === 'object' && typeof reviewer.avatar === 'string' && reviewer.avatar.trim())
+                      ? imageUri(reviewer.avatar.trim())
+                      : null;
+                    const isVerified = reviewer && typeof reviewer === 'object' && (reviewer.isVerified || reviewer.trust?.isVerified);
+                    const formattedDate = review.createdAt
+                      ? new Date(review.createdAt).toLocaleDateString('vi-VN', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                        })
+                      : '';
+
+                    return (
+                      <View key={review._id || index} style={[styles.reviewCard, index > 0 && styles.reviewBorderTop]}>
+                        <View style={styles.reviewerHeader}>
+                          {reviewerAvatar ? (
+                            <Image source={{ uri: reviewerAvatar }} style={styles.reviewerAvatar} />
+                          ) : (
+                            <View style={[styles.reviewerAvatar, styles.reviewerAvatarPlaceholder]}>
+                              <Ionicons name="person" size={16} color={colors.light.primaryDark} />
+                            </View>
+                          )}
+                          <View style={styles.reviewerMeta}>
+                            <View style={styles.reviewerNameRow}>
+                              <Text style={styles.reviewerName} numberOfLines={1}>{reviewerName}</Text>
+                              {isVerified ? (
+                                <Ionicons name="shield-checkmark" size={13} color={colors.light.primaryHover} />
+                              ) : null}
+                            </View>
+                            {formattedDate ? (
+                              <Text style={styles.reviewDate}>{formattedDate}</Text>
+                            ) : null}
+                          </View>
+                          <View style={styles.reviewRatingPill}>
+                            <Ionicons name="star" size={12} color={colors.light.ratingStar} />
+                            <Text style={styles.reviewRatingScore}>{review.rating}</Text>
+                          </View>
+                        </View>
+
+                        <Text style={styles.reviewComment}>{review.comment}</Text>
+
+                        {Array.isArray(review.images) && review.images.length > 0 ? (
+                          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.reviewImagesRow}>
+                            {review.images.map((imgUrl, imgIdx) => (
+                              <TouchableOpacity
+                                key={imgIdx}
+                                onPress={() => setPreviewImage(imageUri(imgUrl))}
+                                activeOpacity={0.85}
+                                style={styles.reviewImageWrap}
+                              >
+                                <Image source={{ uri: imageUri(imgUrl) }} style={styles.reviewImageThumb} />
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                        ) : null}
+                      </View>
+                    );
+                  })}
+
+                  {/* Show all / Show less toggle button */}
+                  {filteredReviews.length > 3 && (
+                    <TouchableOpacity
+                      style={styles.showMoreButton}
+                      onPress={() => setShowAllReviews(prev => !prev)}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.showMoreText}>
+                        {showAllReviews
+                          ? 'Show less'
+                          : `Show all ${filteredReviews.length} reviews`}
+                      </Text>
+                      <Ionicons
+                        name={showAllReviews ? 'chevron-up' : 'chevron-down'}
+                        size={15}
+                        color={colors.light.primaryDark}
+                      />
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
+            </View>
           </ScrollView>
           <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
             <TouchableOpacity style={[styles.button, !canRent && styles.disabled]} disabled={!canRent}
@@ -217,6 +512,32 @@ export function DeviceDetailScreen({ deviceId, onBack, onRent, onViewOwner }: De
               <Text style={styles.buttonText}>{canRent ? 'Rent device' : 'Currently unavailable'}</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Review Image Preview Modal */}
+          <Modal
+            visible={Boolean(previewImage)}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => setPreviewImage(null)}
+          >
+            <View style={styles.previewBackdrop}>
+              <TouchableOpacity
+                style={styles.previewCloseBtn}
+                onPress={() => setPreviewImage(null)}
+                accessibilityRole="button"
+                accessibilityLabel="Close image preview"
+              >
+                <Ionicons name="close" size={26} color={colors.light.white} />
+              </TouchableOpacity>
+              {previewImage ? (
+                <Image
+                  source={{ uri: previewImage }}
+                  style={styles.previewFullImage}
+                  resizeMode="contain"
+                />
+              ) : null}
+            </View>
+          </Modal>
         </>
       )}
     </View>
@@ -244,14 +565,19 @@ const styles = StyleSheet.create({
   section: { padding: 12, gap: 8, borderRadius: 16, backgroundColor: colors.light.surface },
   title: { fontSize: 20, lineHeight: 26, fontWeight: '800', color: colors.light.textPrimary },
   sectionHeading: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionHeadingBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' },
   sectionIcon: { width: 29, height: 29, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.light.primaryLight },
+  reviewSectionIcon: { backgroundColor: colors.light.warningLight || '#FEF3C7' },
   sectionTitle: { flexShrink: 1, fontSize: 14, fontWeight: '700', color: colors.light.textPrimary },
   summaryRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   badge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.light.primaryLight,
     paddingHorizontal: 7, paddingVertical: 5, borderRadius: 8 },
   availableBadge: { backgroundColor: colors.light.successLight },
+  ratingBadge: { backgroundColor: colors.light.warningLight || '#FEF3C7' },
   badgeText: { fontSize: 10, textTransform: 'capitalize', color: colors.light.primaryDark },
+  ratingBadgeText: { fontSize: 10, fontWeight: '800', color: colors.light.warning || '#D97706' },
+  ratingCountText: { fontSize: 9, fontWeight: '600', color: colors.light.textSecondary },
   price: { flexShrink: 1, fontSize: 16, fontWeight: '800', color: colors.light.primaryHover },
   addressRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5 },
   addressText: { flex: 1, minWidth: 0, fontSize: 11, lineHeight: 16, color: colors.light.textSecondary },
@@ -265,6 +591,61 @@ const styles = StyleSheet.create({
   avatarPlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.light.primaryLight },
   ownerInfo: { flex: 1, minWidth: 0, gap: 4 },
   ownerName: { fontSize: 12, lineHeight: 17, fontWeight: '700', color: colors.light.textPrimary },
+
+  // Reviews & ratings styles
+  reviewCountPill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 12, backgroundColor: colors.light.background },
+  reviewCountPillText: { fontSize: 11, fontWeight: '700', color: colors.light.textSecondary },
+  reviewsLoadingWrap: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 20, gap: 8 },
+  reviewsEmptyWrap: { alignItems: 'center', justifyContent: 'center', paddingVertical: 20, gap: 6 },
+  emptyIconCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.light.primaryLight, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+  emptyReviewsTitle: { fontSize: 13, fontWeight: '700', color: colors.light.textPrimary },
+  emptyReviewsSubtitle: { fontSize: 11, color: colors.light.textSecondary, textAlign: 'center', maxWidth: 260, lineHeight: 16 },
+
+  ratingOverviewCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.light.background, borderRadius: 14, padding: 12, gap: 12, marginTop: 2 },
+  ratingScoreCol: { alignItems: 'center', justifyContent: 'center', minWidth: 76, gap: 3 },
+  ratingBigScore: { fontSize: 30, fontWeight: '900', color: colors.light.textPrimary, lineHeight: 34 },
+  starsRow: { flexDirection: 'row', gap: 2, alignItems: 'center' },
+  ratingTotalText: { fontSize: 10, fontWeight: '600', color: colors.light.textSecondary },
+  ratingDivider: { width: 1, height: '75%', backgroundColor: colors.light.borderDefault },
+  ratingBarsCol: { flex: 1, gap: 3 },
+  ratingBarRow: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 1 },
+  ratingBarStarLabel: { width: 20, fontSize: 10, fontWeight: '600', color: colors.light.textSecondary, textAlign: 'right' },
+  ratingBarLabelActive: { color: colors.light.primaryDark, fontWeight: '800' },
+  ratingBarTrack: { flex: 1, height: 5, borderRadius: 3, backgroundColor: colors.light.borderDefault, overflow: 'hidden' },
+  ratingBarFill: { height: '100%', borderRadius: 3, backgroundColor: colors.light.ratingStar },
+  ratingBarCountLabel: { width: 16, fontSize: 10, color: colors.light.textMuted, textAlign: 'right' },
+
+  filterScroll: { flexDirection: 'row', gap: 6, paddingVertical: 2 },
+  filterChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, backgroundColor: colors.light.background, borderWidth: 1, borderColor: colors.light.borderDefault },
+  filterChipActive: { backgroundColor: colors.light.primaryDark, borderColor: colors.light.primaryDark },
+  filterChipText: { fontSize: 11, fontWeight: '600', color: colors.light.textSecondary },
+  filterChipTextActive: { color: colors.light.white, fontWeight: '700' },
+  reviewsFilterEmpty: { paddingVertical: 14, alignItems: 'center', gap: 4 },
+  filterResetText: { fontSize: 11, fontWeight: '700', color: colors.light.primaryHover },
+
+  reviewCard: { paddingVertical: 10, gap: 6 },
+  reviewBorderTop: { borderTopWidth: 1, borderTopColor: colors.light.border },
+  reviewerHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  reviewerAvatar: { width: 32, height: 32, borderRadius: 16 },
+  reviewerAvatarPlaceholder: { backgroundColor: colors.light.primaryLight, alignItems: 'center', justifyContent: 'center' },
+  reviewerMeta: { flex: 1, minWidth: 0, gap: 1 },
+  reviewerNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  reviewerName: { fontSize: 12, fontWeight: '700', color: colors.light.textPrimary },
+  reviewDate: { fontSize: 10, color: colors.light.textMuted },
+  reviewRatingPill: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, backgroundColor: colors.light.warningLight || '#FEF3C7' },
+  reviewRatingScore: { fontSize: 11, fontWeight: '700', color: colors.light.warning || '#D97706' },
+  reviewComment: { fontSize: 12, lineHeight: 17, color: colors.light.textPrimary },
+  reviewImagesRow: { flexDirection: 'row', gap: 6, paddingTop: 2 },
+  reviewImageWrap: { borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: colors.light.borderDefault },
+  reviewImageThumb: { width: 56, height: 56 },
+
+  showMoreButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 9, marginTop: 2, borderRadius: 10, backgroundColor: colors.light.primaryLight },
+  showMoreText: { fontSize: 12, fontWeight: '700', color: colors.light.primaryDark },
+
+  previewBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', alignItems: 'center', padding: 16 },
+  previewCloseBtn: { position: 'absolute', top: 50, right: 20, zIndex: 10, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+  previewFullImage: { width: '100%', height: '80%' },
+
   footer: { paddingHorizontal: 12, paddingTop: 8, backgroundColor: colors.light.surface, borderTopWidth: 1, borderColor: colors.light.border },
   button: { flexDirection: 'row', justifyContent: 'center', gap: 8, backgroundColor: colors.light.primaryHover,
     borderRadius: 12, padding: 14, alignItems: 'center' },

@@ -28,6 +28,7 @@ function find(tree, type) {
 }
 
 native.Image = 'Image';
+native.Modal = 'Modal';
 const requests = [];
 const slots = [];
 let cursor = 0;
@@ -65,6 +66,9 @@ const { DeviceDetailScreen } = compile(read(detailPath), name => {
   if (name.endsWith('/deviceService')) return { deviceService: {
     getDeviceById: (id, options) => new Promise((resolve, reject) => requests.push({ id, options, resolve, reject })),
   } };
+  if (name.endsWith('/reviewService')) return { reviewService: {
+    getDeviceReviews: () => Promise.resolve([]),
+  } };
   throw new Error(name);
 });
 let id = '507f1f77bcf86cd799439011';
@@ -94,9 +98,11 @@ function navDependencies(name) {
   if (name === 'react-native') return native;
   if (name === '@expo/vector-icons') return { Ionicons: 'Ionicons' };
   if (name === 'react-native-safe-area-context') return { useSafeAreaInsets: () => ({ top: 24, bottom: 16 }) };
+  if (name === '@react-navigation/native') return { useFocusEffect: callback => callback(), useNavigation: () => navigation, useIsFocused: () => true };
   if (name === '@react-navigation/native-stack') return { createNativeStackNavigator: () => ({ Navigator: 'Navigator', Screen: 'Screen' }) };
   if (name.endsWith('/store')) return { useAppSelector: select => select({ auth: { isAuthenticated: false, user: null } }) };
   if (name.endsWith('/theme') || name.endsWith('/tokens')) return { theme };
+  if (name.endsWith('/notificationService')) return { notificationService: { getUnreadCountCached: () => 0, getUnreadCount: () => Promise.resolve(0) } };
   const component = name.split('/').pop();
   return { [component]: component, default: component };
 }
