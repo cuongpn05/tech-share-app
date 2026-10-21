@@ -14,6 +14,7 @@ export interface ReviewItem {
   bookingId: string;
   deviceId: any;
   renterId: any; // populated: { _id, name, avatar, trustScore }
+  reviewerId?: any;
   ownerId: any;
   rating: number;
   comment: string;

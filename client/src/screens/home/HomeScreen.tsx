@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Linking,
   Platform,
+  Alert,
 } from 'react-native';
 import { useHomeLocation, homeDistanceMeters, HOME_LOCATION_MOVEMENT_METERS, HomeCoordinate } from '../../hooks/useHomeLocation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,6 +26,7 @@ import {
   clearFilters,
   resetDeviceDiscovery,
 } from '../../store/slices/deviceSlice';
+import { fetchWishlist, toggleFavoriteDevice } from '../../store/slices/wishlistSlice';
 import { CategoryBar } from '../../components/home/CategoryBar';
 import { PromoBanner } from '../../components/home/PromoBanner';
 import { SectionHeader } from '../../components/home/SectionHeader';
@@ -90,6 +92,31 @@ export function HomeScreen({
     hasLoaded,
   } = useAppSelector(state => state.devices);
   const { isAuthenticated } = useAppSelector(state => state.auth);
+  const favoriteIds = useAppSelector(state => state.wishlist?.favoriteIds || []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      dispatch(fetchWishlist());
+    }
+  }, [isAuthenticated, dispatch]);
+
+  const handleToggleFavorite = (device: Device) => {
+    if (!isAuthenticated) {
+      Alert.alert(
+        STRINGS.DEVICE_CARD.LOGIN_REQUIRED_TITLE,
+        STRINGS.DEVICE_CARD.LOGIN_REQUIRED_MSG,
+        [
+          { text: 'Hủy', style: 'cancel' },
+          {
+            text: 'Đăng nhập',
+            onPress: () => onNavigateToLogin?.(),
+          },
+        ]
+      );
+      return;
+    }
+    dispatch(toggleFavoriteDevice(device));
+  };
 
   const [nearby, setNearby] = useState(false);
   const [categories, setCategories] = useState<DeviceCategory[]>([]);
@@ -486,6 +513,8 @@ export function HomeScreen({
       <DeviceCard
         device={item}
         onPress={onNavigateToDeviceDetail}
+        onToggleFavorite={handleToggleFavorite}
+        isFavorite={favoriteIds.includes(item._id)}
         width={COLUMN_WIDTH}
       />
     </View>

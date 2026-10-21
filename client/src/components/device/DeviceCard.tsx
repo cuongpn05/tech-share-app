@@ -5,8 +5,11 @@ import {
   Text,
   Image,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppDispatch, useAppSelector } from '../../store';
+import { toggleFavoriteDevice } from '../../store/slices/wishlistSlice';
 import { Device } from '../../types';
 import { colors } from '../../theme/colors';
 import { STRINGS } from '../../constants/strings';
@@ -52,7 +55,35 @@ function getDeviceImageUrl(device: DeviceImageData): string | undefined {
   return undefined;
 }
 
-export function DeviceCard({ device, onPress, width, onToggleFavorite, isFavorite = false }: DeviceCardProps) {
+export function DeviceCard({
+  device,
+  onPress,
+  width,
+  onToggleFavorite,
+  isFavorite: propIsFavorite,
+}: DeviceCardProps) {
+  const dispatch = useAppDispatch();
+  const { isAuthenticated } = useAppSelector((state) => state.auth);
+  const favoriteIds = useAppSelector((state) => state.wishlist?.favoriteIds || []);
+  const deviceIdStr = (device._id || (device as any).id)?.toString();
+  const isFavorite =
+    propIsFavorite !== undefined ? propIsFavorite : (deviceIdStr ? favoriteIds.includes(deviceIdStr) : false);
+
+  const handleHeartPress = () => {
+    if (onToggleFavorite) {
+      onToggleFavorite(device);
+      return;
+    }
+    if (!isAuthenticated) {
+      Alert.alert(
+        STRINGS.DEVICE_CARD.LOGIN_REQUIRED_TITLE,
+        STRINGS.DEVICE_CARD.LOGIN_REQUIRED_MSG
+      );
+      return;
+    }
+    dispatch(toggleFavoriteDevice(device));
+  };
+
   const imageUri = resolveImageUri(getDeviceImageUrl(device));
   const [imageFailed, setImageFailed] = useState(false);
   useEffect(() => setImageFailed(false), [imageUri]);
@@ -76,12 +107,20 @@ export function DeviceCard({ device, onPress, width, onToggleFavorite, isFavorit
           <Text style={styles.smallText}>Image unavailable</Text>
         </View>}
         {device.brand ? <View style={styles.brandBadge}><Text style={styles.brandText} numberOfLines={1}>{device.brand}</Text></View> : null}
-        <TouchableOpacity style={styles.heartButton} disabled={!onToggleFavorite}
-          onPress={event => { event.stopPropagation(); onToggleFavorite?.(device); }}
-          accessibilityRole="button" accessibilityLabel={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-          accessibilityState={{ disabled: !onToggleFavorite, selected: isFavorite }} hitSlop={5}>
-          <Ionicons name={isFavorite ? 'heart' : 'heart-outline'} size={18}
-            color={isFavorite ? colors.light.danger : colors.light.textSecondary} />
+        <TouchableOpacity
+          style={styles.heartButton}
+          onPress={handleHeartPress}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+          accessibilityState={{ selected: isFavorite }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons
+            name={isFavorite ? 'heart' : 'heart-outline'}
+            size={18}
+            color={isFavorite ? colors.light.danger : colors.light.textSecondary}
+          />
         </TouchableOpacity>
         <View style={styles.imageFooter}>
           <View style={[styles.statusBadge, !available && styles.unavailableBadge]}>
@@ -127,9 +166,15 @@ export function DeviceCard({ device, onPress, width, onToggleFavorite, isFavorit
               {formatPrice(device.pricePerDay ?? device.dailyRate)}
             </Text>
           </View>
-          <TouchableOpacity style={styles.arrowButton} disabled={!onPress} accessibilityRole="button"
-            accessibilityLabel="View device details" accessibilityState={{ disabled: !onPress }}
-            onPress={event => { event.stopPropagation(); onPress?.(device._id); }} hitSlop={4}>
+          <TouchableOpacity
+            style={styles.arrowButton}
+            disabled={!onPress}
+            accessibilityRole="button"
+            accessibilityLabel="View device details"
+            accessibilityState={{ disabled: !onPress }}
+            onPress={() => onPress?.(device._id)}
+            hitSlop={4}
+          >
             <Ionicons name="arrow-forward" size={18} color={colors.light.white} />
           </TouchableOpacity>
         </View>
