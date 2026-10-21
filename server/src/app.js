@@ -15,6 +15,7 @@ const reviewRoutes = require('./routes/reviewRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const userManagementRoutes = require('./routes/userManagementRoutes');
 const ekycRoutes = require('./routes/ekycRoutes');
+const profileRoutes = require('./routes/profileRoutes');
 const aiRoutes= require("./routes/aiRoutes")
 const morgan = require('morgan');
 const { notFound, errorHandler } = require('./middlewares/errorHandler');
@@ -44,6 +45,7 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/user-management', userManagementRoutes);
 app.use('/api/ekyc', ekycRoutes);
+app.use('/api/profile', profileRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

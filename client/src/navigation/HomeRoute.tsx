@@ -173,6 +173,7 @@ export function HomeRoute({
           }}
           showOwnerDashboard={!!onReturnToOwner}
           onNavigateToOwnerDashboard={onReturnToOwner}
+          onNavigateToWishlist={() => navigation?.navigate('Wishlist')}
           onNavigateToChat={handleNavigateToChat}
           onNavigateToAiConsultant={() => navigation?.navigate('AiChatConsultant')}
           onNavigateToNotifications={handleNavigateToNotifications}
