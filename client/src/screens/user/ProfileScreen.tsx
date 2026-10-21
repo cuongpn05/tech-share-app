@@ -25,9 +25,10 @@ import { User } from '../../types';
 export interface ProfileScreenProps {
   navigation?: any;
   onBack?: () => void;
+  onNavigateToWishlist?: () => void;
 }
 
-export function ProfileScreen({ navigation, onBack }: ProfileScreenProps) {
+export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: ProfileScreenProps) {
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
   const { isAuthenticated, user: authUser } = useAppSelector((state) => state.auth);
@@ -431,6 +432,27 @@ export function ProfileScreen({ navigation, onBack }: ProfileScreenProps) {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* ─── 3.5 DANH SÁCH YÊU THÍCH (WISHLIST) ─── */}
+        <TouchableOpacity
+          style={styles.wishlistButton}
+          onPress={() => {
+            if (onNavigateToWishlist) {
+              onNavigateToWishlist();
+            } else if (navigation?.navigate) {
+              navigation.navigate('Wishlist');
+            }
+          }}
+          activeOpacity={0.8}
+        >
+          <View style={styles.wishlistLeft}>
+            <View style={styles.wishlistIconBox}>
+              <Ionicons name="heart" size={18} color={theme.danger} />
+            </View>
+            <Text style={styles.wishlistButtonText}>Danh sách Yêu thích</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
+        </TouchableOpacity>
 
         {/* ─── 4. NÚT CHỈNH SỬA & ĐĂNG XUẤT ─── */}
         <TouchableOpacity
@@ -897,6 +919,41 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#92400E',
+  },
+  wishlistButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: theme.surface,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: theme.radii.lg,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: theme.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  wishlistLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  wishlistIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  wishlistButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.textPrimary,
   },
 });
 

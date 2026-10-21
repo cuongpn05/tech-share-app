@@ -2,7 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { useAppSelector } from '../store';
+import { useAppDispatch, useAppSelector } from '../store';
+import { WishlistScreen } from '../screens/device/WishlistScreen';
+import { fetchWishlist, clearWishlist } from '../store/slices/wishlistSlice';
+import { wishlistService } from '../services/wishlistService';
 import { LoginScreen } from '../screens/auth/LoginScreen';
 import { RegisterScreen } from '../screens/auth/RegisterScreen';
 import { ForgotPasswordScreen } from '../screens/auth/ForgotPasswordScreen';
@@ -58,10 +61,18 @@ export type RootStackParamList = {
   BookingDetail: { bookingId: string };
   BookingRequestDetail: { bookingId: string };
   AiChatConsultant: undefined;
+  Wishlist: undefined;
 };
 
-
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+const WishlistRoute = ({ navigation }: any) => (
+  <WishlistScreen
+    onBack={() => navigation.goBack()}
+    onNavigateToDeviceDetail={(deviceId: string) => navigation.navigate('DeviceDetail', { deviceId })}
+    onNavigateToHome={() => navigation.navigate('Home')}
+  />
+);
 
 const OwnerProfileRoute = ({ route, navigation }: any) => (
   <OwnerProfileScreen ownerId={route.params.ownerId} onBack={() => navigation.goBack()}
@@ -116,7 +127,7 @@ const AiChatConsultantRoute = ({ navigation }: any) => (
 
 
 export function RootNavigator() {
-
+  const dispatch = useAppDispatch();
   const { isAuthenticated, user, token } = useAppSelector((state) => state.auth);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean | null>(null);
 
@@ -146,8 +157,11 @@ export function RootNavigator() {
 
       // Tải và đồng bộ số lượng thông báo chưa đọc toàn cục
       notificationService.fetchUnreadCount(uid);
+
+      // Tải danh sách Wishlist của user
+      dispatch(fetchWishlist());
     }
-  }, [isAuthenticated, user, token]);
+  }, [isAuthenticated, user, token, dispatch]);
 
   const handleCompleteOnboarding = async () => {
     try {
@@ -185,6 +199,8 @@ export function RootNavigator() {
             routes: [{ name: targetRoute }],
           });
         } else if (isLogoutEvent) {
+          wishlistService.clearCache();
+          dispatch(clearWishlist());
           navigationRef.reset({
             index: 0,
             routes: [{ name: 'Home' }],
@@ -199,7 +215,7 @@ export function RootNavigator() {
       const timer = setTimeout(executeRedirect, 150);
       return () => clearTimeout(timer);
     }
-  }, [isAuthenticated, user?.role, hasCompletedOnboarding]);
+  }, [isAuthenticated, user?.role, hasCompletedOnboarding, dispatch]);
 
   // Màn hình loading chờ kiểm tra AsyncStorage
   if (hasCompletedOnboarding === null) {
@@ -224,6 +240,7 @@ export function RootNavigator() {
     <Stack.Navigator initialRouteName={getInitialRoute()} screenOptions={{ headerShown: false }}>
       <Stack.Screen name="DeviceDetail" component={DeviceDetailRoute} />
       <Stack.Screen name="OwnerProfile" component={OwnerProfileRoute} />
+      <Stack.Screen name="Wishlist" component={WishlistRoute} />
       {!hasCompletedOnboarding ? (
         <Stack.Screen name="Onboarding">
           {(props) => <OnboardingScreen {...props} onComplete={handleCompleteOnboarding} />}

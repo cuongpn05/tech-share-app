@@ -66,7 +66,12 @@ userSchema.virtual('account', {
 userSchema.virtual('email').get(function () { return this.account?.email; });
 userSchema.virtual('role').get(function () { return this.account?.roleId?.code || this.account?.roleId; });
 userSchema.virtual('totalReview').get(function () { return this.totalReviews; });
-
+// Virtual liên kết Wishlist
+userSchema.virtual('wishlistItems', {
+  ref: 'Wishlist',
+  localField: '_id',
+  foreignField: 'userId',
+});
 // Virtual Getters & Setters 2 chiều (Đảm bảo Mobile App & Web gọi kiểu cũ hay mới đều chạy)
 userSchema.virtual('isVerified')
   .get(function () { return this.trust?.isVerified ?? false; })
