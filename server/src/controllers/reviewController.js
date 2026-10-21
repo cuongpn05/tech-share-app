@@ -207,11 +207,15 @@ const createReview = async (req, res) => {
 const getDeviceReviews = async (req, res) => {
   try {
     const { deviceId } = req.params;
+    if (!deviceId || !mongoose.Types.ObjectId.isValid(deviceId)) {
+      return res.status(200).json({ success: true, data: [] });
+    }
     const reviews = await Review.find({
       deviceId,
       comment: { $exists: true, $ne: '' },
     })
-      .populate('renterId', 'name avatar')
+      .populate('renterId', 'name avatar trust isVerified')
+      .populate('reviewerId', 'name avatar trust isVerified')
       .sort({ createdAt: -1 });
 
     res.status(200).json({ success: true, data: reviews });
