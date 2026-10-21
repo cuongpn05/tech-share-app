@@ -28,6 +28,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { forgotService } from '../../services/forgotService';
+import { STRINGS } from '../../constants/strings';
 import { theme } from '../../theme/tokens';
 
 export interface ForgotPasswordScreenProps {
@@ -116,16 +117,16 @@ export function ForgotPasswordScreen({
         setCurrentStep('verify_otp');
         setSuccessInfo(res.message);
       } else {
-        setErrorMessage(res.message || 'Unable to send OTP code. Please try again.');
+        setErrorMessage(res.message || STRINGS.FORGOT_PASSWORD.ERRORS.SEND_OTP_FAILED);
       }
     } catch (err: any) {
       console.error('[ForgotPasswordScreen] Error sending OTP:', err);
       if (err.response?.data?.message) {
         setErrorMessage(err.response.data.message);
       } else if (err.message === 'Network Error' || !err.response) {
-        setErrorMessage('Unable to connect to the server. Please check your network connection.');
+        setErrorMessage(STRINGS.FORGOT_PASSWORD.ERRORS.NETWORK_ERROR);
       } else {
-        setErrorMessage('An error occurred while finding your account. Please try again.');
+        setErrorMessage(STRINGS.FORGOT_PASSWORD.ERRORS.FIND_ACCOUNT_ERROR);
       }
     } finally {
       setLoading(false);
@@ -150,16 +151,16 @@ export function ForgotPasswordScreen({
       if (res.success && res.resetToken) {
         setResetToken(res.resetToken);
         setCurrentStep('reset_password');
-        setSuccessInfo('OTP verified successfully! Please set your new password.');
+        setSuccessInfo(STRINGS.FORGOT_PASSWORD.STEP_2.SUCCESS_VERIFIED);
       } else {
-        setErrorMessage(res.message || 'Invalid OTP code.');
+        setErrorMessage(res.message || STRINGS.FORGOT_PASSWORD.ERRORS.INVALID_OTP_CODE);
       }
     } catch (err: any) {
       console.error('[ForgotPasswordScreen] Error verifying OTP:', err);
       if (err.response?.data?.message) {
         setErrorMessage(err.response.data.message);
       } else {
-        setErrorMessage('Verification code is invalid or has expired.');
+        setErrorMessage(STRINGS.FORGOT_PASSWORD.ERRORS.OTP_EXPIRED_OR_INVALID);
       }
     } finally {
       setLoading(false);
@@ -180,13 +181,13 @@ export function ForgotPasswordScreen({
       if (res.success) {
         setCountdown(60);
         setCanResend(false);
-        setSuccessInfo(res.message || 'A new OTP code has been sent to your email.');
+        setSuccessInfo(res.message || STRINGS.FORGOT_PASSWORD.STEP_2.SUCCESS_RESEND);
       } else {
-        setErrorMessage(res.message || 'Unable to resend OTP code.');
+        setErrorMessage(res.message || STRINGS.FORGOT_PASSWORD.ERRORS.RESEND_FAILED);
       }
     } catch (err: any) {
       console.error('[ForgotPasswordScreen] Error resending OTP:', err);
-      setErrorMessage(err.response?.data?.message || 'Failed to resend OTP code.');
+      setErrorMessage(err.response?.data?.message || STRINGS.FORGOT_PASSWORD.ERRORS.RESEND_ERROR);
     } finally {
       setLoading(false);
     }
@@ -216,14 +217,14 @@ export function ForgotPasswordScreen({
       if (res.success) {
         setCurrentStep('success');
       } else {
-        setErrorMessage(res.message || 'Unable to reset password.');
+        setErrorMessage(res.message || STRINGS.FORGOT_PASSWORD.ERRORS.RESET_PASSWORD_FAILED);
       }
     } catch (err: any) {
       console.error('[ForgotPasswordScreen] Error resetting password:', err);
       if (err.response?.data?.message) {
         setErrorMessage(err.response.data.message);
       } else {
-        setErrorMessage('Server error occurred while resetting password.');
+        setErrorMessage(STRINGS.FORGOT_PASSWORD.ERRORS.RESET_PASSWORD_SERVER_ERROR);
       }
     } finally {
       setLoading(false);
@@ -253,9 +254,9 @@ export function ForgotPasswordScreen({
       <View style={styles.iconCircle}>
         <Ionicons name="key-outline" size={32} color={theme.colors.brand[500]} />
       </View>
-      <Text style={styles.cardTitle}>Find Your Account</Text>
+      <Text style={styles.cardTitle}>{STRINGS.FORGOT_PASSWORD.STEP_1.TITLE}</Text>
       <Text style={styles.cardSubtitle}>
-        Enter the username or email associated with your TechShare account
+        {STRINGS.FORGOT_PASSWORD.STEP_1.SUBTITLE}
       </Text>
 
       {/* Alert Error */}
@@ -267,7 +268,7 @@ export function ForgotPasswordScreen({
       ) : null}
 
       <View style={styles.formGroup}>
-        <Text style={styles.inputLabel}>Username or Email</Text>
+        <Text style={styles.inputLabel}>{STRINGS.FORGOT_PASSWORD.STEP_1.INPUT_LABEL}</Text>
         <View style={styles.inputWrapper}>
           <Ionicons
             name="person-outline"
@@ -277,7 +278,7 @@ export function ForgotPasswordScreen({
           />
           <TextInput
             style={styles.inputField}
-            placeholder="e.g. phucai or user@gmail.com"
+            placeholder={STRINGS.FORGOT_PASSWORD.STEP_1.INPUT_PLACEHOLDER}
             placeholderTextColor={theme.colors.text.subtle}
             value={identifier}
             onChangeText={(txt) => {
@@ -300,7 +301,7 @@ export function ForgotPasswordScreen({
           <ActivityIndicator color="#ffffff" size="small" />
         ) : (
           <View style={styles.btnContent}>
-            <Text style={styles.btnSubmitText}>CONTINUE</Text>
+            <Text style={styles.btnSubmitText}>{STRINGS.FORGOT_PASSWORD.STEP_1.BTN_CONTINUE}</Text>
             <Ionicons name="arrow-forward" size={18} color="#ffffff" style={styles.btnArrowIcon} />
           </View>
         )}
@@ -312,7 +313,7 @@ export function ForgotPasswordScreen({
         activeOpacity={0.7}
       >
         <Ionicons name="arrow-back" size={16} color={theme.colors.brand[600]} />
-        <Text style={styles.backToLoginText}>Back to Log In</Text>
+        <Text style={styles.backToLoginText}>{STRINGS.FORGOT_PASSWORD.STEP_1.BACK_TO_LOGIN}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -325,9 +326,9 @@ export function ForgotPasswordScreen({
       <View style={styles.iconCircle}>
         <Ionicons name="mail-unread-outline" size={32} color={theme.colors.brand[500]} />
       </View>
-      <Text style={styles.cardTitle}>Verify OTP Code</Text>
+      <Text style={styles.cardTitle}>{STRINGS.FORGOT_PASSWORD.STEP_2.TITLE}</Text>
       <Text style={styles.cardSubtitle}>
-        A 6-digit verification code has been sent to:
+        {STRINGS.FORGOT_PASSWORD.STEP_2.SUBTITLE}
       </Text>
       <Text style={styles.emailHighlight}>{maskedEmail || email}</Text>
 
@@ -345,7 +346,7 @@ export function ForgotPasswordScreen({
       ) : null}
 
       <View style={styles.formGroup}>
-        <Text style={styles.inputLabel}>Enter 6-digit OTP code</Text>
+        <Text style={styles.inputLabel}>{STRINGS.FORGOT_PASSWORD.STEP_2.INPUT_LABEL}</Text>
         <View style={styles.inputWrapper}>
           <Ionicons
             name="shield-checkmark-outline"
@@ -355,7 +356,7 @@ export function ForgotPasswordScreen({
           />
           <TextInput
             style={[styles.inputField, styles.otpInput]}
-            placeholder="000000"
+            placeholder={STRINGS.FORGOT_PASSWORD.STEP_2.INPUT_PLACEHOLDER}
             placeholderTextColor={theme.colors.text.subtle}
             value={otp}
             onChangeText={(txt) => {
@@ -373,11 +374,12 @@ export function ForgotPasswordScreen({
       <View style={styles.resendContainer}>
         {canResend ? (
           <TouchableOpacity onPress={handleResendOtp} disabled={loading} activeOpacity={0.7}>
-            <Text style={styles.resendActiveText}>Resend OTP code</Text>
+            <Text style={styles.resendActiveText}>{STRINGS.FORGOT_PASSWORD.STEP_2.RESEND_ACTIVE}</Text>
           </TouchableOpacity>
         ) : (
           <Text style={styles.resendTimerText}>
-            Resend code in <Text style={styles.resendCountdown}>{countdown}s</Text>
+            {STRINGS.FORGOT_PASSWORD.STEP_2.RESEND_COUNTDOWN_PREFIX}
+            <Text style={styles.resendCountdown}>{countdown}s</Text>
           </Text>
         )}
       </View>
@@ -392,7 +394,7 @@ export function ForgotPasswordScreen({
           <ActivityIndicator color="#ffffff" size="small" />
         ) : (
           <View style={styles.btnContent}>
-            <Text style={styles.btnSubmitText}>VERIFY CODE</Text>
+            <Text style={styles.btnSubmitText}>{STRINGS.FORGOT_PASSWORD.STEP_2.BTN_VERIFY}</Text>
             <Ionicons name="checkmark" size={18} color="#ffffff" style={styles.btnArrowIcon} />
           </View>
         )}
@@ -404,7 +406,7 @@ export function ForgotPasswordScreen({
         activeOpacity={0.7}
       >
         <Ionicons name="chevron-back" size={16} color={theme.colors.brand[600]} />
-        <Text style={styles.backToLoginText}>Use a different username or email</Text>
+        <Text style={styles.backToLoginText}>{STRINGS.FORGOT_PASSWORD.STEP_2.USE_DIFFERENT_ACCOUNT}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -417,9 +419,9 @@ export function ForgotPasswordScreen({
       <View style={styles.iconCircle}>
         <Ionicons name="lock-closed-outline" size={32} color={theme.colors.brand[500]} />
       </View>
-      <Text style={styles.cardTitle}>Create New Password</Text>
+      <Text style={styles.cardTitle}>{STRINGS.FORGOT_PASSWORD.STEP_3.TITLE}</Text>
       <Text style={styles.cardSubtitle}>
-        Please set a new secure password for your account
+        {STRINGS.FORGOT_PASSWORD.STEP_3.SUBTITLE}
       </Text>
 
       {/* Alert Error / Success */}
@@ -437,7 +439,7 @@ export function ForgotPasswordScreen({
 
       {/* Mật khẩu mới */}
       <View style={styles.formGroup}>
-        <Text style={styles.inputLabel}>New Password (minimum 6 characters)</Text>
+        <Text style={styles.inputLabel}>{STRINGS.FORGOT_PASSWORD.STEP_3.NEW_PASSWORD_LABEL}</Text>
         <View style={styles.inputWrapper}>
           <Ionicons
             name="lock-closed-outline"
@@ -447,7 +449,7 @@ export function ForgotPasswordScreen({
           />
           <TextInput
             style={styles.inputField}
-            placeholder="Enter new password"
+            placeholder={STRINGS.FORGOT_PASSWORD.STEP_3.NEW_PASSWORD_PLACEHOLDER}
             placeholderTextColor={theme.colors.text.subtle}
             value={newPassword}
             onChangeText={(txt) => {
@@ -473,7 +475,7 @@ export function ForgotPasswordScreen({
 
       {/* Xác nhận mật khẩu mới */}
       <View style={styles.formGroup}>
-        <Text style={styles.inputLabel}>Confirm New Password</Text>
+        <Text style={styles.inputLabel}>{STRINGS.FORGOT_PASSWORD.STEP_3.CONFIRM_PASSWORD_LABEL}</Text>
         <View style={styles.inputWrapper}>
           <Ionicons
             name="lock-closed-outline"
@@ -483,7 +485,7 @@ export function ForgotPasswordScreen({
           />
           <TextInput
             style={styles.inputField}
-            placeholder="Re-enter new password"
+            placeholder={STRINGS.FORGOT_PASSWORD.STEP_3.CONFIRM_PASSWORD_PLACEHOLDER}
             placeholderTextColor={theme.colors.text.subtle}
             value={confirmPassword}
             onChangeText={(txt) => {
@@ -517,7 +519,7 @@ export function ForgotPasswordScreen({
           <ActivityIndicator color="#ffffff" size="small" />
         ) : (
           <View style={styles.btnContent}>
-            <Text style={styles.btnSubmitText}>RESET PASSWORD</Text>
+            <Text style={styles.btnSubmitText}>{STRINGS.FORGOT_PASSWORD.STEP_3.BTN_RESET}</Text>
             <Ionicons name="checkmark-done" size={18} color="#ffffff" style={styles.btnArrowIcon} />
           </View>
         )}
@@ -533,9 +535,9 @@ export function ForgotPasswordScreen({
       <View style={[styles.iconCircle, styles.successIconCircle]}>
         <Ionicons name="checkmark-done-circle" size={48} color={theme.colors.green} />
       </View>
-      <Text style={styles.cardTitle}>Password Reset Successful!</Text>
+      <Text style={styles.cardTitle}>{STRINGS.FORGOT_PASSWORD.SUCCESS.TITLE}</Text>
       <Text style={styles.cardSubtitle}>
-        Your password has been successfully updated. You can now log in using your new credentials.
+        {STRINGS.FORGOT_PASSWORD.SUCCESS.SUBTITLE}
       </Text>
 
       <TouchableOpacity
@@ -544,7 +546,7 @@ export function ForgotPasswordScreen({
         activeOpacity={0.85}
       >
         <View style={styles.btnContent}>
-          <Text style={styles.btnSubmitText}>LOG IN NOW</Text>
+          <Text style={styles.btnSubmitText}>{STRINGS.FORGOT_PASSWORD.SUCCESS.BTN_LOGIN_NOW}</Text>
           <Ionicons name="log-in-outline" size={20} color="#ffffff" style={styles.btnArrowIcon} />
         </View>
       </TouchableOpacity>
@@ -579,7 +581,7 @@ export function ForgotPasswordScreen({
               1
             </Text>
           </View>
-          <Text style={styles.stepLabel}>Account</Text>
+          <Text style={styles.stepLabel}>{STRINGS.FORGOT_PASSWORD.STEPS.ACCOUNT}</Text>
         </View>
 
         {/* Line 1 */}
@@ -607,7 +609,7 @@ export function ForgotPasswordScreen({
               2
             </Text>
           </View>
-          <Text style={styles.stepLabel}>Verify OTP</Text>
+          <Text style={styles.stepLabel}>{STRINGS.FORGOT_PASSWORD.STEPS.VERIFY_OTP}</Text>
         </View>
 
         {/* Line 2 */}
@@ -635,7 +637,7 @@ export function ForgotPasswordScreen({
               3
             </Text>
           </View>
-          <Text style={styles.stepLabel}>New Password</Text>
+          <Text style={styles.stepLabel}>{STRINGS.FORGOT_PASSWORD.STEPS.NEW_PASSWORD}</Text>
         </View>
       </View>
     );
@@ -672,9 +674,9 @@ export function ForgotPasswordScreen({
               <View style={styles.logoBadge}>
                 <Ionicons name="hardware-chip-outline" size={30} color="#ffffff" />
               </View>
-              <Text style={styles.brandTitle}>TechShare</Text>
+              <Text style={styles.brandTitle}>{STRINGS.FORGOT_PASSWORD.BRAND_TITLE}</Text>
               <Text style={styles.brandSubtitle}>
-                Securely recover access to your account
+                {STRINGS.FORGOT_PASSWORD.BRAND_SUBTITLE}
               </Text>
             </View>
 

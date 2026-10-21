@@ -18,6 +18,7 @@
  */
 
 import apiClient from '../config/api';
+import { STRINGS } from '../constants/strings';
 
 // ─────────────────────────────────────────────────────────
 //  Interfaces / Types
@@ -73,10 +74,10 @@ export interface ResendOtpResponse {
 export function validateStep1(identifier: string): { isValid: boolean; error: string | null } {
   const trimmed = identifier.trim();
   if (!trimmed) {
-    return { isValid: false, error: 'Please enter your username or email.' };
+    return { isValid: false, error: STRINGS.FORGOT_PASSWORD.VALIDATION.EMPTY_IDENTIFIER };
   }
   if (trimmed.length < 3) {
-    return { isValid: false, error: 'Username or email must be at least 3 characters.' };
+    return { isValid: false, error: STRINGS.FORGOT_PASSWORD.VALIDATION.IDENTIFIER_TOO_SHORT };
   }
   return { isValid: true, error: null };
 }
@@ -84,10 +85,10 @@ export function validateStep1(identifier: string): { isValid: boolean; error: st
 export function validateStep2(otp: string): { isValid: boolean; error: string | null } {
   const trimmed = otp.trim();
   if (!trimmed) {
-    return { isValid: false, error: 'Please enter the 6-digit OTP code.' };
+    return { isValid: false, error: STRINGS.FORGOT_PASSWORD.VALIDATION.EMPTY_OTP };
   }
   if (!/^\d{6}$/.test(trimmed)) {
-    return { isValid: false, error: 'OTP must be a 6-digit number.' };
+    return { isValid: false, error: STRINGS.FORGOT_PASSWORD.VALIDATION.INVALID_OTP_FORMAT };
   }
   return { isValid: true, error: null };
 }
@@ -100,15 +101,15 @@ export function validateStep3(
   let confirmError: string | null = null;
 
   if (!newPassword) {
-    passwordError = 'Please enter a new password.';
+    passwordError = STRINGS.FORGOT_PASSWORD.VALIDATION.EMPTY_PASSWORD;
   } else if (newPassword.length < 6) {
-    passwordError = 'Password must be at least 6 characters.';
+    passwordError = STRINGS.FORGOT_PASSWORD.VALIDATION.PASSWORD_TOO_SHORT;
   }
 
   if (!confirmPassword) {
-    confirmError = 'Please confirm your new password.';
+    confirmError = STRINGS.FORGOT_PASSWORD.VALIDATION.EMPTY_CONFIRM_PASSWORD;
   } else if (newPassword !== confirmPassword) {
-    confirmError = 'Passwords do not match.';
+    confirmError = STRINGS.FORGOT_PASSWORD.VALIDATION.PASSWORDS_MISMATCH;
   }
 
   return {
