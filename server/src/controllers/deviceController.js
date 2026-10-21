@@ -234,6 +234,127 @@ const getDeviceById = asyncHandler(async (req, res) => {
   });
 });
 
+const updateDeviceStatus = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  if (!/^[a-fA-F0-9]{24}$/.test(id)) {
+    return res.status(400).json({
+      success: false,
+      message: "ID thiết bị không hợp lệ",
+    });
+  }
+
+  const { status } = req.body || {};
+  if (!["available", "maintenance", "hidden"].includes(status)) {
+    return res.status(400).json({
+      success: false,
+      message: "Trạng thái thiết bị không hợp lệ",
+    });
+  }
+
+  const userId = req.auth?.userId || req.auth?.id || req.user?._id;
+  const device = await Device.findOneAndUpdate({
+    _id: id,
+    ownerId: userId,
+    isDeleted: false,
+    status: { $ne: "rented" },
+  }, {
+    $set: { status },
+  }, {
+    new: true,
+    runValidators: true,
+  });
+  if (!device) {
+    const rentedDevice = await Device.exists({
+      _id: id,
+      ownerId: userId,
+      isDeleted: false,
+      status: "rented",
+    });
+    if (rentedDevice) {
+      return res.status(409).json({
+        success: false,
+        message: "Không thể đổi trạng thái thiết bị đang được cho thuê.",
+      });
+    }
+    return res.status(404).json({
+      success: false,
+      message: "Không tìm thấy thiết bị hoặc bạn không có quyền cập nhật.",
+    });
+  }
+  return res.status(200).json({
+    success: true,
+    message: "Cập nhật trạng thái thiết bị thành công.",
+    data: device,
+  });
+});
+
+const updateBlockedDates = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  if (!/^[a-fA-F0-9]{24}$/.test(id)) {
+    return res.status(400).json({
+      success: false,
+      message: "ID thiết bị không hợp lệ",
+    });
+  }
+
+  const { blockedDates } = req.body || {};
+  if (
+    !Array.isArray(blockedDates) ||
+    blockedDates.some((blockedDate) => {
+      if (
+        !blockedDate ||
+        typeof blockedDate.startDate !== "string" ||
+        typeof blockedDate.endDate !== "string" ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(blockedDate.startDate) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(blockedDate.endDate)
+      ) {
+        return true;
+      }
+      const startDate = new Date(`${blockedDate.startDate}T00:00:00.000Z`);
+      const endDate = new Date(`${blockedDate.endDate}T00:00:00.000Z`);
+      return (
+        Number.isNaN(startDate.getTime()) ||
+        Number.isNaN(endDate.getTime()) ||
+        startDate.toISOString().slice(0, 10) !== blockedDate.startDate ||
+        endDate.toISOString().slice(0, 10) !== blockedDate.endDate ||
+        startDate > endDate ||
+        (blockedDate.reason !== undefined &&
+          typeof blockedDate.reason !== "string")
+      );
+    })
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "Danh sách ngày bận không hợp lệ.",
+    });
+  }
+
+  const userId = req.user?._id || req.auth?.id;
+  const device = await Device.findOne({
+    _id: id,
+    ownerId: userId,
+    isDeleted: false,
+  });
+  if (!device) {
+    return res.status(404).json({
+      success: false,
+      message: "Không tìm thấy thiết bị hoặc bạn không có quyền cập nhật.",
+    });
+  }
+
+  device.blockedDates = blockedDates.map(({ startDate, endDate, reason }) => ({
+    startDate: new Date(`${startDate}T00:00:00.000Z`),
+    endDate: new Date(`${endDate}T00:00:00.000Z`),
+    reason: reason || "",
+  }));
+  await device.save();
+  return res.status(200).json({
+    success: true,
+    message: "Cập nhật lịch bận thành công.",
+    data: device.blockedDates,
+  });
+});
+
 module.exports = {
   getDeviceCategories,
   getAvailableDevices,
@@ -242,4 +363,6 @@ module.exports = {
   createDevice,
   uploadDeviceImage,
   getDeviceById,
+  updateDeviceStatus,
+  updateBlockedDates,
 };

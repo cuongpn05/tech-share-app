@@ -204,6 +204,14 @@ export interface Device {
 
 export type DeviceStatus = 'available' | 'rented' | 'maintenance' | 'hidden';
 
+export type ManagedDeviceStatus = Exclude<DeviceStatus, 'rented'>;
+
+export interface BlockedDate {
+  startDate: string;
+  endDate: string;
+  reason?: string;
+}
+
 export type ScreenType =
   | 'home'
   | 'bookings'
@@ -277,5 +285,3 @@ export interface DeviceModerationDetailItem extends DeviceModerationItem {
     address?: string;
   };
 }
-
-
