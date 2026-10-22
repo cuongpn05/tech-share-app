@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { HomeRoute } from './HomeRoute';
 import OwnerDashboardScreen from '../screens/owner/OwnerDashboardScreen';
+import { OwnerAnalyticsScreen } from '../screens/owner/OwnerAnalyticsScreen';
 import OwnerPendingBookingsScreen from '../screens/owner/OwnerPendingBookingsScreen';
 import { PostDeviceScreen } from '../screens/device/PostDeviceScreen';
 import OwnerMessagesScreen from '../screens/owner/OwnerMessagesScreen';
@@ -28,44 +29,44 @@ const OwnerPlaceholderScreen: React.FC<{
   description = 'Tính năng đang được phát triển và sẽ sớm ra mắt.',
   navigation,
 }) => {
-  const insets = useSafeAreaInsets();
-  const topInset = Math.max(
-    insets.top,
-    Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 20
-  );
+    const insets = useSafeAreaInsets();
+    const topInset = Math.max(
+      insets.top,
+      Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 20
+    );
 
-  return (
-    <View style={[styles.screenContainer, { paddingTop: topInset }]}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          accessibilityRole="button"
-          accessibilityLabel="Menu"
-          style={styles.headerButton}
-          onPress={() => navigation?.openDrawer?.()}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="menu-outline" size={24} color={theme.colors.text.primary} />
-        </TouchableOpacity>
-        <View style={styles.headerTitleCol}>
-          <Text style={styles.headerTitle}>{title}</Text>
-          <Text style={styles.headerSubtitle}>{subtitle}</Text>
+    return (
+      <View style={[styles.screenContainer, { paddingTop: topInset }]}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Menu"
+            style={styles.headerButton}
+            onPress={() => navigation?.openDrawer?.()}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="menu-outline" size={24} color={theme.colors.text.primary} />
+          </TouchableOpacity>
+          <View style={styles.headerTitleCol}>
+            <Text style={styles.headerTitle}>{title}</Text>
+            <Text style={styles.headerSubtitle}>{subtitle}</Text>
+          </View>
+        </View>
+        <View style={styles.placeholderContainer}>
+          <View style={styles.placeholderCard}>
+            <Ionicons
+              name="construct-outline"
+              size={44}
+              color={theme.colors.brand[500]}
+              style={{ marginBottom: 14 }}
+            />
+            <Text style={styles.placeholderTitle}>{title}</Text>
+            <Text style={styles.placeholderSubtitle}>{description}</Text>
+          </View>
         </View>
       </View>
-      <View style={styles.placeholderContainer}>
-        <View style={styles.placeholderCard}>
-          <Ionicons
-            name="construct-outline"
-            size={44}
-            color={theme.colors.brand[500]}
-            style={{ marginBottom: 14 }}
-          />
-          <Text style={styles.placeholderTitle}>{title}</Text>
-          <Text style={styles.placeholderSubtitle}>{description}</Text>
-        </View>
-      </View>
-    </View>
-  );
-};
+    );
+  };
 
 export const OwnerDrawerNavigator: React.FC = () => {
   return (
@@ -91,11 +92,7 @@ export const OwnerDrawerNavigator: React.FC = () => {
 
       <Drawer.Screen name="OwnerRevenueAnalytics">
         {({ navigation }: any) => (
-          <OwnerPlaceholderScreen
-            title="Revenue & Analytics"
-            subtitle="Phân tích chuyên sâu doanh thu và lượt thuê thiết bị"
-            navigation={navigation}
-          />
+          <OwnerAnalyticsScreen navigation={navigation} />
         )}
       </Drawer.Screen>
 
