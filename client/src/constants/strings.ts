@@ -234,9 +234,13 @@ export const STRINGS = {
 
   AVAILABILITY: {
     MODAL_TITLE: 'Manage Availability',
-    DESCRIPTION: 'Block dates when you need to use this device.',
+    DESCRIPTION: 'Tap a date to block it. Tap a blocked date to unblock it.',
     MODE_SINGLE: 'Single dates',
     MODE_RANGE: 'Date range',
+    RANGE_SELECT_START: 'Select a start date to block, or a blocked date to unblock.',
+    RANGE_SELECT_END: (date: string) => `Select an end date from ${date}.`,
+    RANGE_UNBLOCK_SELECT_END: (date: string) =>
+      `Select the end date to unblock, starting from ${date}.`,
     PREV_MONTH_ACCESSIBILITY: 'Previous month',
     NEXT_MONTH_ACCESSIBILITY: 'Next month',
     WEEKDAYS: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as readonly string[],
@@ -250,6 +254,7 @@ export const STRINGS = {
     SAVE_CHANGES: 'Save Changes',
     ALERT_SELECT_RANGE: 'Please select start date and end date',
     ALERT_SELECT_SINGLE: 'Please select at least one date',
+    ALERT_RANGE_BOOKED: 'The selected range includes dates that are already booked.',
     ALERT_SUCCESS_TITLE: 'Success',
     ALERT_SUCCESS_MSG: 'Updated blocked dates successfully.',
     ALERT_ERROR_TITLE: 'Error',
@@ -1838,5 +1843,3 @@ export const STRINGS = {
     },
   },
 } as const;
-
-

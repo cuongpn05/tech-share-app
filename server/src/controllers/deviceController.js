@@ -330,28 +330,34 @@ const updateBlockedDates = asyncHandler(async (req, res) => {
   }
 
   const userId = req.user?._id || req.auth?.id;
-  const device = await Device.findOne({
-    _id: id,
-    ownerId: userId,
-    isDeleted: false,
-  });
-  if (!device) {
+  const updatedDevice = await Device.findOneAndUpdate(
+    {
+      _id: id,
+      ownerId: userId,
+      isDeleted: false,
+    },
+    {
+      $set: {
+        blockedDates: blockedDates.map(({ startDate, endDate, reason }) => ({
+          startDate: new Date(`${startDate}T00:00:00.000Z`),
+          endDate: new Date(`${endDate}T00:00:00.000Z`),
+          reason: reason || "",
+        })),
+      },
+    },
+    { new: true, runValidators: true },
+  ).select("blockedDates").lean();
+  if (!updatedDevice) {
     return res.status(404).json({
       success: false,
       message: "Không tìm thấy thiết bị hoặc bạn không có quyền cập nhật.",
     });
   }
 
-  device.blockedDates = blockedDates.map(({ startDate, endDate, reason }) => ({
-    startDate: new Date(`${startDate}T00:00:00.000Z`),
-    endDate: new Date(`${endDate}T00:00:00.000Z`),
-    reason: reason || "",
-  }));
-  await device.save();
   return res.status(200).json({
     success: true,
     message: "Cập nhật lịch bận thành công.",
-    data: device.blockedDates,
+    data: updatedDevice.blockedDates,
   });
 });
 
