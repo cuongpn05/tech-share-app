@@ -118,7 +118,7 @@ export function MyDevicesScreen({ onBack }: MyDevicesScreenProps) {
     blockedDates: BlockedDate[],
   ) => {
     if (!token) throw new Error('Authentication is required to update availability.');
-    await deviceService.updateBlockDate(token, deviceId, blockedDates);
+    await deviceService.updateBlockedDates(token, deviceId, blockedDates);
   };
 
   const openAvailability = (device: Device) => {

@@ -238,7 +238,7 @@ export const deviceService = {
     }
   },
 
-  async updateBlockDate(
+  async updateBlockedDates(
     token: string,
     deviceId: string,
     blockedDates: BlockedDate[],
@@ -249,7 +249,9 @@ export const deviceService = {
       { headers: { Authorization: `Bearer ${token}` } },
     );
     if (response.data?.success !== true) {
-      throw new Error("The server did not confirm the availability update.");
+      throw new Error(
+        response.data?.message || "The server did not confirm the availability update.",
+      );
     }
   },
 };
