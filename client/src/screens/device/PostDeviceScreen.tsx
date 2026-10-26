@@ -5,6 +5,7 @@ import {
   Alert,
   Image,
   Keyboard,
+  Modal,
   Platform,
   ScrollView,
   StatusBar,
@@ -44,6 +45,12 @@ type DeviceLocation = {
 const categories = ['Smartphone', 'Laptop', 'Camera', 'Drone', 'Audio', 'Gaming', 'Accessory'];
 const DEVICES_PER_PAGE = 5;
 
+type DeleteDialogState =
+  | { type: 'confirm'; device: Device }
+  | { type: 'loading'; device: Device }
+  | { type: 'success'; device: Device }
+  | { type: 'error'; device: Device; message: string };
+
 function SectionTitle({ title, description }: { title: string; description?: string }) {
   return (
     <View style={styles.sectionHeading}>
@@ -80,12 +87,62 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
   const [devices, setDevices] = useState<Device[]>([]);
   const [devicePage, setDevicePage] = useState(1);
   const [isLoadingDevices, setIsLoadingDevices] = useState(false);
+  const [deletingDeviceId, setDeletingDeviceId] = useState<string | null>(null);
+  const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState | null>(null);
   const [devicesError, setDevicesError] = useState('');
   const devicePageCount = Math.ceil(devices.length / DEVICES_PER_PAGE);
   const visibleDevices = devices.slice(
     (devicePage - 1) * DEVICES_PER_PAGE,
     devicePage * DEVICES_PER_PAGE,
   );
+
+  const deleteDevice = async (device: Device) => {
+    if (!accessToken.trim()) {
+      setDeleteDialog({
+        type: 'error',
+        device,
+        message: STRINGS.POST_DEVICE.ERR_LOGIN_REQUIRED,
+      });
+      return;
+    }
+
+    setDeletingDeviceId(device._id);
+    setDeleteDialog({ type: 'loading', device });
+    try {
+      await devicePostService.deleteMyDevice(accessToken, device._id);
+      const remainingDeviceCount = devices.length - 1;
+      setDevices((current) => {
+        return current.filter((item) => item._id !== device._id);
+      });
+      setDevicePage((page) =>
+        Math.max(1, Math.min(page, Math.ceil(remainingDeviceCount / DEVICES_PER_PAGE))),
+      );
+      setDeleteDialog({ type: 'success', device });
+    } catch (error: unknown) {
+      console.error('[PostDeviceScreen] Cannot delete owner device:', error);
+      const serverMessage = axios.isAxiosError(error)
+        ? error.response?.data?.message
+        : undefined;
+      const message =
+        typeof serverMessage === 'string'
+          ? serverMessage
+          : error instanceof Error
+            ? error.message
+            : STRINGS.POST_DEVICE.DELETE_ERROR;
+      setDeleteDialog({ type: 'error', device, message });
+    } finally {
+      setDeletingDeviceId(null);
+    }
+  };
+
+  const confirmDeleteDevice = (device: Device) => {
+    setDeleteDialog({ type: 'confirm', device });
+  };
+
+  const confirmDeleteSelectedDevice = () => {
+    if (deleteDialog?.type !== 'confirm') return;
+    void deleteDevice(deleteDialog.device);
+  };
 
   const handleGenerateDescription = async () => {
     const pricePerDay = Number(price);
@@ -389,6 +446,25 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
                     {device.status === 'available' ? STRINGS.POST_DEVICE.STATUS_AVAILABLE : device.status}
                   </Text>
                 </View>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel={`${STRINGS.POST_DEVICE.DELETE_DEVICE}: ${device.name || device.title}`}
+                  accessibilityState={{ disabled: deletingDeviceId !== null }}
+                  disabled={deletingDeviceId !== null}
+                  onPress={() => confirmDeleteDevice(device)}
+                  style={styles.deviceDeleteButton}
+                  activeOpacity={0.7}
+                >
+                  {deletingDeviceId === device._id ? (
+                    <ActivityIndicator size="small" color={colors.light.danger} />
+                  ) : (
+                    <Ionicons
+                      name="trash-outline"
+                      size={19}
+                      color={colors.light.danger}
+                    />
+                  )}
+                </TouchableOpacity>
               </View>
             ))
           )}
@@ -589,6 +665,108 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
             : <Text style={styles.publishText}>{STRINGS.POST_DEVICE.BTN_PUBLISH}</Text>}
         </TouchableOpacity>
       </ScrollView>
+      <Modal
+        visible={deleteDialog !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (deleteDialog?.type !== 'loading') setDeleteDialog(null);
+        }}
+      >
+        {deleteDialog && (
+          <View style={styles.deleteDialogOverlay}>
+            <View
+              accessibilityViewIsModal
+              style={styles.deleteDialogCard}
+            >
+              <View
+                style={[
+                  styles.deleteDialogIcon,
+                  deleteDialog.type === 'success' && styles.deleteDialogIconSuccess,
+                  deleteDialog.type === 'error' && styles.deleteDialogIconError,
+                ]}
+              >
+                {deleteDialog.type === 'loading' ? (
+                  <ActivityIndicator size="large" color={colors.light.primary} />
+                ) : (
+                  <Ionicons
+                    name={
+                      deleteDialog.type === 'success'
+                        ? 'checkmark-circle-outline'
+                        : deleteDialog.type === 'error'
+                          ? 'alert-circle-outline'
+                          : 'trash-outline'
+                    }
+                    size={30}
+                    color={
+                      deleteDialog.type === 'success'
+                        ? colors.light.success
+                        : deleteDialog.type === 'error'
+                          ? colors.light.danger
+                          : colors.light.danger
+                    }
+                  />
+                )}
+              </View>
+              <Text style={styles.deleteDialogTitle}>
+                {deleteDialog.type === 'confirm'
+                  ? STRINGS.POST_DEVICE.DELETE_CONFIRM_TITLE
+                  : deleteDialog.type === 'loading'
+                    ? STRINGS.POST_DEVICE.DELETE_LOADING_TITLE
+                    : deleteDialog.type === 'success'
+                      ? STRINGS.POST_DEVICE.DELETE_SUCCESS_TITLE
+                      : STRINGS.POST_DEVICE.DELETE_ERROR_TITLE}
+              </Text>
+              <Text style={styles.deleteDialogMessage}>
+                {deleteDialog.type === 'confirm'
+                  ? STRINGS.POST_DEVICE.DELETE_CONFIRM_MSG(
+                      deleteDialog.device.name || deleteDialog.device.title,
+                    )
+                  : deleteDialog.type === 'loading'
+                    ? STRINGS.POST_DEVICE.DELETE_LOADING_MSG
+                    : deleteDialog.type === 'success'
+                      ? STRINGS.POST_DEVICE.DELETE_SUCCESS_MSG(
+                          deleteDialog.device.name || deleteDialog.device.title,
+                        )
+                      : deleteDialog.message}
+              </Text>
+              {deleteDialog.type === 'confirm' ? (
+                <View style={styles.deleteDialogActions}>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    onPress={() => setDeleteDialog(null)}
+                    style={[styles.deleteDialogButton, styles.deleteDialogCancel]}
+                  >
+                    <Text style={styles.deleteDialogCancelText}>
+                      {STRINGS.COMMON.CANCEL}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    onPress={confirmDeleteSelectedDevice}
+                    style={[styles.deleteDialogButton, styles.deleteDialogConfirm]}
+                  >
+                    <Ionicons name="trash-outline" size={17} color={colors.light.white} />
+                    <Text style={styles.deleteDialogConfirmText}>
+                      {STRINGS.POST_DEVICE.DELETE_CONFIRM_ACTION}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : deleteDialog.type !== 'loading' ? (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  onPress={() => setDeleteDialog(null)}
+                  style={[styles.deleteDialogButton, styles.deleteDialogDone]}
+                >
+                  <Text style={styles.deleteDialogConfirmText}>
+                    {STRINGS.POST_DEVICE.DELETE_DONE}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
+        )}
+      </Modal>
     </View>
   );
 }
@@ -664,6 +842,97 @@ const styles = StyleSheet.create({
   },
   deviceListImagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
   deviceListInfo: { flex: 1, marginLeft: 10 },
+  deviceDeleteButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+    borderRadius: 12,
+    backgroundColor: colors.light.dangerLight,
+  },
+  deleteDialogOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+  },
+  deleteDialogCard: {
+    width: '100%',
+    maxWidth: 380,
+    alignItems: 'center',
+    padding: 24,
+    borderRadius: 24,
+    backgroundColor: colors.light.surface,
+    shadowColor: colors.light.shadow,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  deleteDialogIcon: {
+    width: 64,
+    height: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    borderRadius: 32,
+    backgroundColor: colors.light.dangerLight,
+  },
+  deleteDialogIconSuccess: { backgroundColor: colors.light.successLight },
+  deleteDialogIconError: { backgroundColor: colors.light.dangerLight },
+  deleteDialogTitle: {
+    color: colors.light.textPrimary,
+    fontSize: 19,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  deleteDialogMessage: {
+    marginTop: 9,
+    color: colors.light.textSecondary,
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: 'center',
+  },
+  deleteDialogActions: {
+    flexDirection: 'row',
+    gap: 10,
+    width: '100%',
+    marginTop: 24,
+  },
+  deleteDialogButton: {
+    minHeight: 48,
+    flexDirection: 'row',
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    paddingHorizontal: 12,
+    borderRadius: 13,
+  },
+  deleteDialogCancel: {
+    borderWidth: 1,
+    borderColor: colors.light.borderDefault,
+    backgroundColor: colors.light.white,
+  },
+  deleteDialogCancelText: {
+    color: colors.light.textPrimary,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  deleteDialogConfirm: { backgroundColor: colors.light.danger },
+  deleteDialogDone: {
+    width: '100%',
+    flex: 0,
+    marginTop: 24,
+    backgroundColor: colors.light.primary,
+  },
+  deleteDialogConfirmText: {
+    color: colors.light.white,
+    fontSize: 14,
+    fontWeight: '800',
+  },
   deviceListName: { color: colors.light.textPrimary, fontSize: 13, fontWeight: '800' },
   deviceListMeta: { color: colors.light.textSecondary, fontSize: 11, marginTop: 4 },
   deviceListStatus: { fontSize: 11, fontWeight: '700', marginTop: 4 },

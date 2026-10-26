@@ -74,4 +74,18 @@ export const devicePostService = {
       headers: { Authorization: `Bearer ${token}` },
     });
   },
+
+  async deleteMyDevice(token: string, deviceId: string): Promise<void> {
+    const response = await apiClient.delete<{
+      success?: boolean;
+      message?: string;
+    }>(`/devices/${deviceId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (response.data?.success !== true) {
+      throw new Error(
+        response.data?.message || 'The server did not confirm device deletion.',
+      );
+    }
+  },
 };
