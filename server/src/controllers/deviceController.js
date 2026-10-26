@@ -1,4 +1,5 @@
 const Device = require("../models/Device");
+const Booking = require("../models/Booking");
 require("../models/User");
 const { asyncHandler } = require("../middlewares/asyncHandler");
 const { uploadToCloudinary } = require("../utils/cloudinary");
@@ -361,6 +362,69 @@ const updateBlockedDates = asyncHandler(async (req, res) => {
   });
 });
 
+const deleteMyDevice = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  if (!/^[a-fA-F0-9]{24}$/.test(id)) {
+    return res.status(400).json({
+      success: false,
+      message: "ID thiết bị không hợp lệ",
+    });
+  }
+
+  const userId = req.user?._id || req.auth?.id;
+  const deviceFilter = {
+    _id: id,
+    ownerId: userId,
+    isDeleted: false,
+  };
+  const ownedDevice = await Device.exists(deviceFilter);
+  if (!ownedDevice) {
+    return res.status(404).json({
+      success: false,
+      message: "Không tìm thấy thiết bị hoặc bạn không có quyền xóa.",
+    });
+  }
+
+  const hasActiveBooking = await Booking.exists({
+    deviceId: id,
+    status: { $in: ["pending", "approved", "active", "disputed"] },
+  });
+  if (hasActiveBooking) {
+    return res.status(409).json({
+      success: false,
+      message: "Không thể xóa thiết bị đang có đơn thuê cần xử lý.",
+    });
+  }
+
+  const device = await Device.findOneAndUpdate(
+    { ...deviceFilter, status: { $ne: "rented" } },
+    { $set: { isDeleted: true } },
+    { new: true },
+  ).select("_id").lean();
+  if (!device) {
+    const rentedDevice = await Device.exists({
+      ...deviceFilter,
+      status: "rented",
+    });
+    if (rentedDevice) {
+      return res.status(409).json({
+        success: false,
+        message: "Không thể xóa thiết bị đang được cho thuê.",
+      });
+    }
+    return res.status(404).json({
+      success: false,
+      message: "Không tìm thấy thiết bị hoặc bạn không có quyền xóa.",
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: "Xóa thiết bị thành công.",
+    data: { _id: device._id },
+  });
+});
+
 module.exports = {
   getDeviceCategories,
   getAvailableDevices,
@@ -371,4 +435,5 @@ module.exports = {
   getDeviceById,
   updateDeviceStatus,
   updateBlockedDates,
+  deleteMyDevice,
 };

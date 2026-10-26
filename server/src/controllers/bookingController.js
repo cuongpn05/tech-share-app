@@ -18,7 +18,7 @@ const createBooking = async (req, res) => {
       return res.status(400).json({ message: 'Thiếu thông tin bắt buộc' });
     }
 
-    const device = await Device.findById(deviceId);
+    const device = await Device.findOne({ _id: deviceId, isDeleted: false });
     if (!device) {
       return res.status(404).json({ message: 'Không tìm thấy thiết bị' });
     }
@@ -748,4 +748,3 @@ module.exports = {
   getOwnerBookings,
   updateBookingStatus,
 };
-
