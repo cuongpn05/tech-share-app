@@ -21,12 +21,15 @@ import { ExtensionModal } from '../../components/booking/ExtensionModal';
 import { ReviewModal } from '../../components/booking/ReviewModal';
 import { BookingCancelModal } from '../../components/booking/BookingCancelModal';
 import { bookingService, Booking } from '../../services/bookingService';
+import { useAppSelector } from '../../store';
 
 export interface MyBookingsScreenProps {
   onNavigateToBookingDetail?: (bookingId: string) => void;
   onNavigateToDeviceDetail?: (deviceId: string) => void;
   onNavigateToBookingCreate?: (deviceId: string) => void;
   onNavigateToHome?: () => void;
+  onNavigateToLogin?: () => void;
+  navigation?: any;
 }
 
 const TABS = [
@@ -43,7 +46,10 @@ export function MyBookingsScreen({
   onNavigateToBookingDetail,
   onNavigateToDeviceDetail,
   onNavigateToBookingCreate,
+  onNavigateToLogin,
+  navigation,
 }: MyBookingsScreenProps) {
+  const { isAuthenticated } = useAppSelector((state) => state.auth);
   const insets = useSafeAreaInsets();
   const topInset = Math.max(
     insets.top,
@@ -90,11 +96,14 @@ export function MyBookingsScreen({
 
   useFocusEffect(
     useCallback(() => {
-      fetchBookings(activeTab);
-    }, [activeTab, fetchBookings])
+      if (isAuthenticated) {
+        fetchBookings(activeTab);
+      }
+    }, [activeTab, fetchBookings, isAuthenticated])
   );
 
   const onRefresh = async () => {
+    if (!isAuthenticated) return;
     setRefreshing(true);
     await fetchBookings(activeTab);
     setRefreshing(false);
@@ -169,6 +178,44 @@ export function MyBookingsScreen({
       </View>
     );
   };
+
+  if (!isAuthenticated) {
+    return (
+      <View style={styles.container}>
+        <View style={[styles.header, { paddingTop: topInset + 8 }]}>
+          <View style={styles.headerTitleRow}>
+            <Ionicons name="receipt" size={24} color={colors.light.primary} />
+            <Text style={styles.headerTitle}>{STRINGS.MY_BOOKINGS.TITLE}</Text>
+          </View>
+        </View>
+        <View style={styles.emptyContainer}>
+          <View style={styles.iconCircle}>
+            <Ionicons name="receipt-outline" size={54} color={colors.light.primary} />
+          </View>
+          <Text style={styles.title}>{STRINGS.MY_BOOKINGS.GUEST_TITLE}</Text>
+          <Text style={styles.description}>
+            {STRINGS.MY_BOOKINGS.GUEST_SUBTITLE}
+          </Text>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => {
+              if (onNavigateToLogin) {
+                onNavigateToLogin();
+              } else if (navigation?.navigate) {
+                navigation.navigate('Login');
+              }
+            }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="log-in-outline" size={18} color={colors.light.white} />
+            <Text style={styles.actionButtonText}>
+              {STRINGS.MY_BOOKINGS.GUEST_LOGIN_BUTTON}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>

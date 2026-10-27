@@ -4,7 +4,7 @@ import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CategoryBar } from '../../components/home/CategoryBar';
-import { createFaviMapHtml, getMapDevices, parseMapMessage } from '../../components/map/faviMapHtml';
+import { createFaviMapHtml, getMapDevices, parseMapMessage } from '../../components/map/mapHtml';
 import { FAVI_MAP_API_KEY } from '../../config/faviMap';
 import { HomeCoordinate, useHomeLocation } from '../../hooks/useHomeLocation';
 import { deviceService, HOME_NEARBY_RADIUS_METERS } from '../../services/deviceService';

@@ -331,15 +331,15 @@ export function BookingCreateScreen({
   const totalAmount = rentalFeeAfterLongTerm + deviceDepositValue;
 
   const handleConfirm = async () => {
-    // 1. Kiểm tra đăng nhập nếu là khách (Role Guest)
+    // 1. Check login if guest (Role Guest)
     if (!currentUser) {
       Alert.alert(
-        'Yêu cầu đăng nhập',
-        'Vui lòng đăng nhập tài khoản để thực hiện đặt thuê thiết bị.',
+        STRINGS.AUTH_LOGIN_ALERT.TITLE,
+        STRINGS.AUTH_LOGIN_ALERT.MSG,
         [
-          { text: 'Để sau', style: 'cancel' },
+          { text: STRINGS.AUTH_LOGIN_ALERT.LATER, style: 'cancel' },
           {
-            text: 'Đăng nhập ngay',
+            text: STRINGS.AUTH_LOGIN_ALERT.LOGIN_NOW,
             onPress: () => {
               if (onNavigateToLogin) onNavigateToLogin();
             },

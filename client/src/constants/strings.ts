@@ -838,6 +838,9 @@ export const STRINGS = {
     EXPLORE_DEVICES: 'Explore Devices',
     CANCEL_MODAL_DESC: (code: string) => `You are requesting to cancel order #${code}. Please provide a reason:`,
     REASON_PLACEHOLDER: 'Or enter another reason...',
+    GUEST_TITLE: 'Device Rentals',
+    GUEST_SUBTITLE: 'Please log in to track rental progress and manage your technology equipment orders.',
+    GUEST_LOGIN_BUTTON: 'Log In Now',
   },
 
   BOOKING_CREATE: {
@@ -1154,10 +1157,17 @@ export const STRINGS = {
   },
 
   AUTH_VERIFY_ALERT: {
-    TITLE: 'Yêu cầu xác thực danh tính (eKYC)',
-    MSG: 'Bạn cần hoàn tất Xác thực danh tính (eKYC) trước khi đặt thuê thiết bị.',
-    LATER: 'Để sau',
-    VERIFY_NOW: 'Xác thực ngay',
+    TITLE: 'Identity Verification Required (eKYC)',
+    MSG: 'You must complete Identity Verification (eKYC) before renting devices.',
+    LATER: 'Later',
+    VERIFY_NOW: 'Verify Now',
+  },
+
+  AUTH_LOGIN_ALERT: {
+    TITLE: 'Login Required',
+    MSG: 'Please log in to your account to place a device rental booking.',
+    LATER: 'Later',
+    LOGIN_NOW: 'Log In Now',
   },
 
 
@@ -1853,5 +1863,74 @@ export const STRINGS = {
       RESET_PASSWORD_FAILED: 'Unable to reset password.',
       RESET_PASSWORD_SERVER_ERROR: 'Server error occurred while resetting password.',
     },
+  },
+
+  PROFILE_SCREEN: {
+    HEADER_TITLE: 'Profile',
+    GUEST_NAME: 'Guest',
+    GUEST_DESC:
+      'You are browsing TechShare as a Guest. Log in to unlock full features, book devices, and manage your rentals.',
+    LOGIN_SIGNUP_BUTTON: 'Log In / Sign Up',
+    REVIEWS_COUNT: (count: number) => `(${count} reviews)`,
+
+    // Contact Information
+    CONTACT_SECTION_TITLE: 'Contact Information',
+    PHONE_LABEL: 'Phone Number',
+    EMAIL_LABEL: 'Email',
+    ADDRESS_LABEL: 'Address',
+    NOT_UPDATED: 'Not updated',
+
+    // eKYC Verification
+    EKYC_SECTION_TITLE: 'Identity Verification',
+    EKYC_ROW_TITLE: 'eKYC Verification (ID Card)',
+    VERIFIED_BADGE: 'Verified',
+    UNVERIFIED_BADGE: 'Unverified',
+    EKYC_DESC_VERIFIED:
+      'Your account has verified ID credentials and is eligible to rent devices.',
+    EKYC_DESC_UNVERIFIED:
+      'Verify your ID card to unlock device rentals on TechShare.',
+
+    // Referral Code
+    REFERRAL_SECTION_TITLE: 'Referral Code',
+    NO_REFERRAL_CODE: 'None',
+    COPY_BUTTON: 'Copy',
+    REFERRAL_COPIED_ALERT_TITLE: 'Referral Code',
+    REFERRAL_COPIED_ALERT_MSG: (code: string) => `Referral code copied: ${code}`,
+    REFERRAL_NONE_ALERT_MSG: 'No referral code available for this account.',
+
+    // Wishlist
+    WISHLIST_BUTTON: 'Wishlist',
+
+    // Action Buttons
+    EDIT_PROFILE_BUTTON: 'Edit Profile',
+    LOGOUT_BUTTON: 'Log Out',
+    LOGOUT_ALERT_TITLE: 'Log Out',
+    LOGOUT_ALERT_MSG: 'Are you sure you want to log out?',
+
+    // Address verification requirement
+    ADDRESS_REQUIRED_TITLE: 'Address Required',
+    ADDRESS_REQUIRED_MSG:
+      'You need to update your contact address in your profile before proceeding with identity verification (eKYC).',
+    LATER: 'Later',
+    UPDATE_NOW: 'Update Now',
+
+    // Edit Profile Modal
+    EDIT_MODAL_TITLE: 'Edit Profile',
+    FULL_NAME_LABEL: 'Full Name *',
+    FULL_NAME_PLACEHOLDER: 'Enter your full name...',
+    PHONE_PLACEHOLDER: 'Enter phone number...',
+    EMAIL_PLACEHOLDER: 'Enter email address...',
+    ADDRESS_PLACEHOLDER: 'Enter your address...',
+    AVATAR_LABEL: 'Avatar URL',
+    AVATAR_PLACEHOLDER: 'https://...',
+    SAVE_CHANGES_BUTTON: 'Save Changes',
+
+    // Alerts
+    ALERT_NOTICE_TITLE: 'Notice',
+    ALERT_NAME_REQUIRED: 'Please enter your full name.',
+    ALERT_SUCCESS_TITLE: 'Success',
+    ALERT_SUCCESS_MSG: 'Profile updated successfully.',
+    ALERT_ERROR_TITLE: 'Error',
+    ALERT_SAVE_ERROR_DEFAULT: 'Unable to save changes.',
   },
 } as const;
