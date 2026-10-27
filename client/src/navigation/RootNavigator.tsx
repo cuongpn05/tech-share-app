@@ -100,6 +100,8 @@ const BookingCreateRoute = ({ route, navigation }: any) => (
 
 const MyBookingsRoute = ({ navigation }: any) => (
   <MyBookingsScreen
+    navigation={navigation}
+    onNavigateToLogin={() => navigation.navigate('Login')}
     onNavigateToBookingDetail={(bookingId) => navigation.navigate('BookingDetail', { bookingId })}
     onNavigateToDeviceDetail={(deviceId) => navigation.navigate('DeviceDetail', { deviceId })}
     onNavigateToBookingCreate={(deviceId) => navigation.navigate('BookingCreate', { deviceId })}

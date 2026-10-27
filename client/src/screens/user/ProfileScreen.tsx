@@ -20,6 +20,7 @@ import { useAppDispatch, useAppSelector } from '../../store';
 import { clearAuth, updateUser } from '../../store/slices/authSlice';
 import { userService } from '../../services/userService';
 import { theme } from '../../constants/theme';
+import { STRINGS } from '../../constants/strings';
 import { User } from '../../types';
 
 export interface ProfileScreenProps {
@@ -122,10 +123,13 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
     setIsEditModalVisible(true);
   };
 
-  // Lưu thông tin
+  // Save profile
   const handleSaveProfile = async () => {
     if (!editName.trim()) {
-      Alert.alert('Thông báo', 'Vui lòng nhập họ và tên.');
+      Alert.alert(
+        STRINGS.PROFILE_SCREEN.ALERT_NOTICE_TITLE,
+        STRINGS.PROFILE_SCREEN.ALERT_NAME_REQUIRED
+      );
       return;
     }
 
@@ -152,36 +156,49 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
       }));
       dispatch(updateUser(updatedData));
       setIsEditModalVisible(false);
-      Alert.alert('Thành công', 'Đã cập nhật thông tin cá nhân.');
+      Alert.alert(
+        STRINGS.PROFILE_SCREEN.ALERT_SUCCESS_TITLE,
+        STRINGS.PROFILE_SCREEN.ALERT_SUCCESS_MSG
+      );
     } catch (err: any) {
-      Alert.alert('Lỗi', err.response?.data?.message || 'Không thể lưu thay đổi.');
+      Alert.alert(
+        STRINGS.PROFILE_SCREEN.ALERT_ERROR_TITLE,
+        err.response?.data?.message || STRINGS.PROFILE_SCREEN.ALERT_SAVE_ERROR_DEFAULT
+      );
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Sao chép mã giới thiệu
+  // Copy referral code
   const handleCopyReferral = () => {
     if (!profile.referralCode) {
-      Alert.alert('Mã giới thiệu', 'Tài khoản chưa có mã giới thiệu.');
+      Alert.alert(
+        STRINGS.PROFILE_SCREEN.REFERRAL_COPIED_ALERT_TITLE,
+        STRINGS.PROFILE_SCREEN.REFERRAL_NONE_ALERT_MSG
+      );
       return;
     }
     Alert.alert(
-      'Mã giới thiệu',
-      `Đã sao chép mã: ${profile.referralCode}`
+      STRINGS.PROFILE_SCREEN.REFERRAL_COPIED_ALERT_TITLE,
+      STRINGS.PROFILE_SCREEN.REFERRAL_COPIED_ALERT_MSG(profile.referralCode)
     );
   };
 
-  // Đăng xuất
+  // Sign out
   const handleSignOut = () => {
-    Alert.alert('Đăng xuất', 'Bạn có chắc chắn muốn đăng xuất?', [
-      { text: 'Hủy', style: 'cancel' },
-      {
-        text: 'Đăng xuất',
-        style: 'destructive',
-        onPress: () => dispatch(clearAuth()),
-      },
-    ]);
+    Alert.alert(
+      STRINGS.PROFILE_SCREEN.LOGOUT_ALERT_TITLE,
+      STRINGS.PROFILE_SCREEN.LOGOUT_ALERT_MSG,
+      [
+        { text: STRINGS.COMMON.CANCEL, style: 'cancel' },
+        {
+          text: STRINGS.PROFILE_SCREEN.LOGOUT_BUTTON,
+          style: 'destructive',
+          onPress: () => dispatch(clearAuth()),
+        },
+      ]
+    );
   };
 
   const displayAddress =
@@ -196,17 +213,17 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
     (profile as any)?.trust?.isVerified
   );
 
-  // Điều hướng xác thực eKYC
+  // Navigate to eKYC verification
   const handleNavigateToEkyc = () => {
     const rawAddress = (displayAddress || '').trim();
 
     if (!rawAddress) {
       Alert.alert(
-        'Yêu cầu cập nhật địa chỉ',
-        'Theo quy định, bạn cần cập nhật địa chỉ liên hệ trong hồ sơ trước khi tiến hành xác thực danh tính (eKYC).',
+        STRINGS.PROFILE_SCREEN.ADDRESS_REQUIRED_TITLE,
+        STRINGS.PROFILE_SCREEN.ADDRESS_REQUIRED_MSG,
         [
-          { text: 'Để sau', style: 'cancel' },
-          { text: 'Cập nhật ngay', onPress: openEditModal },
+          { text: STRINGS.PROFILE_SCREEN.LATER, style: 'cancel' },
+          { text: STRINGS.PROFILE_SCREEN.UPDATE_NOW, onPress: openEditModal },
         ]
       );
       return;
@@ -243,7 +260,7 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
           <View style={{ width: 40 }} />
         )}
 
-        <Text style={styles.headerTitle}>Hồ sơ cá nhân</Text>
+        <Text style={styles.headerTitle}>{STRINGS.PROFILE_SCREEN.HEADER_TITLE}</Text>
 
         {isAuthenticated ? (
           <TouchableOpacity
@@ -275,16 +292,16 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
         }
       >
         {!isAuthenticated ? (
-          /* ─── GIAO DIỆN KHÁCH CHƯA ĐĂNG NHẬP ─── */
+          /* ─── GUEST STATE ─── */
           <View style={styles.card}>
             <View style={styles.avatarWrapper}>
               <View style={[styles.avatarImage, styles.avatarFallback]}>
                 <Ionicons name="person-outline" size={44} color={theme.primary} />
               </View>
             </View>
-            <Text style={styles.profileName}>Khách (Guest)</Text>
+            <Text style={styles.profileName}>{STRINGS.PROFILE_SCREEN.GUEST_NAME}</Text>
             <Text style={styles.guestDescText}>
-              Bạn đang duyệt TechShare với vai trò Khách. Đăng nhập để sử dụng đầy đủ các tính năng đặt thuê thiết bị và quản lý đơn hàng.
+              {STRINGS.PROFILE_SCREEN.GUEST_DESC}
             </Text>
             <TouchableOpacity
               style={styles.editProfileButton}
@@ -292,12 +309,14 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
               activeOpacity={0.8}
             >
               <Ionicons name="log-in-outline" size={18} color="#FFFFFF" />
-              <Text style={styles.editProfileButtonText}>Đăng nhập / Tạo tài khoản</Text>
+              <Text style={styles.editProfileButtonText}>
+                {STRINGS.PROFILE_SCREEN.LOGIN_SIGNUP_BUTTON}
+              </Text>
             </TouchableOpacity>
           </View>
         ) : (
           <>
-            {/* ─── 1. THẺ AVATAR & TÊN & ĐÁNH GIÁ ─── */}
+            {/* ─── 1. AVATAR, NAME & RATING CARD ─── */}
             <View style={styles.card}>
               <View style={styles.avatarWrapper}>
                 {profile.avatar ? (
@@ -318,165 +337,165 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
 
               <Text style={styles.profileName}>{profile.name}</Text>
 
-          {/* Đánh giá sao */}
-          <View style={styles.ratingBox}>
-            <Ionicons name="star" size={15} color="#F59E0B" />
-            <Text style={styles.ratingNumber}>
-              {profile.rating?.toFixed(1) || '5.0'}
-            </Text>
-            <Text style={styles.ratingCount}>
-              ({profile.totalReviews || 0} đánh giá)
-            </Text>
-          </View>
-        </View>
-
-        {/* ─── 2. THÔNG TIN CƠ BẢN (SĐT, EMAIL, ĐỊA CHỈ) ─── */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Thông tin liên hệ</Text>
-
-          {/* SĐT */}
-          <View style={styles.infoRow}>
-            <View style={styles.infoIconCircle}>
-              <Ionicons name="call-outline" size={18} color={theme.primary} />
-            </View>
-            <View style={styles.infoTextContainer}>
-              <Text style={styles.infoLabel}>Số điện thoại</Text>
-              <Text style={styles.infoValue}>
-                {profile.phone || 'Chưa cập nhật'}
-              </Text>
-            </View>
-          </View>
-
-          {/* EMAIL */}
-          <View style={styles.infoRow}>
-            <View style={styles.infoIconCircle}>
-              <Ionicons name="mail-outline" size={18} color={theme.primary} />
-            </View>
-            <View style={styles.infoTextContainer}>
-              <Text style={styles.infoLabel}>Email</Text>
-              <Text style={styles.infoValue}>
-                {profile.email || 'Chưa cập nhật'}
-              </Text>
-            </View>
-          </View>
-
-          {/* ĐỊA CHỈ */}
-          <View style={[styles.infoRow, { borderBottomWidth: 0, paddingBottom: 0 }]}>
-            <View style={styles.infoIconCircle}>
-              <Ionicons name="location-outline" size={18} color={theme.primary} />
-            </View>
-            <View style={styles.infoTextContainer}>
-              <Text style={styles.infoLabel}>Địa chỉ</Text>
-              <Text style={styles.infoValue}>{displayAddress || 'Chưa cập nhật'}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* ─── 3. ĐỊNH DANH ĐIỆN TỬ (eKYC) ─── */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Xác thực danh tính</Text>
-          <TouchableOpacity
-            style={styles.ekycRow}
-            onPress={handleNavigateToEkyc}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.infoIconCircle, { backgroundColor: isUserVerified ? '#ECFDF5' : '#EEF2FF' }]}>
-              <Ionicons
-                name={isUserVerified ? 'shield-checkmark' : 'shield-outline'}
-                size={20}
-                color={isUserVerified ? '#10B981' : theme.primary}
-              />
-            </View>
-            <View style={styles.infoTextContainer}>
-              <View style={styles.ekycTitleRow}>
-                <Text style={styles.ekycTitle}>Xác thực eKYC (CCCD)</Text>
-                {isUserVerified ? (
-                  <View style={styles.verifiedBadge}>
-                    <Ionicons name="checkmark-circle" size={12} color="#10B981" />
-                    <Text style={styles.verifiedBadgeText}>Đã xác thực</Text>
-                  </View>
-                ) : (
-                  <View style={styles.unverifiedBadge}>
-                    <Text style={styles.unverifiedBadgeText}>Chưa xác thực</Text>
-                  </View>
-                )}
+              {/* Star Rating */}
+              <View style={styles.ratingBox}>
+                <Ionicons name="star" size={15} color="#F59E0B" />
+                <Text style={styles.ratingNumber}>
+                  {profile.rating?.toFixed(1) || '5.0'}
+                </Text>
+                <Text style={styles.ratingCount}>
+                  {STRINGS.PROFILE_SCREEN.REVIEWS_COUNT(profile.totalReviews || 0)}
+                </Text>
               </View>
-              <Text style={styles.ekycDescText}>
-                {isUserVerified
-                  ? 'Tài khoản đã hoàn tất xác thực CCCD, đủ điều kiện thuê thiết bị.'
-                  : 'Xác thực CCCD để mở khóa quyền đặt thuê thiết bị trên TechShare.'}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
-          </TouchableOpacity>
-        </View>
-
-        {/* ─── 4. MÃ GIỚI THIỆU (REFERRAL CODE) ─── */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Mã giới thiệu</Text>
-          <View style={styles.referralContainer}>
-            <View style={styles.referralTextWrapper}>
-              <Ionicons name="gift-outline" size={20} color={theme.primary} />
-              <Text style={styles.referralCode}>
-                {profile.referralCode || 'Chưa có'}
-              </Text>
             </View>
 
+            {/* ─── 2. CONTACT INFORMATION (PHONE, EMAIL, ADDRESS) ─── */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>{STRINGS.PROFILE_SCREEN.CONTACT_SECTION_TITLE}</Text>
+
+              {/* PHONE */}
+              <View style={styles.infoRow}>
+                <View style={styles.infoIconCircle}>
+                  <Ionicons name="call-outline" size={18} color={theme.primary} />
+                </View>
+                <View style={styles.infoTextContainer}>
+                  <Text style={styles.infoLabel}>{STRINGS.PROFILE_SCREEN.PHONE_LABEL}</Text>
+                  <Text style={styles.infoValue}>
+                    {profile.phone || STRINGS.PROFILE_SCREEN.NOT_UPDATED}
+                  </Text>
+                </View>
+              </View>
+
+              {/* EMAIL */}
+              <View style={styles.infoRow}>
+                <View style={styles.infoIconCircle}>
+                  <Ionicons name="mail-outline" size={18} color={theme.primary} />
+                </View>
+                <View style={styles.infoTextContainer}>
+                  <Text style={styles.infoLabel}>{STRINGS.PROFILE_SCREEN.EMAIL_LABEL}</Text>
+                  <Text style={styles.infoValue}>
+                    {profile.email || STRINGS.PROFILE_SCREEN.NOT_UPDATED}
+                  </Text>
+                </View>
+              </View>
+
+              {/* ADDRESS */}
+              <View style={[styles.infoRow, { borderBottomWidth: 0, paddingBottom: 0 }]}>
+                <View style={styles.infoIconCircle}>
+                  <Ionicons name="location-outline" size={18} color={theme.primary} />
+                </View>
+                <View style={styles.infoTextContainer}>
+                  <Text style={styles.infoLabel}>{STRINGS.PROFILE_SCREEN.ADDRESS_LABEL}</Text>
+                  <Text style={styles.infoValue}>{displayAddress || STRINGS.PROFILE_SCREEN.NOT_UPDATED}</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* ─── 3. IDENTITY VERIFICATION (eKYC) ─── */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>{STRINGS.PROFILE_SCREEN.EKYC_SECTION_TITLE}</Text>
+              <TouchableOpacity
+                style={styles.ekycRow}
+                onPress={handleNavigateToEkyc}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.infoIconCircle, { backgroundColor: isUserVerified ? '#ECFDF5' : '#EEF2FF' }]}>
+                  <Ionicons
+                    name={isUserVerified ? 'shield-checkmark' : 'shield-outline'}
+                    size={20}
+                    color={isUserVerified ? '#10B981' : theme.primary}
+                  />
+                </View>
+                <View style={styles.infoTextContainer}>
+                  <View style={styles.ekycTitleRow}>
+                    <Text style={styles.ekycTitle}>{STRINGS.PROFILE_SCREEN.EKYC_ROW_TITLE}</Text>
+                    {isUserVerified ? (
+                      <View style={styles.verifiedBadge}>
+                        <Ionicons name="checkmark-circle" size={12} color="#10B981" />
+                        <Text style={styles.verifiedBadgeText}>{STRINGS.PROFILE_SCREEN.VERIFIED_BADGE}</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.unverifiedBadge}>
+                        <Text style={styles.unverifiedBadgeText}>{STRINGS.PROFILE_SCREEN.UNVERIFIED_BADGE}</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.ekycDescText}>
+                    {isUserVerified
+                      ? STRINGS.PROFILE_SCREEN.EKYC_DESC_VERIFIED
+                      : STRINGS.PROFILE_SCREEN.EKYC_DESC_UNVERIFIED}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            {/* ─── 4. REFERRAL CODE ─── */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>{STRINGS.PROFILE_SCREEN.REFERRAL_SECTION_TITLE}</Text>
+              <View style={styles.referralContainer}>
+                <View style={styles.referralTextWrapper}>
+                  <Ionicons name="gift-outline" size={20} color={theme.primary} />
+                  <Text style={styles.referralCode}>
+                    {profile.referralCode || STRINGS.PROFILE_SCREEN.NO_REFERRAL_CODE}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.copyButton}
+                  onPress={handleCopyReferral}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="copy-outline" size={15} color="#FFFFFF" />
+                  <Text style={styles.copyButtonText}>{STRINGS.PROFILE_SCREEN.COPY_BUTTON}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* ─── 5. WISHLIST ─── */}
             <TouchableOpacity
-              style={styles.copyButton}
-              onPress={handleCopyReferral}
+              style={styles.wishlistButton}
+              onPress={() => {
+                if (onNavigateToWishlist) {
+                  onNavigateToWishlist();
+                } else if (navigation?.navigate) {
+                  navigation.navigate('Wishlist');
+                }
+              }}
               activeOpacity={0.8}
             >
-              <Ionicons name="copy-outline" size={15} color="#FFFFFF" />
-              <Text style={styles.copyButtonText}>Sao chép</Text>
+              <View style={styles.wishlistLeft}>
+                <View style={styles.wishlistIconBox}>
+                  <Ionicons name="heart" size={18} color={theme.danger} />
+                </View>
+                <Text style={styles.wishlistButtonText}>{STRINGS.PROFILE_SCREEN.WISHLIST_BUTTON}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
             </TouchableOpacity>
-          </View>
-        </View>
 
-        {/* ─── 3.5 DANH SÁCH YÊU THÍCH (WISHLIST) ─── */}
-        <TouchableOpacity
-          style={styles.wishlistButton}
-          onPress={() => {
-            if (onNavigateToWishlist) {
-              onNavigateToWishlist();
-            } else if (navigation?.navigate) {
-              navigation.navigate('Wishlist');
-            }
-          }}
-          activeOpacity={0.8}
-        >
-          <View style={styles.wishlistLeft}>
-            <View style={styles.wishlistIconBox}>
-              <Ionicons name="heart" size={18} color={theme.danger} />
-            </View>
-            <Text style={styles.wishlistButtonText}>Danh sách Yêu thích</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
-        </TouchableOpacity>
+            {/* ─── 6. ACTION BUTTONS ─── */}
+            <TouchableOpacity
+              style={styles.editProfileButton}
+              onPress={openEditModal}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="pencil-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.editProfileButtonText}>{STRINGS.PROFILE_SCREEN.EDIT_PROFILE_BUTTON}</Text>
+            </TouchableOpacity>
 
-        {/* ─── 4. NÚT CHỈNH SỬA & ĐĂNG XUẤT ─── */}
-        <TouchableOpacity
-          style={styles.editProfileButton}
-          onPress={openEditModal}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="pencil-outline" size={18} color="#FFFFFF" />
-          <Text style={styles.editProfileButtonText}>Chỉnh sửa thông tin</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.signOutButton}
-          onPress={handleSignOut}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="log-out-outline" size={18} color={theme.danger} />
-          <Text style={styles.signOutButtonText}>Đăng xuất</Text>
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.signOutButton}
+              onPress={handleSignOut}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="log-out-outline" size={18} color={theme.danger} />
+              <Text style={styles.signOutButtonText}>{STRINGS.PROFILE_SCREEN.LOGOUT_BUTTON}</Text>
+            </TouchableOpacity>
           </>
         )}
       </ScrollView>
 
-      {/* ─── MODAL CHỈNH SỬA THÔNG TIN ─── */}
+      {/* ─── EDIT PROFILE MODAL ─── */}
       <Modal
         visible={isEditModalVisible}
         animationType="slide"
@@ -491,7 +510,7 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
             ]}
           >
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Chỉnh sửa thông tin</Text>
+              <Text style={styles.modalTitle}>{STRINGS.PROFILE_SCREEN.EDIT_MODAL_TITLE}</Text>
               <TouchableOpacity
                 onPress={() => setIsEditModalVisible(false)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -501,26 +520,26 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Họ và tên */}
+              {/* Full Name */}
               <View style={styles.modalField}>
-                <Text style={styles.modalLabel}>Họ và tên *</Text>
+                <Text style={styles.modalLabel}>{STRINGS.PROFILE_SCREEN.FULL_NAME_LABEL}</Text>
                 <TextInput
                   style={styles.modalInput}
                   value={editName}
                   onChangeText={setEditName}
-                  placeholder="Nhập họ và tên..."
+                  placeholder={STRINGS.PROFILE_SCREEN.FULL_NAME_PLACEHOLDER}
                   placeholderTextColor={theme.textMuted}
                 />
               </View>
 
-              {/* SĐT */}
+              {/* Phone Number */}
               <View style={styles.modalField}>
-                <Text style={styles.modalLabel}>Số điện thoại</Text>
+                <Text style={styles.modalLabel}>{STRINGS.PROFILE_SCREEN.PHONE_LABEL}</Text>
                 <TextInput
                   style={styles.modalInput}
                   value={editPhone}
                   onChangeText={setEditPhone}
-                  placeholder="Nhập số điện thoại..."
+                  placeholder={STRINGS.PROFILE_SCREEN.PHONE_PLACEHOLDER}
                   placeholderTextColor={theme.textMuted}
                   keyboardType="phone-pad"
                 />
@@ -528,46 +547,46 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
 
               {/* Email */}
               <View style={styles.modalField}>
-                <Text style={styles.modalLabel}>Email</Text>
+                <Text style={styles.modalLabel}>{STRINGS.PROFILE_SCREEN.EMAIL_LABEL}</Text>
                 <TextInput
                   style={styles.modalInput}
                   value={editEmail}
                   onChangeText={setEditEmail}
-                  placeholder="Nhập email..."
+                  placeholder={STRINGS.PROFILE_SCREEN.EMAIL_PLACEHOLDER}
                   placeholderTextColor={theme.textMuted}
                   keyboardType="email-address"
                   autoCapitalize="none"
                 />
               </View>
 
-              {/* Địa chỉ */}
+              {/* Address */}
               <View style={styles.modalField}>
-                <Text style={styles.modalLabel}>Địa chỉ</Text>
+                <Text style={styles.modalLabel}>{STRINGS.PROFILE_SCREEN.ADDRESS_LABEL}</Text>
                 <TextInput
                   style={[styles.modalInput, styles.modalInputMultiline]}
                   value={editAddress}
                   onChangeText={setEditAddress}
-                  placeholder="Nhập địa chỉ của bạn..."
+                  placeholder={STRINGS.PROFILE_SCREEN.ADDRESS_PLACEHOLDER}
                   placeholderTextColor={theme.textMuted}
                   multiline
                   numberOfLines={2}
                 />
               </View>
 
-              {/* Đường dẫn Avatar */}
+              {/* Avatar URL */}
               <View style={styles.modalField}>
-                <Text style={styles.modalLabel}>Link ảnh đại diện (URL)</Text>
+                <Text style={styles.modalLabel}>{STRINGS.PROFILE_SCREEN.AVATAR_LABEL}</Text>
                 <TextInput
                   style={styles.modalInput}
                   value={editAvatar}
                   onChangeText={setEditAvatar}
-                  placeholder="https://..."
+                  placeholder={STRINGS.PROFILE_SCREEN.AVATAR_PLACEHOLDER}
                   placeholderTextColor={theme.textMuted}
                   autoCapitalize="none"
                 />
               </View>
 
-              {/* Nút lưu */}
+              {/* Save Button */}
               <TouchableOpacity
                 style={[styles.modalSaveButton, isSaving && { opacity: 0.7 }]}
                 onPress={handleSaveProfile}
@@ -579,7 +598,9 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
                 ) : (
                   <>
                     <Ionicons name="checkmark-sharp" size={18} color="#FFFFFF" />
-                    <Text style={styles.modalSaveButtonText}>Lưu thay đổi</Text>
+                    <Text style={styles.modalSaveButtonText}>
+                      {STRINGS.PROFILE_SCREEN.SAVE_CHANGES_BUTTON}
+                    </Text>
                   </>
                 )}
               </TouchableOpacity>

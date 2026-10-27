@@ -14,6 +14,7 @@ import { socketService } from '../services/socketService';
 import { notificationService } from '../services/notificationService';
 import { ProfileScreen } from '../screens/user/ProfileScreen';
 import { theme } from '../constants/theme';
+import { STRINGS } from '../constants/strings';
 import { ScreenType } from '../types';
 
 export interface HomeRouteProps {
@@ -122,16 +123,18 @@ export function HomeRoute({
             <View style={styles.guestIconCircle}>
               <Ionicons name="receipt-outline" size={44} color={theme.primary} />
             </View>
-            <Text style={styles.guestTitle}>Đơn thuê thiết bị</Text>
+            <Text style={styles.guestTitle}>{STRINGS.MY_BOOKINGS.GUEST_TITLE}</Text>
             <Text style={styles.guestSubtitle}>
-              Vui lòng đăng nhập tài khoản để theo dõi tiến độ và quản lý các đơn thuê thiết bị công nghệ.
+              {STRINGS.MY_BOOKINGS.GUEST_SUBTITLE}
             </Text>
             <TouchableOpacity
               style={styles.guestLoginButton}
               onPress={() => navigation?.navigate('Login')}
               activeOpacity={0.8}
             >
-              <Text style={styles.guestLoginButtonText}>Đăng nhập ngay</Text>
+              <Text style={styles.guestLoginButtonText}>
+                {STRINGS.MY_BOOKINGS.GUEST_LOGIN_BUTTON}
+              </Text>
             </TouchableOpacity>
           </View>
         ) : (

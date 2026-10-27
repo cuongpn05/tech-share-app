@@ -152,8 +152,8 @@ export const OwnerAnalyticsScreen: React.FC<OwnerAnalyticsScreenProps> = ({ navi
                 setRefreshing(true);
                 void fetchAnalytics();
               }}
-              tintColor={theme.primary}
-              colors={[theme.primary]}
+              tintColor={theme.colors.brand[600]}
+              colors={[theme.colors.brand[600]]}
             />
           }
         >
