@@ -100,18 +100,19 @@ const login = async (req, res) => {
 
     // 6. Kiểm tra trạng thái eKYC
     if (roleCode === 'admin') {
-      if (!user.isVerified) {
+      if (!user.isVerified || !user.trust?.isVerified) {
         user.isVerified = true;
-        await User.updateOne({ _id: user._id }, { $set: { isVerified: true } });
+        await User.updateOne({ _id: user._id }, { $set: { isVerified: true, 'trust.isVerified': true } });
       }
     } else {
       const approvedEkyc = await EkycRequest.findOne({
         userId: user._id,
         status: 'approved',
       });
-      if (approvedEkyc && !user.isVerified) {
-        user.isVerified = true;
-        await User.updateOne({ _id: user._id }, { $set: { isVerified: true } });
+      const shouldBeVerified = Boolean(approvedEkyc);
+      if (Boolean(user.isVerified) !== shouldBeVerified || Boolean(user.trust?.isVerified) !== shouldBeVerified) {
+        user.isVerified = shouldBeVerified;
+        await User.updateOne({ _id: user._id }, { $set: { isVerified: shouldBeVerified, 'trust.isVerified': shouldBeVerified } });
       }
     }
 
@@ -167,6 +168,28 @@ const login = async (req, res) => {
  */
 const getMe = async (req, res) => {
   try {
+    const user = req.user;
+    if (user && user._id) {
+      const roleCode = req.userRole || user.role || 'renter';
+      if (roleCode === 'admin') {
+        if (!user.isVerified) {
+          user.isVerified = true;
+          await User.updateOne({ _id: user._id }, { $set: { isVerified: true, 'trust.isVerified': true } });
+        }
+      } else {
+        const approvedEkyc = await EkycRequest.findOne({
+          userId: user._id,
+          status: 'approved',
+        });
+        const shouldBeVerified = Boolean(approvedEkyc);
+        if (Boolean(user.isVerified) !== shouldBeVerified || Boolean(user.trust?.isVerified) !== shouldBeVerified) {
+          user.isVerified = shouldBeVerified;
+          if (user.trust) user.trust.isVerified = shouldBeVerified;
+          await User.updateOne({ _id: user._id }, { $set: { isVerified: shouldBeVerified, 'trust.isVerified': shouldBeVerified } });
+        }
+      }
+    }
+
     return res.status(200).json({
       success: true,
       user: req.user,

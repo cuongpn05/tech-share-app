@@ -105,8 +105,8 @@ async function syncUserProfile(account, roleCode) {
 async function syncEkycStatus(user, roleCode) {
   // Admin luôn được xác thực tự động
   if (roleCode === 'admin') {
-    if (!user.isVerified) {
-      await User.updateOne({ _id: user._id }, { $set: { isVerified: true } });
+    if (!user.isVerified || !user.trust?.isVerified) {
+      await User.updateOne({ _id: user._id }, { $set: { isVerified: true, 'trust.isVerified': true } });
       user.isVerified = true;
     }
     return;
@@ -118,9 +118,10 @@ async function syncEkycStatus(user, roleCode) {
     status: 'approved',
   });
 
-  if (approvedEkyc && !user.isVerified) {
-    await User.updateOne({ _id: user._id }, { $set: { isVerified: true } });
-    user.isVerified = true;
+  const shouldBeVerified = Boolean(approvedEkyc);
+  if (Boolean(user.isVerified) !== shouldBeVerified || Boolean(user.trust?.isVerified) !== shouldBeVerified) {
+    await User.updateOne({ _id: user._id }, { $set: { isVerified: shouldBeVerified, 'trust.isVerified': shouldBeVerified } });
+    user.isVerified = shouldBeVerified;
   }
 }
 

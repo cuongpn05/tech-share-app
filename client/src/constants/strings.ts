@@ -1933,4 +1933,116 @@ export const STRINGS = {
     ALERT_ERROR_TITLE: 'Error',
     ALERT_SAVE_ERROR_DEFAULT: 'Unable to save changes.',
   },
+
+  EKYC: {
+    HEADER_TITLE: 'Identity Verification (eKYC)',
+    LOADING_TEXT: 'Loading verification details...',
+
+    // Status Banners
+    VERIFIED_BANNER_TITLE: 'Account Verified',
+    VERIFIED_BANNER_SUB:
+      'Your profile has completed eKYC verification. You can freely book and rent technology devices on TechShare.',
+    PENDING_BANNER_TITLE: 'Pending Admin Review',
+    PENDING_BANNER_SUB:
+      'Your verification request has been submitted successfully. We are reviewing your ID photos and will update your status shortly.',
+    REJECTED_BANNER_TITLE: 'Verification Rejected',
+    REJECTED_REASON_PREFIX: 'Reason: ',
+    REJECTED_DEFAULT_REASON:
+      'ID card images were unclear or info did not match. Please review and resubmit.',
+    INTRO_TITLE: 'Secure Renter Identity',
+    INTRO_SUB:
+      'Verifying your national ID ensures safety and trust for Device Owners and unlocks rental bookings.',
+
+    // Address Warning Card
+    ADDRESS_WARNING_TITLE: 'Contact Address Required',
+    ADDRESS_WARNING_SUB:
+      'You must update your contact address in your profile before proceeding with eKYC verification.',
+    UPDATE_ADDRESS_NOW: 'Update Address Now',
+
+    // Section 1: Read-only Profile
+    SECTION_PROFILE_TITLE: 'Personal Information (Profile)',
+    READ_ONLY_BADGE: 'Read-only',
+    SECTION_PROFILE_SUB:
+      'This information is retrieved from your account profile and cannot be edited during this step.',
+    FULL_NAME_LABEL: 'Full Name',
+    EMAIL_LABEL: 'Email',
+    PHONE_LABEL: 'Phone Number',
+    ADDRESS_LABEL: 'Address',
+    NOT_UPDATED: 'Not updated',
+    ADDRESS_REQUIRED_ERROR: 'Not updated (Address is required)',
+    ADD_ADDRESS_ACTION: '+ Add address',
+
+    // Section 2: ID Card Form
+    SECTION_ID_CARD_TITLE: 'National ID Card Information',
+    SECTION_ID_CARD_SUB:
+      'Please enter the exact ID card number and upload clear photos of both sides for prompt review.',
+    ID_NUMBER_LABEL: '1. National ID Card Number (CCCD) *',
+    ID_NUMBER_PLACEHOLDER: 'Enter 12 digits on your ID card',
+    FRONT_PHOTO_LABEL: '2. Front ID Card Photo *',
+    BACK_PHOTO_LABEL: '3. Back ID Card Photo *',
+    CLOUD_UPLOADED: 'Uploaded to Cloud',
+    CHANGE_PHOTO: 'Change photo',
+    UPLOADING_CLOUD: 'Uploading to Cloudinary...',
+    UPLOAD_FRONT_TITLE: 'Upload front ID photo',
+    UPLOAD_FRONT_DESC: 'Capture all 4 corners, well lit, no glare or blur',
+    UPLOAD_BACK_TITLE: 'Upload back ID photo',
+    UPLOAD_BACK_DESC: 'Ensure barcode, fingerprint and issue date are legible',
+
+    // Submit Button
+    SUBMITTING_UPLOADING: 'Uploading photos to Cloudinary...',
+    SUBMITTING_REQUEST: 'Submitting verification...',
+    SUBMIT_BUTTON_NEW: 'Submit eKYC Verification',
+    SUBMIT_BUTTON_RESUBMIT: 'Resubmit Verification Request',
+
+    // Pick Image Dialog
+    PICK_IMAGE_TITLE: 'Select ID Card Photo',
+    PICK_IMAGE_FRONT_DESC: 'Please provide a clear photo of the front side',
+    PICK_IMAGE_BACK_DESC: 'Please provide a clear photo of the back side',
+    TAKE_PHOTO: 'Take New Photo',
+    CHOOSE_FROM_GALLERY: 'Choose from Gallery',
+
+    // Permissions & Errors
+    PERMISSION_TITLE: 'Permission Required',
+    CAMERA_PERMISSION_MSG: 'Please grant camera access in Settings to capture your ID card.',
+    GALLERY_PERMISSION_MSG: 'Please grant photo library access in Settings to select photos.',
+    CAMERA_ERROR_PREFIX: 'Unable to open camera: ',
+    GALLERY_ERROR_PREFIX: 'Unable to open photo library: ',
+    UNKNOWN_ERROR: 'Unknown error',
+
+    // Address Modal
+    ADDRESS_MODAL_TITLE: 'Update Contact Address',
+    ADDRESS_MODAL_SUB:
+      'To complete eKYC verification, please provide your current residential or permanent address.',
+    ADDRESS_MODAL_PLACEHOLDER: 'E.g., 123 Nguyen Trai Street, District 1, Ho Chi Minh City',
+    ADDRESS_EMPTY_ALERT: 'Please enter your specific contact address.',
+    ADDRESS_SAVE_SUCCESS: 'Address updated! You may now proceed with eKYC verification.',
+    ADDRESS_SAVE_ERROR: 'Unable to save address.',
+    LATER: 'Later',
+    SAVE_ADDRESS: 'Save Address',
+
+    // Validation Alerts
+    ADDRESS_REQUIRED_ALERT_TITLE: 'Address Required',
+    ADDRESS_REQUIRED_ALERT_MSG:
+      'You must update your contact address in your profile before proceeding with eKYC verification.',
+    MISSING_INFO_TITLE: 'Missing Information',
+    ID_NUMBER_REQUIRED: 'Please enter your National ID Card number.',
+    INVALID_ID_NUMBER_TITLE: 'Invalid ID Number',
+    INVALID_ID_NUMBER_MSG: 'ID card number must contain between 9 and 12 digits.',
+    MISSING_PHOTO_TITLE: 'Missing Photo',
+    FRONT_PHOTO_REQUIRED: 'Please take or upload the front side photo of your ID card.',
+    BACK_PHOTO_REQUIRED: 'Please take or upload the back side photo of your ID card.',
+    UPLOAD_ERROR_TITLE: 'Upload Failed',
+    UPLOAD_FRONT_ERROR:
+      'Unable to upload the front ID photo. Please check your internet connection and try again.',
+    UPLOAD_BACK_ERROR:
+      'Unable to upload the back ID photo. Please check your internet connection and try again.',
+    SUBMIT_SUCCESS_TITLE: 'Submitted Successfully! 🎉',
+    SUBMIT_SUCCESS_MSG:
+      'Your identity verification (eKYC) request has been submitted. Our administrators will review and approve your submission shortly.',
+    SUBMIT_SUCCESS_ACK: 'Got it',
+    SUBMIT_FAIL_TITLE: 'Submission Failed',
+    DEFAULT_ERROR: 'Please try again later.',
+    VERIFICATION_ERROR_TITLE: 'Verification Error',
+    NETWORK_ERROR: 'Network error occurred while submitting eKYC request.',
+  },
 } as const;

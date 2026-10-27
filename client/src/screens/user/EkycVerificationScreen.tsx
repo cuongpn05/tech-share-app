@@ -42,6 +42,7 @@ import {
   EkycRequestData,
 } from '../../services/ekycService';
 import { userService } from '../../services/userService';
+import { STRINGS } from '../../constants/strings';
 
 export interface EkycVerificationScreenProps {
   navigation?: any;
@@ -182,18 +183,18 @@ export function EkycVerificationScreen({
   // ── 3. Xử lý chọn ảnh CCCD (Camera hoặc Thư viện) ───────────
   const handlePickImage = (type: 'front' | 'back') => {
     Alert.alert(
-      'Chọn ảnh CCCD/CMND',
-      type === 'front' ? 'Vui lòng cung cấp ảnh mặt trước rõ nét' : 'Vui lòng cung cấp ảnh mặt sau rõ nét',
+      STRINGS.EKYC.PICK_IMAGE_TITLE,
+      type === 'front' ? STRINGS.EKYC.PICK_IMAGE_FRONT_DESC : STRINGS.EKYC.PICK_IMAGE_BACK_DESC,
       [
         {
-          text: 'Chụp ảnh mới',
+          text: STRINGS.EKYC.TAKE_PHOTO,
           onPress: () => openCamera(type),
         },
         {
-          text: 'Chọn từ thư viện',
+          text: STRINGS.EKYC.CHOOSE_FROM_GALLERY,
           onPress: () => openGallery(type),
         },
-        { text: 'Hủy', style: 'cancel' },
+        { text: STRINGS.COMMON.CANCEL, style: 'cancel' },
       ]
     );
   };
@@ -202,7 +203,7 @@ export function EkycVerificationScreen({
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert('Cần quyền truy cập', 'Vui lòng cấp quyền máy ảnh trong Cài đặt để chụp CCCD.');
+        Alert.alert(STRINGS.EKYC.PERMISSION_TITLE, STRINGS.EKYC.CAMERA_PERMISSION_MSG);
         return;
       }
 
@@ -219,7 +220,7 @@ export function EkycVerificationScreen({
         else handleSelectBack(selectedUri);
       }
     } catch (err: any) {
-      Alert.alert('Lỗi', 'Không thể mở máy ảnh: ' + (err.message || 'Lỗi không xác định'));
+      Alert.alert(STRINGS.COMMON.ERROR, STRINGS.EKYC.CAMERA_ERROR_PREFIX + (err.message || STRINGS.EKYC.UNKNOWN_ERROR));
     }
   };
 
@@ -227,7 +228,7 @@ export function EkycVerificationScreen({
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert('Cần quyền truy cập', 'Vui lòng cấp quyền thư viện ảnh trong Cài đặt để chọn ảnh.');
+        Alert.alert(STRINGS.EKYC.PERMISSION_TITLE, STRINGS.EKYC.GALLERY_PERMISSION_MSG);
         return;
       }
 
@@ -244,14 +245,14 @@ export function EkycVerificationScreen({
         else handleSelectBack(selectedUri);
       }
     } catch (err: any) {
-      Alert.alert('Lỗi', 'Không thể mở thư viện ảnh: ' + (err.message || 'Lỗi không xác định'));
+      Alert.alert(STRINGS.COMMON.ERROR, STRINGS.EKYC.GALLERY_ERROR_PREFIX + (err.message || STRINGS.EKYC.UNKNOWN_ERROR));
     }
   };
 
   // ── 3. Lưu địa chỉ nếu người dùng chưa cập nhật ────────────
   const handleSaveAddress = async () => {
     if (!addressInput.trim()) {
-      Alert.alert('Thông báo', 'Vui lòng nhập địa chỉ cụ thể của bạn.');
+      Alert.alert(STRINGS.EKYC.ADDRESS_WARNING_TITLE, STRINGS.EKYC.ADDRESS_EMPTY_ALERT);
       return;
     }
 
@@ -263,9 +264,9 @@ export function EkycVerificationScreen({
 
       setProfile((prev) => ({ ...prev, address: addressInput.trim() }));
       setShowAddressModal(false);
-      Alert.alert('Thành công', 'Đã cập nhật địa chỉ! Bạn có thể tiếp tục xác thực eKYC.');
+      Alert.alert(STRINGS.COMMON.SUCCESS, STRINGS.EKYC.ADDRESS_SAVE_SUCCESS);
     } catch (err: any) {
-      Alert.alert('Lỗi', err.response?.data?.message || 'Không thể lưu địa chỉ.');
+      Alert.alert(STRINGS.COMMON.ERROR, err.response?.data?.message || STRINGS.EKYC.ADDRESS_SAVE_ERROR);
     } finally {
       setSavingAddress(false);
     }
@@ -276,11 +277,11 @@ export function EkycVerificationScreen({
     // Kiểm tra địa chỉ
     if (!hasAddress) {
       Alert.alert(
-        'Yêu cầu cập nhật địa chỉ',
-        'Bạn phải cập nhật địa chỉ liên hệ trong hồ sơ trước khi tiến hành xác thực eKYC.',
+        STRINGS.EKYC.ADDRESS_REQUIRED_ALERT_TITLE,
+        STRINGS.EKYC.ADDRESS_REQUIRED_ALERT_MSG,
         [
-          { text: 'Hủy', style: 'cancel' },
-          { text: 'Cập nhật ngay', onPress: () => setShowAddressModal(true) },
+          { text: STRINGS.COMMON.CANCEL, style: 'cancel' },
+          { text: STRINGS.EKYC.UPDATE_ADDRESS_NOW, onPress: () => setShowAddressModal(true) },
         ]
       );
       return;
@@ -289,23 +290,23 @@ export function EkycVerificationScreen({
     // Kiểm tra số CCCD
     const cleanId = idCardNumber.trim();
     if (!cleanId) {
-      Alert.alert('Thiếu thông tin', 'Vui lòng nhập Số Căn cước công dân (CCCD).');
+      Alert.alert(STRINGS.EKYC.MISSING_INFO_TITLE, STRINGS.EKYC.ID_NUMBER_REQUIRED);
       return;
     }
     if (!/^\d{9,12}$/.test(cleanId)) {
-      Alert.alert('Số CCCD không hợp lệ', 'Số CCCD/CMND phải bao gồm từ 9 đến 12 chữ số.');
+      Alert.alert(STRINGS.EKYC.INVALID_ID_NUMBER_TITLE, STRINGS.EKYC.INVALID_ID_NUMBER_MSG);
       return;
     }
 
     // Kiểm tra ảnh mặt trước
     if (!frontImageUri) {
-      Alert.alert('Thiếu ảnh', 'Vui lòng chụp hoặc tải lên ảnh mặt trước CCCD.');
+      Alert.alert(STRINGS.EKYC.MISSING_PHOTO_TITLE, STRINGS.EKYC.FRONT_PHOTO_REQUIRED);
       return;
     }
 
     // Kiểm tra ảnh mặt sau
     if (!backImageUri) {
-      Alert.alert('Thiếu ảnh', 'Vui lòng chụp hoặc tải lên ảnh mặt sau CCCD.');
+      Alert.alert(STRINGS.EKYC.MISSING_PHOTO_TITLE, STRINGS.EKYC.BACK_PHOTO_REQUIRED);
       return;
     }
 
@@ -333,12 +334,12 @@ export function EkycVerificationScreen({
       }
 
       if (!uploadedFrontUrl) {
-        Alert.alert('Lỗi tải ảnh', 'Không thể tải lên ảnh mặt trước CCCD. Vui lòng kiểm tra kết nối mạng và thử lại.');
+        Alert.alert(STRINGS.EKYC.UPLOAD_ERROR_TITLE, STRINGS.EKYC.UPLOAD_FRONT_ERROR);
         return;
       }
 
       if (!uploadedBackUrl) {
-        Alert.alert('Lỗi tải ảnh', 'Không thể tải lên ảnh mặt sau CCCD. Vui lòng kiểm tra kết nối mạng và thử lại.');
+        Alert.alert(STRINGS.EKYC.UPLOAD_ERROR_TITLE, STRINGS.EKYC.UPLOAD_BACK_ERROR);
         return;
       }
 
@@ -351,11 +352,11 @@ export function EkycVerificationScreen({
 
       if (response.success) {
         Alert.alert(
-          'Gửi đơn thành công! 🎉',
-          'Đơn xác thực danh tính (eKYC) của bạn đã được ghi nhận vào hệ thống. Quản trị viên sẽ kiểm tra và xét duyệt hồ sơ trong thời gian sớm nhất.',
+          STRINGS.EKYC.SUBMIT_SUCCESS_TITLE,
+          STRINGS.EKYC.SUBMIT_SUCCESS_MSG,
           [
             {
-              text: 'Đã hiểu',
+              text: STRINGS.EKYC.SUBMIT_SUCCESS_ACK,
               onPress: () => {
                 if (onSuccess) onSuccess();
                 else if (navigation?.goBack) navigation.goBack();
@@ -366,11 +367,11 @@ export function EkycVerificationScreen({
         );
         fetchStatus();
       } else {
-        Alert.alert('Không thể gửi đơn', response.message || 'Vui lòng thử lại sau.');
+        Alert.alert(STRINGS.EKYC.SUBMIT_FAIL_TITLE, response.message || STRINGS.EKYC.DEFAULT_ERROR);
       }
     } catch (err: any) {
-      const msg = err.response?.data?.message || err.message || 'Lỗi kết nối khi gửi đơn eKYC.';
-      Alert.alert('Lỗi xác thực', msg);
+      const msg = err.response?.data?.message || err.message || STRINGS.EKYC.NETWORK_ERROR;
+      Alert.alert(STRINGS.EKYC.VERIFICATION_ERROR_TITLE, msg);
     } finally {
       setSubmitting(false);
     }
@@ -386,11 +387,15 @@ export function EkycVerificationScreen({
     return (
       <View style={[styles.root, styles.center]}>
         <ActivityIndicator size="large" color={theme.colors.brand[500]} />
-        <Text style={styles.loadingText}>Đang tải thông tin xác thực...</Text>
+        <Text style={styles.loadingText}>{STRINGS.EKYC.LOADING_TEXT}</Text>
       </View>
     );
   }
 
+  // Account is ONLY verified if ekycRequest is approved (or verified admin)
+  const isApproved = Boolean(
+    ekycRequest?.status === 'approved' || (isVerified && authUser?.role === 'admin')
+  );
   const isPending = ekycRequest?.status === 'pending';
   const isRejected = ekycRequest?.status === 'rejected';
 
@@ -403,7 +408,7 @@ export function EkycVerificationScreen({
         <TouchableOpacity style={styles.backButton} onPress={handleBack}>
           <Ionicons name="arrow-back" size={24} color={theme.colors.text.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Xác thực danh tính (eKYC)</Text>
+        <Text style={styles.headerTitle}>{STRINGS.EKYC.HEADER_TITLE}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -412,13 +417,13 @@ export function EkycVerificationScreen({
         showsVerticalScrollIndicator={false}
       >
         {/* ─── BANNER TRẠNG THÁI HIỆN TẠI ─── */}
-        {isVerified ? (
+        {isApproved ? (
           <View style={styles.verifiedBanner}>
             <Ionicons name="checkmark-circle" size={32} color="#10B981" />
             <View style={styles.bannerTextContainer}>
-              <Text style={styles.verifiedBannerTitle}>Tài khoản đã xác thực</Text>
+              <Text style={styles.verifiedBannerTitle}>{STRINGS.EKYC.VERIFIED_BANNER_TITLE}</Text>
               <Text style={styles.verifiedBannerSubtitle}>
-                Hồ sơ của bạn đã hoàn tất eKYC. Bạn có thể tự do đặt thuê các thiết bị công nghệ trên TechShare.
+                {STRINGS.EKYC.VERIFIED_BANNER_SUB}
               </Text>
             </View>
           </View>
@@ -426,9 +431,9 @@ export function EkycVerificationScreen({
           <View style={styles.pendingBanner}>
             <Ionicons name="time-outline" size={30} color="#3B82F6" />
             <View style={styles.bannerTextContainer}>
-              <Text style={styles.pendingBannerTitle}>Đang chờ Ban Quản Trị xét duyệt</Text>
+              <Text style={styles.pendingBannerTitle}>{STRINGS.EKYC.PENDING_BANNER_TITLE}</Text>
               <Text style={styles.pendingBannerSubtitle}>
-                Đơn xác thực của bạn đã được gửi thành công. Chúng tôi đang kiểm tra ảnh CCCD và sẽ cập nhật kết quả sớm.
+                {STRINGS.EKYC.PENDING_BANNER_SUB}
               </Text>
             </View>
           </View>
@@ -436,11 +441,11 @@ export function EkycVerificationScreen({
           <View style={styles.rejectedBanner}>
             <Ionicons name="alert-circle-outline" size={30} color="#EF4444" />
             <View style={styles.bannerTextContainer}>
-              <Text style={styles.rejectedBannerTitle}>Hồ sơ bị từ chối</Text>
+              <Text style={styles.rejectedBannerTitle}>{STRINGS.EKYC.REJECTED_BANNER_TITLE}</Text>
               <Text style={styles.rejectedBannerSubtitle}>
                 {ekycRequest?.rejectReason
-                  ? `Lý do: ${ekycRequest.rejectReason}`
-                  : 'Ảnh CCCD chưa rõ hoặc thông tin không khớp. Vui lòng kiểm tra và gửi lại.'}
+                  ? `${STRINGS.EKYC.REJECTED_REASON_PREFIX}${ekycRequest.rejectReason}`
+                  : STRINGS.EKYC.REJECTED_DEFAULT_REASON}
               </Text>
             </View>
           </View>
@@ -448,9 +453,9 @@ export function EkycVerificationScreen({
           <View style={styles.introCard}>
             <Ionicons name="shield-checkmark" size={28} color={theme.colors.brand[500]} />
             <View style={styles.bannerTextContainer}>
-              <Text style={styles.introTitle}>Bảo mật danh tính người thuê</Text>
+              <Text style={styles.introTitle}>{STRINGS.EKYC.INTRO_TITLE}</Text>
               <Text style={styles.introSubtitle}>
-                Xác thực thông tin CCCD giúp đảm bảo sự an tâm cho Chủ thiết bị và mở khóa quyền đặt thuê thiết bị.
+                {STRINGS.EKYC.INTRO_SUB}
               </Text>
             </View>
           </View>
@@ -461,16 +466,16 @@ export function EkycVerificationScreen({
           <View style={styles.addressWarningCard}>
             <Ionicons name="warning-outline" size={26} color="#F59E0B" />
             <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={styles.warningTitle}>Chưa có địa chỉ liên hệ</Text>
+              <Text style={styles.warningTitle}>{STRINGS.EKYC.ADDRESS_WARNING_TITLE}</Text>
               <Text style={styles.warningSubtitle}>
-                Theo quy định, bạn cần cập nhật địa chỉ trong hồ sơ trước khi tiến hành xác thực eKYC.
+                {STRINGS.EKYC.ADDRESS_WARNING_SUB}
               </Text>
               <TouchableOpacity
                 style={styles.updateAddressButton}
                 onPress={() => setShowAddressModal(true)}
               >
                 <Ionicons name="location-outline" size={16} color="#FFFFFF" />
-                <Text style={styles.updateAddressButtonText}>Cập nhật địa chỉ ngay</Text>
+                <Text style={styles.updateAddressButtonText}>{STRINGS.EKYC.UPDATE_ADDRESS_NOW}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -480,50 +485,50 @@ export function EkycVerificationScreen({
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeaderRow}>
             <Ionicons name="person-circle-outline" size={20} color={theme.colors.brand[500]} />
-            <Text style={styles.sectionTitle}>Thông tin cá nhân (Hồ sơ)</Text>
+            <Text style={styles.sectionTitle}>{STRINGS.EKYC.SECTION_PROFILE_TITLE}</Text>
             <View style={styles.readOnlyBadge}>
               <Ionicons name="lock-closed" size={11} color="#64748B" />
-              <Text style={styles.readOnlyText}>Chỉ đọc</Text>
+              <Text style={styles.readOnlyText}>{STRINGS.EKYC.READ_ONLY_BADGE}</Text>
             </View>
           </View>
           <Text style={styles.sectionSubtitle}>
-            Thông tin này được lấy từ hồ sơ tài khoản của bạn và không thể chỉnh sửa tại bước này.
+            {STRINGS.EKYC.SECTION_PROFILE_SUB}
           </Text>
 
           {/* Họ và tên */}
           <View style={styles.fieldItem}>
-            <Text style={styles.fieldLabel}>Họ và tên</Text>
+            <Text style={styles.fieldLabel}>{STRINGS.EKYC.FULL_NAME_LABEL}</Text>
             <View style={[styles.fieldBox, styles.fieldBoxDisabled]}>
               <Ionicons name="person-outline" size={16} color="#64748B" />
-              <Text style={styles.fieldValueText}>{profile.name || 'Chưa cập nhật'}</Text>
+              <Text style={styles.fieldValueText}>{profile.name || STRINGS.EKYC.NOT_UPDATED}</Text>
             </View>
           </View>
 
           {/* Email */}
           <View style={styles.fieldItem}>
-            <Text style={styles.fieldLabel}>Email</Text>
+            <Text style={styles.fieldLabel}>{STRINGS.EKYC.EMAIL_LABEL}</Text>
             <View style={[styles.fieldBox, styles.fieldBoxDisabled]}>
               <Ionicons name="mail-outline" size={16} color="#64748B" />
-              <Text style={styles.fieldValueText}>{profile.email || 'Chưa cập nhật'}</Text>
+              <Text style={styles.fieldValueText}>{profile.email || STRINGS.EKYC.NOT_UPDATED}</Text>
             </View>
           </View>
 
           {/* Số điện thoại */}
           <View style={styles.fieldItem}>
-            <Text style={styles.fieldLabel}>Số điện thoại</Text>
+            <Text style={styles.fieldLabel}>{STRINGS.EKYC.PHONE_LABEL}</Text>
             <View style={[styles.fieldBox, styles.fieldBoxDisabled]}>
               <Ionicons name="call-outline" size={16} color="#64748B" />
-              <Text style={styles.fieldValueText}>{profile.phone || 'Chưa cập nhật'}</Text>
+              <Text style={styles.fieldValueText}>{profile.phone || STRINGS.EKYC.NOT_UPDATED}</Text>
             </View>
           </View>
 
           {/* Địa chỉ */}
           <View style={styles.fieldItem}>
             <View style={styles.fieldLabelRow}>
-              <Text style={styles.fieldLabel}>Địa chỉ</Text>
+              <Text style={styles.fieldLabel}>{STRINGS.EKYC.ADDRESS_LABEL}</Text>
               {!hasAddress && (
                 <TouchableOpacity onPress={() => setShowAddressModal(true)}>
-                  <Text style={styles.fieldActionText}>+ Thêm địa chỉ</Text>
+                  <Text style={styles.fieldActionText}>{STRINGS.EKYC.ADD_ADDRESS_ACTION}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -545,7 +550,7 @@ export function EkycVerificationScreen({
                   !hasAddress && { color: '#EF4444', fontWeight: '500' },
                 ]}
               >
-                {hasAddress ? profile.address : 'Chưa cập nhật (Bắt buộc phải có địa chỉ)'}
+                {hasAddress ? profile.address : STRINGS.EKYC.ADDRESS_REQUIRED_ERROR}
               </Text>
             </View>
           </View>
@@ -555,119 +560,119 @@ export function EkycVerificationScreen({
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeaderRow}>
             <Ionicons name="card-outline" size={20} color={theme.colors.brand[500]} />
-            <Text style={styles.sectionTitle}>Thông tin xác thực CCCD</Text>
+            <Text style={styles.sectionTitle}>{STRINGS.EKYC.SECTION_ID_CARD_TITLE}</Text>
           </View>
           <Text style={styles.sectionSubtitle}>
-            Vui lòng điền đúng số CCCD và chụp ảnh rõ nét cả 2 mặt của thẻ để hồ sơ được xét duyệt nhanh nhất.
+            {STRINGS.EKYC.SECTION_ID_CARD_SUB}
           </Text>
 
           {/* 1. SỐ CCCD */}
           <View style={styles.fieldItem}>
-            <Text style={styles.fieldLabel}>1. Số Căn cước công dân (CCCD) *</Text>
+            <Text style={styles.fieldLabel}>{STRINGS.EKYC.ID_NUMBER_LABEL}</Text>
             <View style={styles.inputContainer}>
               <Ionicons name="barcode-outline" size={20} color={theme.colors.brand[500]} />
               <TextInput
                 style={styles.textInput}
-                placeholder="Nhập 12 chữ số trên thẻ CCCD"
+                placeholder={STRINGS.EKYC.ID_NUMBER_PLACEHOLDER}
                 placeholderTextColor="#94A3B8"
                 value={idCardNumber}
                 onChangeText={setIdCardNumber}
                 keyboardType="number-pad"
                 maxLength={12}
-                editable={!isVerified && !isPending}
+                editable={!isApproved && !isPending}
               />
             </View>
           </View>
 
           {/* 2. ẢNH CCCD MẶT TRƯỚC */}
           <View style={styles.fieldItem}>
-            <Text style={styles.fieldLabel}>2. Ảnh CCCD mặt trước *</Text>
+            <Text style={styles.fieldLabel}>{STRINGS.EKYC.FRONT_PHOTO_LABEL}</Text>
             {frontImageUri ? (
               <View style={styles.imagePreviewWrapper}>
                 <Image source={{ uri: frontImageUri }} style={styles.imagePreview} />
                 {frontCloudUrl && !uploadingFront && (
                   <View style={styles.cloudReadyBadge}>
                     <Ionicons name="cloud-done" size={14} color="#10B981" />
-                    <Text style={styles.cloudReadyBadgeText}>Đã tải lên Cloud</Text>
+                    <Text style={styles.cloudReadyBadgeText}>{STRINGS.EKYC.CLOUD_UPLOADED}</Text>
                   </View>
                 )}
-                {!isVerified && !isPending && (
+                {!isApproved && !isPending && (
                   <TouchableOpacity
                     style={styles.changeImageButton}
                     onPress={() => handlePickImage('front')}
                   >
                     <Ionicons name="camera-reverse-outline" size={16} color="#FFFFFF" />
-                    <Text style={styles.changeImageButtonText}>Đổi ảnh khác</Text>
+                    <Text style={styles.changeImageButtonText}>{STRINGS.EKYC.CHANGE_PHOTO}</Text>
                   </TouchableOpacity>
                 )}
                 {uploadingFront && (
                   <View style={styles.uploadingOverlay}>
                     <ActivityIndicator size="small" color="#FFFFFF" />
-                    <Text style={styles.uploadingOverlayText}>Đang tải lên Cloudinary...</Text>
+                    <Text style={styles.uploadingOverlayText}>{STRINGS.EKYC.UPLOADING_CLOUD}</Text>
                   </View>
                 )}
               </View>
             ) : (
               <TouchableOpacity
-                style={[styles.uploadBox, (!hasAddress || isVerified || isPending) && styles.uploadBoxDisabled]}
+                style={[styles.uploadBox, (!hasAddress || isApproved || isPending) && styles.uploadBoxDisabled]}
                 onPress={() => handlePickImage('front')}
-                disabled={!hasAddress || isVerified || isPending}
+                disabled={!hasAddress || isApproved || isPending}
               >
                 <View style={styles.uploadIconCircle}>
                   <Ionicons name="cloud-upload-outline" size={26} color={theme.colors.brand[500]} />
                 </View>
-                <Text style={styles.uploadBoxTitle}>Tải ảnh mặt trước CCCD</Text>
-                <Text style={styles.uploadBoxDesc}>Chụp ảnh rõ 4 góc, đủ sáng, không bị mờ</Text>
+                <Text style={styles.uploadBoxTitle}>{STRINGS.EKYC.UPLOAD_FRONT_TITLE}</Text>
+                <Text style={styles.uploadBoxDesc}>{STRINGS.EKYC.UPLOAD_FRONT_DESC}</Text>
               </TouchableOpacity>
             )}
           </View>
 
           {/* 3. ẢNH CCCD MẶT SAU */}
           <View style={styles.fieldItem}>
-            <Text style={styles.fieldLabel}>3. Ảnh CCCD mặt sau *</Text>
+            <Text style={styles.fieldLabel}>{STRINGS.EKYC.BACK_PHOTO_LABEL}</Text>
             {backImageUri ? (
               <View style={styles.imagePreviewWrapper}>
                 <Image source={{ uri: backImageUri }} style={styles.imagePreview} />
                 {backCloudUrl && !uploadingBack && (
                   <View style={styles.cloudReadyBadge}>
                     <Ionicons name="cloud-done" size={14} color="#10B981" />
-                    <Text style={styles.cloudReadyBadgeText}>Đã tải lên Cloud</Text>
+                    <Text style={styles.cloudReadyBadgeText}>{STRINGS.EKYC.CLOUD_UPLOADED}</Text>
                   </View>
                 )}
-                {!isVerified && !isPending && (
+                {!isApproved && !isPending && (
                   <TouchableOpacity
                     style={styles.changeImageButton}
                     onPress={() => handlePickImage('back')}
                   >
                     <Ionicons name="camera-reverse-outline" size={16} color="#FFFFFF" />
-                    <Text style={styles.changeImageButtonText}>Đổi ảnh khác</Text>
+                    <Text style={styles.changeImageButtonText}>{STRINGS.EKYC.CHANGE_PHOTO}</Text>
                   </TouchableOpacity>
                 )}
                 {uploadingBack && (
                   <View style={styles.uploadingOverlay}>
                     <ActivityIndicator size="small" color="#FFFFFF" />
-                    <Text style={styles.uploadingOverlayText}>Đang tải lên Cloudinary...</Text>
+                    <Text style={styles.uploadingOverlayText}>{STRINGS.EKYC.UPLOADING_CLOUD}</Text>
                   </View>
                 )}
               </View>
             ) : (
               <TouchableOpacity
-                style={[styles.uploadBox, (!hasAddress || isVerified || isPending) && styles.uploadBoxDisabled]}
+                style={[styles.uploadBox, (!hasAddress || isApproved || isPending) && styles.uploadBoxDisabled]}
                 onPress={() => handlePickImage('back')}
-                disabled={!hasAddress || isVerified || isPending}
+                disabled={!hasAddress || isApproved || isPending}
               >
                 <View style={styles.uploadIconCircle}>
                   <Ionicons name="cloud-upload-outline" size={26} color={theme.colors.brand[500]} />
                 </View>
-                <Text style={styles.uploadBoxTitle}>Tải ảnh mặt sau CCCD</Text>
-                <Text style={styles.uploadBoxDesc}>Rõ vân tay, ngày cấp và mã vạch</Text>
+                <Text style={styles.uploadBoxTitle}>{STRINGS.EKYC.UPLOAD_BACK_TITLE}</Text>
+                <Text style={styles.uploadBoxDesc}>{STRINGS.EKYC.UPLOAD_BACK_DESC}</Text>
               </TouchableOpacity>
             )}
           </View>
         </View>
 
         {/* ─── NÚT GỬI HỒ SƠ ─── */}
-        {!isVerified && !isPending && (
+        {!isApproved && !isPending && (
           <TouchableOpacity
             style={[
               styles.submitButton,
@@ -681,14 +686,14 @@ export function EkycVerificationScreen({
               <View style={styles.submittingRow}>
                 <ActivityIndicator size="small" color="#FFFFFF" />
                 <Text style={styles.submitButtonText}>
-                  {uploadingFront || uploadingBack ? 'Đang tải ảnh lên Cloudinary...' : 'Đang gửi hồ sơ...'}
+                  {uploadingFront || uploadingBack ? STRINGS.EKYC.SUBMITTING_UPLOADING : STRINGS.EKYC.SUBMITTING_REQUEST}
                 </Text>
               </View>
             ) : (
               <View style={styles.submittingRow}>
                 <Ionicons name="shield-checkmark-outline" size={20} color="#FFFFFF" />
                 <Text style={styles.submitButtonText}>
-                  {isRejected ? 'Gửi lại hồ sơ xác thực' : 'Gửi đơn xác thực eKYC'}
+                  {isRejected ? STRINGS.EKYC.SUBMIT_BUTTON_RESUBMIT : STRINGS.EKYC.SUBMIT_BUTTON_NEW}
                 </Text>
               </View>
             )}
@@ -707,15 +712,15 @@ export function EkycVerificationScreen({
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Ionicons name="location" size={24} color={theme.colors.brand[500]} />
-              <Text style={styles.modalTitle}>Cập nhật địa chỉ liên hệ</Text>
+              <Text style={styles.modalTitle}>{STRINGS.EKYC.ADDRESS_MODAL_TITLE}</Text>
             </View>
             <Text style={styles.modalSubtitle}>
-              Để xác thực eKYC thành công, vui lòng cung cấp địa chỉ nơi ở hoặc địa chỉ thường trú của bạn.
+              {STRINGS.EKYC.ADDRESS_MODAL_SUB}
             </Text>
 
             <TextInput
               style={styles.addressModalInput}
-              placeholder="Ví dụ: Số 123 Đường Nguyễn Trãi, Quận 1, TP. Hồ Chí Minh"
+              placeholder={STRINGS.EKYC.ADDRESS_MODAL_PLACEHOLDER}
               placeholderTextColor="#94A3B8"
               value={addressInput}
               onChangeText={setAddressInput}
@@ -729,7 +734,7 @@ export function EkycVerificationScreen({
                 onPress={() => setShowAddressModal(false)}
                 disabled={savingAddress}
               >
-                <Text style={styles.modalCancelBtnText}>Để sau</Text>
+                <Text style={styles.modalCancelBtnText}>{STRINGS.EKYC.LATER}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.modalSaveBtn}
@@ -739,7 +744,7 @@ export function EkycVerificationScreen({
                 {savingAddress ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.modalSaveBtnText}>Lưu địa chỉ</Text>
+                  <Text style={styles.modalSaveBtnText}>{STRINGS.EKYC.SAVE_ADDRESS}</Text>
                 )}
               </TouchableOpacity>
             </View>
