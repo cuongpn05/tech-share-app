@@ -39,9 +39,21 @@ const getMyEkycStatus = async (req, res) => {
     const account = await Account.findById(user.accountId).select('email username').lean();
 
     // Tìm đơn eKYC gần nhất của người dùng
-    const existingRequest = await EkycRequest.findOne({ userId }).lean();
+    const existingRequest = await EkycRequest.findOne({ userId }).sort({ createdAt: -1 }).lean();
 
-    const isVerified = Boolean(user.trust?.isVerified || user.isVerified);
+    const isApproved = existingRequest?.status === 'approved';
+    const isAdmin = user.role === 'admin';
+    const isVerified = Boolean(isAdmin || isApproved);
+
+    // Đồng bộ nếu user trong DB bị lệch trạng thái
+    const currentDbVerified = Boolean(user.trust?.isVerified || user.isVerified);
+    if (currentDbVerified !== isVerified) {
+      await User.updateOne(
+        { _id: user._id },
+        { $set: { isVerified: isVerified, 'trust.isVerified': isVerified } }
+      );
+    }
+
     const hasAddress = Boolean(user.address && user.address.trim().length > 0);
 
     return res.status(200).json({
@@ -153,8 +165,9 @@ const submitEkycRequest = async (req, res) => {
     }
 
     // ── Kiểm tra điều kiện 2: Đã xác thực rồi thì không cần làm lại ──
-    const alreadyVerified = Boolean(user.trust?.isVerified || user.isVerified);
-    if (alreadyVerified) {
+    const approvedRequest = await EkycRequest.findOne({ userId: user._id, status: 'approved' });
+    const isAlreadyVerified = Boolean(user.role === 'admin' || approvedRequest);
+    if (isAlreadyVerified) {
       return res.status(400).json({
         success: false,
         code: 'ALREADY_VERIFIED',

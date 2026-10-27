@@ -16,9 +16,11 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAppDispatch, useAppSelector } from '../../store';
 import { clearAuth, updateUser } from '../../store/slices/authSlice';
 import { userService } from '../../services/userService';
+import { getEkycStatus } from '../../services/ekycService';
 import { theme } from '../../constants/theme';
 import { STRINGS } from '../../constants/strings';
 import { User } from '../../types';
@@ -81,6 +83,8 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
     }
   }, [authUser]);
 
+  const [ekycStatusVerified, setEkycStatusVerified] = useState<boolean | null>(null);
+
   // Tải lại hồ sơ mới nhất từ API
   const fetchFreshProfile = useCallback(async () => {
     try {
@@ -101,7 +105,24 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
     } catch {
       // Bỏ qua lỗi kết nối và giữ state hiện tại
     }
+
+    try {
+      const ekycRes = await getEkycStatus();
+      if (ekycRes.success && ekycRes.data) {
+        setEkycStatusVerified(Boolean(ekycRes.data.isVerified));
+      }
+    } catch {
+      // Bỏ qua lỗi kết nối eKYC
+    }
   }, [dispatch]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (isAuthenticated) {
+        fetchFreshProfile();
+      }
+    }, [isAuthenticated, fetchFreshProfile])
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -206,12 +227,14 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
       ? profile.address
       : profile.address?.fullAddress || '';
 
-  const isUserVerified = Boolean(
-    authUser?.isVerified ||
-    (authUser as any)?.trust?.isVerified ||
-    (profile as any)?.isVerified ||
-    (profile as any)?.trust?.isVerified
-  );
+  const isUserVerified =
+    ekycStatusVerified !== null
+      ? ekycStatusVerified
+      : Boolean(
+          authUser?.role === 'admin' ||
+          profile?.role === 'admin' ||
+          (Boolean(authUser?.isVerified) && Boolean(profile?.isVerified))
+        );
 
   // Navigate to eKYC verification
   const handleNavigateToEkyc = () => {
