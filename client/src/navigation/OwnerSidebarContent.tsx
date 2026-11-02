@@ -20,7 +20,8 @@ import { bookingService } from '../services/bookingService';
 import { notificationService } from '../services/notificationService';
 import { apiClient } from '../config/api';
 import { useAppDispatch, useAppSelector } from '../store';
-import { clearAuth } from '../store/slices/authSlice';
+import { confirmAndLogout } from '../services/logoutService';
+import { STRINGS } from '../constants/strings';
 
 export interface OwnerSidebarContentProps {
   navigation?: any;
@@ -220,21 +221,16 @@ export const OwnerSidebarContent: React.FC<OwnerSidebarContentProps> = ({
   const dispatch = useAppDispatch();
 
   const handleSignOut = () => {
-    Alert.alert(
-      OWNER_STRINGS.SIDEBAR.SIGN_OUT,
-      'Bạn có chắc chắn muốn đăng xuất khỏi phiên làm việc chủ thiết bị không?',
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Đăng xuất',
-          style: 'destructive',
-          onPress: () => {
-            navigation?.closeDrawer?.();
-            dispatch(clearAuth());
-          },
-        },
-      ]
-    );
+    confirmAndLogout({
+      dispatch,
+      title: OWNER_STRINGS.SIDEBAR.SIGN_OUT,
+      message: STRINGS.OWNER_SIDEBAR.LOGOUT_CONFIRM_SUBTITLE,
+      confirmText: STRINGS.LOGOUT_MODAL.DEFAULT_CONFIRM,
+      cancelText: STRINGS.LOGOUT_MODAL.DEFAULT_CANCEL,
+      onBeforeLogout: () => {
+        navigation?.closeDrawer?.();
+      },
+    });
   };
 
   return (

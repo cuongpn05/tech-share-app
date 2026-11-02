@@ -18,7 +18,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppDispatch, useAppSelector } from '../../store';
-import { clearAuth, updateUser } from '../../store/slices/authSlice';
+import { updateUser } from '../../store/slices/authSlice';
+import { confirmAndLogout } from '../../services/logoutService';
 import { userService } from '../../services/userService';
 import { getEkycStatus } from '../../services/ekycService';
 import { theme } from '../../constants/theme';
@@ -208,18 +209,13 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
 
   // Sign out
   const handleSignOut = () => {
-    Alert.alert(
-      STRINGS.PROFILE_SCREEN.LOGOUT_ALERT_TITLE,
-      STRINGS.PROFILE_SCREEN.LOGOUT_ALERT_MSG,
-      [
-        { text: STRINGS.COMMON.CANCEL, style: 'cancel' },
-        {
-          text: STRINGS.PROFILE_SCREEN.LOGOUT_BUTTON,
-          style: 'destructive',
-          onPress: () => dispatch(clearAuth()),
-        },
-      ]
-    );
+    confirmAndLogout({
+      dispatch,
+      title: STRINGS.PROFILE_SCREEN.LOGOUT_ALERT_TITLE,
+      message: STRINGS.PROFILE_SCREEN.LOGOUT_ALERT_MSG,
+      confirmText: STRINGS.PROFILE_SCREEN.LOGOUT_BUTTON,
+      cancelText: STRINGS.COMMON.CANCEL,
+    });
   };
 
   const displayAddress =

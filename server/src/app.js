@@ -8,6 +8,7 @@ const ownerRoutes = require('./routes/ownerRoutes');
 const ownerAnalyticsRoutes = require('./routes/ownerAnalyticsRoutes');
 const authRoutes = require('./routes/authRoutes');
 const loginRoutes    = require('./routes/loginRoutes');
+const logoutRoutes   = require('./routes/logoutRoutes');
 const registerRoutes = require('./routes/registerRoutes');
 const forgotRoutes   = require('./routes/forgotRoutes');
 const chatRoutes = require('./routes/chatRoutes');
@@ -35,6 +36,7 @@ app.get('/api/health', (req, res) => {
 app.use("/api/ai", aiRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/login', loginRoutes);
+app.use('/api/logout', logoutRoutes);
 app.use('/api/register', registerRoutes);
 app.use('/api/forgot-password', forgotRoutes);
 app.use('/api/devices', deviceRoutes);

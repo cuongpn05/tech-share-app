@@ -1,11 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
+const { logout } = require('../controllers/logoutController');
 const { requireAuth } = require('../middlewares/authMiddleware');
 const { uploadFlexibleImage } = require('../middlewares/uploadMiddleware');
 
 // User login endpoint
 router.post('/login', authController.login);
+router.post('/logout', logout);
 
 // Endpoint quy trình đăng ký tài khoản với OTP Email
 router.post('/register/send-otp', authController.sendRegisterOtp);

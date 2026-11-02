@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, ActivityIndicator, StyleSheet, Alert } from 'react-native';
 import { clearAuth } from '../store/slices/authSlice';
+import { clearLocalSession } from '../services/logoutService';
 import { STRINGS } from '../constants/strings';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -147,6 +148,19 @@ export function RootNavigator() {
     };
     checkOnboarding();
   }, []);
+  useEffect(() => {
+    setAccountLockedHandler((reason) => {
+      console.warn('[RootNavigator] 403 ACCOUNT_LOCKED received. Terminating session...');
+      clearLocalSession(dispatch);
+      Alert.alert(
+        STRINGS.AUTH_LOCKED.ALERT_TITLE,
+        `${STRINGS.AUTH_LOCKED.ALERT_MSG}\n\nReason: ${reason || STRINGS.AUTH_LOCKED.DEFAULT_REASON}`
+      );
+    });
+    return () => {
+      setAccountLockedHandler(null);
+    };
+  }, [dispatch]);
 
   useEffect(() => {
     if (isAuthenticated && token) {
@@ -159,9 +173,7 @@ export function RootNavigator() {
       // Lắng nghe sự kiện Admin khóa tài khoản (Kick-out real-time)
       const unsubLock = socketService.onAccountLocked((data) => {
         console.warn('[RootNavigator] Account locked by admin! Terminating session...');
-        socketService.disconnect();
-        setAuthToken(null);
-        dispatch(clearAuth());
+        clearLocalSession(dispatch);
         Alert.alert(
           STRINGS.AUTH_LOCKED.ALERT_TITLE,
           `${STRINGS.AUTH_LOCKED.ALERT_MSG}\n\nReason: ${data.reason || STRINGS.AUTH_LOCKED.DEFAULT_REASON}`
