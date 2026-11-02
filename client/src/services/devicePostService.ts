@@ -17,14 +17,21 @@ export type CreateDevicePayload = {
   addressText: string;
 };
 
+export type UpdateDevicePayload = CreateDevicePayload;
+
+const authHeaders = (token: string) => ({
+  Authorization: 'Bearer ' + token,
+});
+
 export const devicePostService = {
   async getMyDevices(token: string): Promise<Device[]> {
     const response = await apiClient.get<{
       success?: boolean;
       data?: Device[];
     }>('/devices/myDevices', {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: authHeaders(token),
     });
+
     if (
       response.data?.success !== true ||
       !Array.isArray(response.data.data) ||
@@ -41,6 +48,7 @@ export const devicePostService = {
     ) {
       throw new Error('The server returned an invalid device list.');
     }
+
     return response.data.data;
   },
 
@@ -55,32 +63,47 @@ export const devicePostService = {
 
     const response = await apiClient.post('/devices/upload-image', formData, {
       headers: {
-        Authorization: `Bearer ${token}`,
+        ...authHeaders(token),
         'Content-Type': 'multipart/form-data',
       },
     });
+
     const url: unknown = response.data?.data?.url;
     if (typeof url !== 'string' || !url) {
       throw new Error('The server did not return an uploaded image URL.');
     }
     if (url.startsWith('/')) {
-      return `${API_BASE_URL.replace(/\/api\/?$/, '')}${url}`;
+      return API_BASE_URL.replace(/\/api\/?$/, '') + url;
     }
     return url;
   },
 
   async createDevice(token: string, payload: CreateDevicePayload): Promise<void> {
     await apiClient.post('/devices', payload, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: authHeaders(token),
     });
   },
 
+  async updateMyDevice(
+    token: string,
+    deviceId: string,
+    payload: UpdateDevicePayload,
+  ): Promise<void> {
+    const response = await apiClient.patch(
+      '/devices/' + deviceId,
+      payload,
+      { headers: authHeaders(token) },
+    );
+    if (response.data?.success !== true) {
+      throw new Error(
+        response.data?.message || 'The server did not confirm device update.',
+      );
+    }
+  },
+
   async deleteMyDevice(token: string, deviceId: string): Promise<void> {
-    const response = await apiClient.delete<{
-      success?: boolean;
-      message?: string;
-    }>(`/devices/${deviceId}`, {
-      headers: { Authorization: `Bearer ${token}` },
+    const response = await apiClient.delete('/devices/' + deviceId, {
+      headers: authHeaders(token),
     });
     if (response.data?.success !== true) {
       throw new Error(
