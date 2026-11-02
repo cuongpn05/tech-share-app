@@ -13,9 +13,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/tokens';
 import { ADMIN_STRINGS } from '../constants/adminStrings';
+import { STRINGS } from '../constants/strings';
+import { confirmAndLogout } from '../services/logoutService';
 
 import { useAppDispatch, useAppSelector } from '../store';
-import { clearAuth } from '../store/slices/authSlice';
+
 
 export interface AdminSidebarContentProps {
   navigation?: any;
@@ -91,11 +93,19 @@ export const AdminSidebarContent: React.FC<AdminSidebarContentProps> = ({
     }
   };
 
-  const handleSignOut = async () => {
-    if (navigation?.closeDrawer) {
-      navigation.closeDrawer();
-    }
-    dispatch(clearAuth());
+  const handleSignOut = () => {
+    confirmAndLogout({
+      dispatch,
+      title: ADMIN_STRINGS.SIDEBAR.SIGN_OUT,
+      message: STRINGS.ADMIN_SIDEBAR.LOGOUT_CONFIRM_SUBTITLE,
+      confirmText: STRINGS.LOGOUT_MODAL.DEFAULT_CONFIRM,
+      cancelText: STRINGS.LOGOUT_MODAL.DEFAULT_CANCEL,
+      onBeforeLogout: () => {
+        if (navigation?.closeDrawer) {
+          navigation.closeDrawer();
+        }
+      },
+    });
   };
 
   return (
