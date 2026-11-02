@@ -5,6 +5,7 @@ const {
   getNearbyDevices,
   getMyDevices,
   createDevice,
+  updateMyDevice,
   uploadDeviceImage,
   getDeviceById,
   updateDeviceStatus,
@@ -22,6 +23,7 @@ router.get('/nearby', getNearbyDevices);
 router.get('/myDevices', requireAuth, getMyDevices);
 router.patch('/:id/status', requireAuth, updateDeviceStatus);
 router.patch('/:id/blocked-dates', requireAuth, updateBlockedDates);
+router.patch('/:id', requireAuth, updateMyDevice);
 router.delete('/:id', requireAuth, deleteMyDevice);
 router.get('/:id', getDeviceById);
 router.post('/upload-image', requireAuth, uploadFlexibleImage, uploadDeviceImage);

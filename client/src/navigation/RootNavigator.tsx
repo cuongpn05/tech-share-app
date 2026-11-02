@@ -81,7 +81,7 @@ const OwnerProfileRoute = ({ route, navigation }: any) => (
 
 const DeviceDetailRoute = ({ route, navigation }: any) => (
   <DeviceDetailScreen
-    deviceId={route.params.deviceId}
+    deviceId={route.params?.deviceId ?? ''}
     onBack={() => navigation.goBack()}
     onRent={(deviceId) => navigation.navigate('BookingCreate', { deviceId })}
     onViewOwner={(ownerId) => navigation.navigate('OwnerProfile', { ownerId })}
