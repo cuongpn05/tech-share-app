@@ -181,6 +181,113 @@ const createDevice = asyncHandler(async (req, res) => {
   });
 });
 
+const updateMyDevice = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  if (!/^[a-fA-F0-9]{24}$/.test(id)) {
+    return res.status(400).json({
+      success: false,
+      message: "ID thiết bị không hợp lệ",
+    });
+  }
+
+  const {
+    name,
+    brand,
+    category,
+    description,
+    images,
+    specs,
+    pricePerDay,
+    depositAmount,
+    location,
+    addressText,
+  } = req.body || {};
+  const allowedCategories = [
+    "smartphone",
+    "laptop",
+    "camera",
+    "drone",
+    "audio",
+    "gaming",
+    "tablet",
+    "accessory",
+  ];
+  if (
+    typeof name !== "string" ||
+    !name.trim() ||
+    typeof brand !== "string" ||
+    !brand.trim() ||
+    typeof category !== "string" ||
+    !allowedCategories.includes(category) ||
+    typeof description !== "string" ||
+    !description.trim() ||
+    !Array.isArray(images) ||
+    images.length < 1 ||
+    images.length > 8 ||
+    images.some((image) => typeof image !== "string" || !image.trim()) ||
+    !specs ||
+    typeof specs !== "object" ||
+    Array.isArray(specs) ||
+    typeof addressText !== "string" ||
+    !addressText.trim() ||
+    !Number.isFinite(pricePerDay) ||
+    pricePerDay < 10000 ||
+    !Number.isFinite(depositAmount) ||
+    depositAmount < 0 ||
+    location?.type !== "Point" ||
+    !Array.isArray(location.coordinates) ||
+    location.coordinates.length !== 2 ||
+    !location.coordinates.every(Number.isFinite) ||
+    Math.abs(location.coordinates[0]) > 180 ||
+    Math.abs(location.coordinates[1]) > 90
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "Vui lòng nhập thông tin hợp lệ cho thiết bị.",
+    });
+  }
+
+  const userId = req.auth?.userId || req.auth?.id || req.user?._id;
+  const device = await Device.findOneAndUpdate(
+    {
+      _id: id,
+      ownerId: userId,
+      isDeleted: false,
+    },
+    {
+      $set: {
+        name: name.trim(),
+        brand: brand.trim(),
+        category,
+        description: description.trim(),
+        images,
+        specs,
+        pricePerDay,
+        depositAmount,
+        "location.type": "Point",
+        "location.coordinates": location.coordinates,
+        "location.addressText": addressText.trim(),
+      },
+    },
+    {
+      new: true,
+      runValidators: true,
+    },
+  );
+  if (!device) {
+    return res.status(404).json({
+      success: false,
+      message: "Không tìm thấy thiết bị hoặc bạn không có quyền cập nhật.",
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: "Cập nhật thiết bị thành công.",
+    data: device,
+  });
+});
+
 const uploadDeviceImage = asyncHandler(async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, message: "Please upload a JPEG, PNG, or WebP image." });
@@ -431,6 +538,7 @@ module.exports = {
   getNearbyDevices,
   getMyDevices,
   createDevice,
+  updateMyDevice,
   uploadDeviceImage,
   getDeviceById,
   updateDeviceStatus,

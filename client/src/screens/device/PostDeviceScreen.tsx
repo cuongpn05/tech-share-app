@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import {
   ActivityIndicator,
@@ -18,11 +18,12 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import AiGenerateButton from '../../components/ai/AiGenerateButton';
 import { ImageUploadGrid } from '../../components/device/ImageUploadGrid';
 import { STRINGS } from '../../constants/strings';
-import { generateDescription } from '../../services/aiService';
-import { devicePostService } from '../../services/devicePostService';
+import {
+  devicePostService,
+  type CreateDevicePayload,
+} from '../../services/devicePostService';
 import { useAppSelector } from '../../store';
 import { colors } from '../../theme/colors';
 import type { Device } from '../../types';
@@ -42,7 +43,7 @@ type DeviceLocation = {
   longitude: number;
 };
 
-const categories = ['Smartphone', 'Laptop', 'Camera', 'Drone', 'Audio', 'Gaming', 'Accessory'];
+const categories = ['Smartphone', 'Laptop', 'Camera', 'Drone', 'Audio', 'Gaming', 'Tablet', 'Accessory'];
 const DEVICES_PER_PAGE = 5;
 
 type DeleteDialogState =
@@ -65,6 +66,7 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
   const accessToken = suppliedAccessToken || sessionAccessToken || '';
   const insets = useSafeAreaInsets();
   const topInset = Math.max(insets.top, Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 20);
+  const formScrollRef = useRef<ScrollView>(null);
   const [deviceLocation, setDeviceLocation] = useState<DeviceLocation | null>(null);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [locationError, setLocationError] = useState('');
@@ -82,7 +84,6 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
   const [validateSignal, setValidateSignal] = useState(0);
   const [submitted, setSubmitted] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [publishError, setPublishError] = useState('');
   const [devices, setDevices] = useState<Device[]>([]);
   const [devicePage, setDevicePage] = useState(1);
@@ -90,6 +91,8 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
   const [deletingDeviceId, setDeletingDeviceId] = useState<string | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState | null>(null);
   const [devicesError, setDevicesError] = useState('');
+  const [editingDevice, setEditingDevice] = useState<Device | null>(null);
+  const [specificationFormKey, setSpecificationFormKey] = useState(0);
   const devicePageCount = Math.ceil(devices.length / DEVICES_PER_PAGE);
   const visibleDevices = devices.slice(
     (devicePage - 1) * DEVICES_PER_PAGE,
@@ -144,62 +147,59 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
     void deleteDevice(deleteDialog.device);
   };
 
-  const handleGenerateDescription = async () => {
-    const pricePerDay = Number(price);
-    const deposit = Number(depositAmount);
+  const editDevice = (device: Device) => {
+    const coordinates = device.location?.coordinates;
+    setEditingDevice(device);
+    setDeviceName(device.name || device.title);
+    setCategory(
+      categories.find((item) => item.toLowerCase() === device.category.toLowerCase()) ||
+        device.category,
+    );
+    setBrand(device.brand || '');
+    setPrice(String(device.pricePerDay ?? device.dailyRate));
+    setDepositAmount(String(device.depositValue));
+    setAddressText(
+      device.location?.addressText || device.location?.address || device.addressText || '',
+    );
+    setDescription(device.description || '');
+    setPhotoUris(device.images || []);
+    setSpecifications(
+      Object.entries(device.specs || {}).map(([name, value], index) => ({
+        id: index + 1,
+        name,
+        value,
+      })),
+    );
+    setSpecificationsValid(true);
+    setDeviceLocation(
+      Array.isArray(coordinates) &&
+        Number.isFinite(coordinates[0]) &&
+        Number.isFinite(coordinates[1])
+        ? { longitude: coordinates[0], latitude: coordinates[1] }
+        : null,
+    );
+    setSubmitted(false);
+    setPublishError('');
+    setSpecificationFormKey((key) => key + 1);
+    formScrollRef.current?.scrollToEnd({ animated: true });
+  };
 
-    if (!deviceName.trim() || !brand.trim()) {
-      Alert.alert('Missing device details', 'Enter the device name and brand first.');
-      return;
-    }
-    if (
-      !price.trim() ||
-      !depositAmount.trim() ||
-      !Number.isFinite(pricePerDay) ||
-      !Number.isFinite(deposit) ||
-      pricePerDay <= 0 ||
-      deposit <= 0
-    ) {
-      Alert.alert(
-        'Invalid price',
-        'Enter a rental price and deposit greater than zero.',
-      );
-      return;
-    }
-
-    const specs: Record<string, string> = {};
-    specifications.forEach((item) => {
-      const name = item.name.trim();
-      const value = item.value.trim();
-      if (name && value) specs[name] = value;
-    });
-
-    setIsGenerating(true);
-    try {
-      const response = await generateDescription({
-        name: deviceName.trim(),
-        brand: brand.trim(),
-        category: category.trim(),
-        pricePerDay,
-        depositAmount: deposit,
-        specs,
-      });
-      setDescription(response.description);
-    } catch (error: unknown) {
-      console.error('[PostDeviceScreen] Cannot generate description:', error);
-      const serverMessage: unknown = axios.isAxiosError(error)
-        ? error.response?.data?.message
-        : undefined;
-      const message =
-        typeof serverMessage === 'string'
-          ? serverMessage
-          : error instanceof Error
-            ? error.message
-            : 'Could not generate the description. Please try again.';
-      Alert.alert('Description generation failed', message);
-    } finally {
-      setIsGenerating(false);
-    }
+  const cancelEdit = () => {
+    setEditingDevice(null);
+    setDeviceName('');
+    setCategory('Smartphone');
+    setBrand('');
+    setPrice('');
+    setDepositAmount('');
+    setAddressText('');
+    setDescription('');
+    setPhotoUris([]);
+    setSpecifications([]);
+    setSpecificationsValid(true);
+    setDeviceLocation(null);
+    setSubmitted(false);
+    setPublishError('');
+    setSpecificationFormKey((key) => key + 1);
   };
 
   useEffect(() => {
@@ -295,7 +295,7 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
       setPublishError(STRINGS.POST_DEVICE.ERR_DEPOSIT_REQUIRED);
       return;
     }
-    if (!Number.isFinite(pricePerDay) || pricePerDay <= 0 || !Number.isFinite(deposit) || deposit <= 0) {
+    if (!Number.isFinite(pricePerDay) || pricePerDay < 10000 || !Number.isFinite(deposit) || deposit <= 0) {
       setPublishError(STRINGS.POST_DEVICE.ERR_NUMERIC_PRICE_DEPOSIT);
       return;
     }
@@ -323,14 +323,18 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
     Keyboard.dismiss();
     try {
       const images = await Promise.all(
-        photoUris.map((uri, index) => devicePostService.uploadDeviceImage(accessToken, uri, index)),
+        photoUris.map((uri, index) =>
+          /^https?:\/\//i.test(uri) || uri.startsWith('/')
+            ? Promise.resolve(uri)
+            : devicePostService.uploadDeviceImage(accessToken, uri, index),
+        ),
       );
       const specs = Object.fromEntries(
         specifications
           .filter((item) => item.name.trim() && item.value.trim())
           .map((item) => [item.name.trim(), item.value.trim()]),
       );
-      await devicePostService.createDevice(accessToken, {
+      const payload: CreateDevicePayload = {
         name: deviceName.trim(),
         brand: brand.trim(),
         category: category.toLowerCase(),
@@ -344,7 +348,12 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
           coordinates: [deviceLocation.longitude, deviceLocation.latitude],
         },
         addressText: addressText.trim(),
-      });
+      };
+      if (editingDevice) {
+        await devicePostService.updateMyDevice(accessToken, editingDevice._id, payload);
+      } else {
+        await devicePostService.createDevice(accessToken, payload);
+      }
       try {
         const ownerDevices = await devicePostService.getMyDevices(accessToken);
         setDevices(ownerDevices);
@@ -355,11 +364,19 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
         setDevicesError(STRINGS.POST_DEVICE.DEVICES_LOAD_ERROR);
       }
 
-      Alert.alert(
-        STRINGS.POST_DEVICE.SUCCESS_PUBLISHED_TITLE,
-        STRINGS.POST_DEVICE.SUCCESS_PUBLISHED_MSG,
-        [{ text: STRINGS.POST_DEVICE.DONE, onPress: navigation?.goBack }],
-      );
+      if (editingDevice) {
+        cancelEdit();
+        Alert.alert(
+          STRINGS.POST_DEVICE.SUCCESS_UPDATED_TITLE,
+          STRINGS.POST_DEVICE.SUCCESS_UPDATED_MSG,
+        );
+      } else {
+        Alert.alert(
+          STRINGS.POST_DEVICE.SUCCESS_PUBLISHED_TITLE,
+          STRINGS.POST_DEVICE.SUCCESS_PUBLISHED_MSG,
+          [{ text: STRINGS.POST_DEVICE.DONE, onPress: navigation?.goBack }],
+        );
+      }
     } catch (error: unknown) {
       console.error('[PostDeviceScreen] Cannot publish device:', error);
       const serverMessage = axios.isAxiosError(error) ? error.response?.data?.message : undefined;
@@ -388,21 +405,30 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
             <Ionicons name="menu-outline" size={24} color={colors.light.textPrimary} />
           </TouchableOpacity>
           <View style={styles.headerTitleCol}>
-            <Text style={styles.headerTitle}>{STRINGS.POST_DEVICE.HEADER_TITLE}</Text>
-            <Text style={styles.headerSubtitle}>{STRINGS.POST_DEVICE.HEADER_SUBTITLE}</Text>
+            <Text style={styles.headerTitle}>
+              {editingDevice ? STRINGS.POST_DEVICE.EDITING_DEVICE_TITLE : STRINGS.POST_DEVICE.HEADER_TITLE}
+            </Text>
+            <Text style={styles.headerSubtitle}>
+              {editingDevice ? editingDevice.name || editingDevice.title : STRINGS.POST_DEVICE.HEADER_SUBTITLE}
+            </Text>
           </View>
         </View>
         <Ionicons name="information-circle-outline" size={22} color={colors.light.textSecondary} />
       </View>
 
       <ScrollView
+        ref={formScrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.intro}>
-          <Text style={styles.introTitle}>{STRINGS.POST_DEVICE.INTRO_TITLE}</Text>
-          <Text style={styles.introText}>{STRINGS.POST_DEVICE.INTRO_TEXT}</Text>
+          <Text style={styles.introTitle}>
+            {editingDevice ? STRINGS.POST_DEVICE.EDITING_DEVICE_TITLE : STRINGS.POST_DEVICE.INTRO_TITLE}
+          </Text>
+          <Text style={styles.introText}>
+            {editingDevice ? editingDevice.name || editingDevice.title : STRINGS.POST_DEVICE.INTRO_TEXT}
+          </Text>
         </View>
 
         <View style={styles.myDevicesSection}>
@@ -446,25 +472,45 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
                     {device.status === 'available' ? STRINGS.POST_DEVICE.STATUS_AVAILABLE : device.status}
                   </Text>
                 </View>
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  accessibilityLabel={`${STRINGS.POST_DEVICE.DELETE_DEVICE}: ${device.name || device.title}`}
-                  accessibilityState={{ disabled: deletingDeviceId !== null }}
-                  disabled={deletingDeviceId !== null}
-                  onPress={() => confirmDeleteDevice(device)}
-                  style={styles.deviceDeleteButton}
-                  activeOpacity={0.7}
-                >
-                  {deletingDeviceId === device._id ? (
-                    <ActivityIndicator size="small" color={colors.light.danger} />
-                  ) : (
+                <View style={styles.deviceActions}>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel={`${STRINGS.POST_DEVICE.EDIT_DEVICE}: ${device.name || device.title}`}
+                    accessibilityState={{ disabled: isPublishing || deletingDeviceId !== null }}
+                    disabled={isPublishing || deletingDeviceId !== null}
+                    onPress={() => editDevice(device)}
+                    style={[
+                      styles.deviceEditButton,
+                      editingDevice?._id === device._id && styles.deviceEditButtonActive,
+                    ]}
+                    activeOpacity={0.7}
+                  >
                     <Ionicons
-                      name="trash-outline"
+                      name="create-outline"
                       size={19}
-                      color={colors.light.danger}
+                      color={colors.light.primary}
                     />
-                  )}
-                </TouchableOpacity>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel={`${STRINGS.POST_DEVICE.DELETE_DEVICE}: ${device.name || device.title}`}
+                    accessibilityState={{ disabled: deletingDeviceId !== null || isPublishing }}
+                    disabled={deletingDeviceId !== null || isPublishing}
+                    onPress={() => confirmDeleteDevice(device)}
+                    style={styles.deviceDeleteButton}
+                    activeOpacity={0.7}
+                  >
+                    {deletingDeviceId === device._id ? (
+                      <ActivityIndicator size="small" color={colors.light.danger} />
+                    ) : (
+                      <Ionicons
+                        name="trash-outline"
+                        size={19}
+                        color={colors.light.danger}
+                      />
+                    )}
+                  </TouchableOpacity>
+                </View>
               </View>
             ))
           )}
@@ -636,16 +682,14 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
             />
             <Text style={styles.counter}>{description.length} / 500</Text>
           </View>
-          <AiGenerateButton
-            onPress={handleGenerateDescription}
-            loading={isGenerating}
-          />
           {submitted && !description.trim() ? <Text style={styles.errorText}>{STRINGS.POST_DEVICE.ERR_DESCRIPTION_REQUIRED}</Text> : null}
         </View>
 
         <View style={styles.section}>
           <SectionTitle title={STRINGS.POST_DEVICE.SECTION_SPECS} description={STRINGS.POST_DEVICE.SECTION_SPECS_DESC} />
           <SpecsInputForm
+            key={specificationFormKey}
+            initialSpecifications={editingDevice?.specs}
             validateSignal={validateSignal}
             onChange={setSpecifications}
             onValidityChange={setSpecificationsValid}
@@ -662,8 +706,20 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
         >
           {isPublishing
             ? <ActivityIndicator color={colors.light.white} />
-            : <Text style={styles.publishText}>{STRINGS.POST_DEVICE.BTN_PUBLISH}</Text>}
+            : <Text style={styles.publishText}>
+                {editingDevice ? STRINGS.POST_DEVICE.BTN_UPDATE : STRINGS.POST_DEVICE.BTN_PUBLISH}
+              </Text>}
         </TouchableOpacity>
+        {editingDevice ? (
+          <TouchableOpacity
+            accessibilityRole="button"
+            style={styles.cancelEditButton}
+            onPress={cancelEdit}
+            disabled={isPublishing}
+          >
+            <Text style={styles.cancelEditText}>{STRINGS.POST_DEVICE.CANCEL_EDIT}</Text>
+          </TouchableOpacity>
+        ) : null}
       </ScrollView>
       <Modal
         visible={deleteDialog !== null}
@@ -842,6 +898,17 @@ const styles = StyleSheet.create({
   },
   deviceListImagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
   deviceListInfo: { flex: 1, marginLeft: 10 },
+  deviceActions: { flexDirection: 'row', alignItems: 'center', marginLeft: 6 },
+  deviceEditButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
+    borderRadius: 12,
+    backgroundColor: colors.light.primaryLight,
+  },
+  deviceEditButtonActive: { borderWidth: 1, borderColor: colors.light.primary },
   deviceDeleteButton: {
     width: 40,
     height: 40,
@@ -1013,6 +1080,17 @@ const styles = StyleSheet.create({
     height: 53, alignItems: 'center', justifyContent: 'center', borderRadius: 12,
     backgroundColor: colors.light.primary,
   },
+  cancelEditButton: {
+    minHeight: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: colors.light.borderDefault,
+    borderRadius: 12,
+    backgroundColor: colors.light.card,
+  },
+  cancelEditText: { color: colors.light.textSecondary, fontSize: 13, fontWeight: '700' },
   publishText: { color: colors.light.white, fontSize: 14, fontWeight: '800' },
   disabledButton: { opacity: 0.6 },
 });

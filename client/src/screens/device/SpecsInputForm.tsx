@@ -14,11 +14,25 @@ type SpecsInputFormProps = {
   onChange: (specifications: Specification[]) => void;
   validateSignal: number;
   onValidityChange: (isValid: boolean) => void;
+  initialSpecifications?: Record<string, string>;
 };
 
-export function SpecsInputForm({ onChange, validateSignal, onValidityChange }: SpecsInputFormProps) {
-  const [specifications, setSpecifications] = useState<Specification[]>([]);
-  const [nextId, setNextId] = useState(1);
+export function SpecsInputForm({
+  onChange,
+  validateSignal,
+  onValidityChange,
+  initialSpecifications,
+}: SpecsInputFormProps) {
+  const [specifications, setSpecifications] = useState<Specification[]>(() =>
+    Object.entries(initialSpecifications ?? {}).map(([name, value], index) => ({
+      id: index + 1,
+      name,
+      value,
+    })),
+  );
+  const [nextId, setNextId] = useState(
+    Object.keys(initialSpecifications ?? {}).length + 1,
+  );
   const [touched, setTouched] = useState<number[]>([]);
 
   useEffect(() => {
