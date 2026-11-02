@@ -67,7 +67,8 @@ export function parseMapMessage(value: string): MapMessage | null {
 
 /**
  * Tạo mã HTML cho bản đồ tương tác hiển thị trong WebView.
- * Sử dụng thư viện MapLibre GL JS kết hợp máy chủ ảnh bản đồ Google Maps (không cần API key).
+ * Sử dụng Leaflet kết hợp máy chủ ảnh bản đồ Google Maps & OpenStreetMap.
+ * Không cần API key, hoạt động 100% mượt mà trên cả máy ảo và thiết bị thật (không phụ thuộc WebGL).
  */
 export function createMapHtml(apiKey?: string, forceFavi = Boolean(apiKey && apiKey.includes('test-key'))): string {
   // Nhánh hỗ trợ kiểm thử tương thích nếu có yêu cầu forceFavi
@@ -80,7 +81,7 @@ export function createMapHtml(apiKey?: string, forceFavi = Boolean(apiKey && api
 (function () {
   var map, failed = false, ready = false, lastMessageId = 0;
   var devices = [], position = null, centered = false;
-  function send(data) { window.ReactNativeWebView.postMessage(JSON.stringify(data)); }
+  function send(data) { if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(data)); }
   function fail(message) { if (failed) return; failed = true; send({ type: 'error', message: message }); }
   function validCoordinates(value) {
     return Array.isArray(value) && value.length === 2 &&
@@ -146,66 +147,98 @@ export function createMapHtml(apiKey?: string, forceFavi = Boolean(apiKey && api
 </script></body></html>`;
   }
 
-  // Mặc định: Bản đồ Google Maps kết hợp MapLibre GL JS trực tiếp (siêu nhanh, ổn định 100%, không cần key)
+  // Mặc định: Leaflet + Google Maps Raster Tiles & OpenStreetMap
+  // Tương thích 100% với WebView, chạy mượt mà không yêu cầu WebGL
   return `<!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<style>
-  html, body, #map { margin: 0; width: 100%; height: 100%; background: #F8FAFC; }
-  body { overflow: hidden; }
-  .maplibregl-marker { cursor: pointer; }
-</style>
-</head><body><div id="map"></div><script>
-(function () {
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body, #map { margin: 0; padding: 0; width: 100%; height: 100%; background: #F8FAFC; }
+    body { overflow: hidden; }
+    .custom-pin { background: transparent; border: none; cursor: pointer; }
+    .leaflet-control-attribution { font-size: 9px; opacity: 0.6; }
+    .leaflet-control-zoom { display: none; }
+  </style>
+</head>
+<body>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function() {
   var map, failed = false, ready = false, lastMessageId = 0;
   var devices = [], position = null, centered = false;
   var markersList = [];
 
-  function send(data) { window.ReactNativeWebView.postMessage(JSON.stringify(data)); }
+  function send(data) {
+    if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+      window.ReactNativeWebView.postMessage(JSON.stringify(data));
+    }
+  }
+
   function fail(message) {
     if (failed) return;
     failed = true;
     send({ type: 'error', message: message });
   }
 
-  function validCoordinates(value) {
-    return Array.isArray(value) && value.length === 2 &&
-      Number.isFinite(value[0]) && Math.abs(value[0]) <= 180 &&
-      Number.isFinite(value[1]) && Math.abs(value[1]) <= 90;
+  function validCoordinates(val) {
+    return Array.isArray(val) && val.length === 2 &&
+      Number.isFinite(val[0]) && Math.abs(val[0]) <= 180 &&
+      Number.isFinite(val[1]) && Math.abs(val[1]) <= 90;
+  }
+
+  function createSvgIcon(color, isUser) {
+    var size = isUser ? [26, 26] : [32, 42];
+    var anchor = isUser ? [13, 13] : [16, 42];
+    var html;
+    if (isUser) {
+      html = '<svg width="26" height="26" viewBox="0 0 26 26">' +
+        '<circle cx="13" cy="13" r="11" fill="' + color + '" fill-opacity="0.3"/>' +
+        '<circle cx="13" cy="13" r="6" fill="' + color + '" stroke="#ffffff" stroke-width="2.5"/>' +
+        '</svg>';
+    } else {
+      html = '<svg width="32" height="42" viewBox="0 0 32 42" style="filter:drop-shadow(0 3px 5px rgba(0,0,0,0.35));">' +
+        '<path d="M16 0C7.163 0 0 7.163 0 16c0 11.5 16 26 16 26s16-14.5 16-26c0-8.837-7.163-16-16-16z" fill="' + color + '" stroke="#ffffff" stroke-width="1.5"/>' +
+        '<circle cx="16" cy="15" r="5.5" fill="#ffffff"/>' +
+        '</svg>';
+    }
+    return L.divIcon({
+      className: 'custom-pin',
+      html: html,
+      iconSize: size,
+      iconAnchor: anchor
+    });
   }
 
   function renderMarkers() {
     if (!map) return;
-    // Xóa markers cũ
-    markersList.forEach(function (m) { m.remove(); });
+    markersList.forEach(function(m) { map.removeLayer(m); });
     markersList = [];
 
-    // Vẽ marker vị trí của tôi (màu xanh dương)
+    // Vị trí người dùng
     if (position) {
-      var userMarker = new window.maplibregl.Marker({ color: '#2563EB' })
-        .setLngLat(position)
-        .addTo(map);
+      // coords là [lng, lat], Leaflet nhận [lat, lng]
+      var userMarker = L.marker([position[1], position[0]], {
+        icon: createSvgIcon('#2563EB', true),
+        zIndexOffset: 1000
+      }).addTo(map);
       markersList.push(userMarker);
     }
 
-    // Vẽ markers danh sách thiết bị lân cận (màu xanh teal)
-    devices.forEach(function (device) {
-      var marker = new window.maplibregl.Marker({ color: '#286E74' })
-        .setLngLat(device.coordinates)
-        .addTo(map);
+    // Các thiết bị lân cận
+    devices.forEach(function(device) {
+      var marker = L.marker([device.coordinates[1], device.coordinates[0]], {
+        icon: createSvgIcon('#286E74', false),
+        title: device.name,
+        zIndexOffset: 500
+      }).addTo(map);
 
-      var el = marker.getElement();
-      el.setAttribute('role', 'button');
-      el.setAttribute('tabindex', '0');
-      el.setAttribute('aria-label', device.name);
-
-      // Bấm vào marker gửi id thiết bị lên React Native
-      el.addEventListener('click', function () {
+      marker.on('click', function() {
         send({ type: 'select', deviceId: device.id });
-      });
-      el.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter' || e.key === ' ') {
-          send({ type: 'select', deviceId: device.id });
-        }
       });
 
       markersList.push(marker);
@@ -220,20 +253,20 @@ export function createMapHtml(apiKey?: string, forceFavi = Boolean(apiKey && api
       lastMessageId = data.messageId;
 
       if (data.type === 'update' && Array.isArray(data.devices)) {
-        devices = data.devices.filter(function (d) {
+        devices = data.devices.filter(function(d) {
           return d && typeof d.id === 'string' && /^[a-f0-9]{24}$/i.test(d.id) &&
             typeof d.name === 'string' && validCoordinates(d.coordinates);
         });
         position = validCoordinates(data.position) ? data.position : null;
         renderMarkers();
         if (position && !centered) {
-          map.flyTo({ center: position, zoom: 13, duration: 1200 });
+          map.flyTo([position[1], position[0]], 13, { duration: 1.2 });
           centered = true;
         }
       } else if (data.type === 'focus' && validCoordinates(data.position)) {
-        map.flyTo({ center: data.position, zoom: 14, duration: 1000 });
+        map.flyTo([data.position[1], data.position[0]], 14, { duration: 1 });
       }
-    } catch (e) {
+    } catch(e) {
       fail('Unable to update map markers.');
     }
   }
@@ -241,70 +274,55 @@ export function createMapHtml(apiKey?: string, forceFavi = Boolean(apiKey && api
   document.addEventListener('message', receive);
   window.addEventListener('message', receive);
 
-  // Nạp MapLibre CSS & JS
-  var cssLink = document.createElement('link');
-  cssLink.rel = 'stylesheet';
-  cssLink.href = 'https://unpkg.com/maplibre-gl@5.1.0/dist/maplibre-gl.css';
-  document.head.appendChild(cssLink);
-
-  var script = document.createElement('script');
-  script.src = 'https://unpkg.com/maplibre-gl@5.1.0/dist/maplibre-gl.js';
-  script.onerror = function () { fail('Unable to load map library.'); };
-  script.onload = function () {
+  function initMap() {
     try {
-      var googleStyle = {
-        version: 8,
-        sources: {
-          'google-tiles': {
-            type: 'raster',
-            tiles: [
-              'https://mt0.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-              'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-              'https://mt2.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-              'https://mt3.google.com/vt/lyrs=m&x={x}&y={y}&z={z}'
-            ],
-            tileSize: 256,
-            attribution: '© Google Maps'
-          }
-        },
-        layers: [{ id: 'google-tiles-layer', type: 'raster', source: 'google-tiles', minzoom: 0, maxzoom: 20 }]
-      };
+      if (!window.L) {
+        fail('Unable to load Leaflet library.');
+        return;
+      }
 
-      map = new window.maplibregl.Map({
-        container: 'map',
-        style: googleStyle,
-        center: [105.8544, 21.0285],
-        zoom: 13
+      // Tọa độ mặc định: Hà Nội [21.0285, 105.8544]
+      map = L.map('map', {
+        zoomControl: false,
+        attributionControl: true
+      }).setView([21.0285, 105.8544], 13);
+
+      // Google Maps Raster Tiles
+      var googleTiles = L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+        subdomains: ['0', '1', '2', '3'],
+        maxZoom: 20,
+        attribution: '© Google Maps'
       });
 
-      // Thêm các hàm tương thích
-      map.clearMarkers = function () {
-        markersList.forEach(function (m) { m.remove(); });
-        markersList = [];
-      };
-      map.addMarker = function (coords, opts) {
-        var m = new window.maplibregl.Marker({ color: opts && opts.color ? opts.color : '#286E74' })
-          .setLngLat(coords)
-          .addTo(map);
-        markersList.push(m);
-        return m;
-      };
-      map.flyToLocation = function (coords, zoom) {
-        map.flyTo({ center: coords, zoom: zoom || 14, duration: 1200 });
-      };
-
-      map.on('load', function () {
-        if (failed) return;
-        ready = true;
-        send({ type: 'ready' });
+      var osmTiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
       });
-    } catch (err) {
-      fail('Unable to initialize map.');
+
+      googleTiles.on('tileerror', function() {
+        if (!map.hasLayer(osmTiles)) {
+          osmTiles.addTo(map);
+        }
+      });
+
+      googleTiles.addTo(map);
+
+      ready = true;
+      send({ type: 'ready' });
+    } catch(err) {
+      fail('Unable to initialize map: ' + (err.message || err));
     }
-  };
-  document.head.appendChild(script);
+  }
+
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    initMap();
+  } else {
+    window.addEventListener('DOMContentLoaded', initMap);
+  }
 })();
-</script></body></html>`;
+</script>
+</body>
+</html>`;
 }
 
 // Giữ alias cho backward compatibility
