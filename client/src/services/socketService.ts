@@ -29,6 +29,9 @@ type NotificationListener = (notification: InAppNotification) => void;
 let messageListeners: MessageListener[] = [];
 let messagesReadListeners: MessagesReadListener[] = [];
 let notificationListeners: NotificationListener[] = [];
+export type AccountLockedEvent = { userId: string; reason: string; lockedAt?: string };
+type AccountLockedListener = (data: AccountLockedEvent) => void;
+let accountLockedListeners: AccountLockedListener[] = [];
 
 export const socketService = {
   getActiveBookingId: () => activeBookingId,
@@ -52,6 +55,13 @@ export const socketService = {
     notificationListeners.push(listener);
     return () => {
       notificationListeners = notificationListeners.filter((l) => l !== listener);
+    };
+  },
+
+  onAccountLocked: (listener: AccountLockedListener) => {
+    accountLockedListeners.push(listener);
+    return () => {
+      accountLockedListeners = accountLockedListeners.filter((l) => l !== listener);
     };
   },
 
@@ -120,6 +130,11 @@ export const socketService = {
 
     socket.on('messages_read', (data: { bookingId: string; readBy: string }) => {
       messagesReadListeners.forEach((fn) => fn(data));
+    });
+
+    socket.on('account_locked', (data: AccountLockedEvent) => {
+      console.warn('[SocketService] Received account_locked event:', data);
+      accountLockedListeners.forEach((fn) => fn(data));
     });
   },
 

@@ -24,6 +24,8 @@ export interface MemberUser {
   role         : 'renter' | 'owner';
   roleName     : string;
   isActive     : boolean;
+  lockReason?  : string;
+  lockedAt?    : string | null;
   isVerified   : boolean;
   trustScore   : number;
   walletBalance: number;
@@ -73,7 +75,9 @@ export interface ToggleStatusResponse {
   message: string;
   data?  : {
     userId  : string;
-    isActive: boolean;
+    isActive  : boolean;
+    lockReason?: string;
+    lockedAt? : string | null;
   };
 }
 
@@ -107,9 +111,10 @@ export async function fetchUserDetail(userId: string): Promise<UserDetailRespons
 /**
  * 3. Khóa hoặc Mở khóa tài khoản người dùng (Sẵn sàng cho nâng cấp sau)
  */
-export async function toggleUserStatus(userId: string, isActive?: boolean): Promise<ToggleStatusResponse> {
+export async function toggleUserStatus(userId: string, isActive?: boolean, reason?: string): Promise<ToggleStatusResponse> {
   const response = await apiClient.patch<ToggleStatusResponse>(`/admin/users/${userId}/status`, {
     isActive,
+    reason,
   });
   return response.data;
 }

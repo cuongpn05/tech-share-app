@@ -178,7 +178,9 @@ const login = async (req, res) => {
     if (account.isActive === false) {
       return res.status(403).json({
         success: false,
-        message: 'Tài khoản của bạn đã bị khóa hoặc tạm ngưng hoạt động. Vui lòng liên hệ hỗ trợ.',
+        code: 'ACCOUNT_LOCKED',
+        lockReason: account.lockReason || 'Violation of platform terms of service.',
+        message: `Your account has been locked by an administrator. Reason: ${account.lockReason || 'Violation of platform terms of service.'}`,
       });
     }
 

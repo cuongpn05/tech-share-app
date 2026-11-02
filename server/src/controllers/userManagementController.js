@@ -20,6 +20,8 @@ const mongoose = require('mongoose');
 const User = require('../models/User');
 const Account = require('../models/Account');
 const Role = require('../models/Role');
+const { getIO } = require('../socket');
+const { createAndSendNotification } = require('../services/notificationService');
 
 /**
  * Hàm hỗ trợ escape các ký tự đặc biệt trong chuỗi tìm kiếm RegExp
@@ -80,7 +82,7 @@ const getUsersList = async (req, res) => {
             { username: searchPattern },
           ],
         })
-        .select('_id username email isActive roleId lastLogin createdAt')
+        .select('_id username email isActive lockReason lockedAt roleId lastLogin createdAt')
         .populate('roleId', 'code name')
         .lean();
 
@@ -110,7 +112,7 @@ const getUsersList = async (req, res) => {
             _id   : { $in: matchedAccountIdsFromUsers },
             ...accountBaseFilter,
           })
-          .select('_id username email isActive roleId lastLogin createdAt')
+          .select('_id username email isActive lockReason lockedAt roleId lastLogin createdAt')
           .populate('roleId', 'code name')
           .lean();
 
@@ -148,7 +150,7 @@ const getUsersList = async (req, res) => {
       // Khi không có từ khóa tìm kiếm: lấy danh sách accounts theo role & status
       const accounts = await Account
         .find(accountBaseFilter)
-        .select('_id username email isActive roleId lastLogin createdAt')
+        .select('_id username email isActive lockReason lockedAt roleId lastLogin createdAt')
         .populate('roleId', 'code name')
         .lean();
 
@@ -169,7 +171,7 @@ const getUsersList = async (req, res) => {
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 })
-      .select('accountId username name phone address avatar trust wallet rating totalReviews isActive createdAt')
+      .select('accountId username name phone address avatar trust wallet rating totalReviews isActive lockReason lockedAt createdAt')
       .lean();
 
     // ── Bước 7: Ghép dữ liệu từ Account vào User (Enrichment) ──
@@ -186,6 +188,8 @@ const getUsersList = async (req, res) => {
         role         : account.roleId?.code || 'renter',
         roleName     : account.roleId?.name || (account.roleId?.code === 'owner' ? 'Chủ sở hữu' : 'Người thuê'),
         isActive     : account.isActive ?? user.isActive ?? true,
+        lockReason   : account.lockReason || user.lockReason || '',
+        lockedAt     : account.lockedAt || user.lockedAt || null,
         isVerified   : user.trust?.isVerified ?? false,
         trustScore   : user.trust?.score ?? 100,
         walletBalance: user.wallet?.balance ?? 0,
@@ -275,13 +279,15 @@ const getUserDetail = async (req, res) => {
  */
 const toggleUserStatus = async (req, res) => {
   try {
+    const adminId = (req.auth && (req.auth.id || req.auth._id)) || (req.user && req.user._id);
     const { id } = req.params;
     const { isActive } = req.body;
+    const reason = String(req.body.reason || req.body.lockReason || '').trim();
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
         success: false,
-        message: 'Mã người dùng không hợp lệ.',
+        message: 'Invalid user ID.',
       });
     }
 
@@ -289,29 +295,122 @@ const toggleUserStatus = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'Không tìm thấy người dùng.',
+        message: 'User account not found.',
       });
     }
 
     const targetStatus = typeof isActive === 'boolean' ? isActive : !user.isActive;
 
-    // Cập nhật cả bảng User và Account tương ứng
-    user.isActive = targetStatus;
-    await user.save();
+    if (!targetStatus && !reason) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a reason for locking this user account.',
+      });
+    }
 
-    await Account.findByIdAndUpdate(user.accountId, { isActive: targetStatus });
+    const now = new Date();
 
-    return res.status(200).json({
-      success: true,
-      message: targetStatus ? 'Đã mở khóa tài khoản thành công.' : 'Đã khóa tài khoản thành công.',
-      data   : { userId: user._id, isActive: targetStatus },
-    });
+    if (!targetStatus) {
+      // ── Khóa tài khoản (Lock) ─────────────────────────────────
+      user.isActive = false;
+      user.lockReason = reason;
+      user.lockedAt = now;
+      await user.save();
+
+      await Account.findByIdAndUpdate(user.accountId, {
+        isActive: false,
+        lockReason: reason,
+        lockedAt: now,
+        lockedBy: adminId || null,
+      });
+
+      // ── 1. Real-time Kick-Out qua Socket.IO ────────────────────
+      try {
+        const io = getIO();
+        if (io) {
+          const lockPayload = {
+            userId: user._id.toString(),
+            accountId: user.accountId.toString(),
+            reason,
+            lockedAt: now.toISOString(),
+          };
+          io.to(`user_${user._id}`).emit('account_locked', lockPayload);
+          io.to(`user_${user.accountId}`).emit('account_locked', lockPayload);
+          console.log(`[UserManagement] Emitted real-time account_locked event to user_${user._id}`);
+        }
+      } catch (socketErr) {
+        console.warn('[UserManagement] Socket emit error on lock:', socketErr.message);
+      }
+
+      // ── 2. Tạo thông báo in-app / push notification ───────────
+      try {
+        await createAndSendNotification({
+          userId: user._id,
+          title: 'Account Locked / Suspended ⚠️',
+          body: `Your TechShare account has been suspended by an administrator. Reason: ${reason}`,
+          type: 'system',
+          data: {
+            action: 'account_locked',
+            reason,
+          },
+        });
+      } catch (notifErr) {
+        console.warn('[UserManagement] Notification error on lock:', notifErr.message);
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Account locked successfully and active session terminated.',
+        data: {
+          userId: user._id,
+          isActive: false,
+          lockReason: reason,
+          lockedAt: now,
+        },
+      });
+    } else {
+      // ── Mở khóa tài khoản (Unlock) ───────────────────────────
+      user.isActive = true;
+      user.lockReason = '';
+      user.lockedAt = null;
+      await user.save();
+
+      await Account.findByIdAndUpdate(user.accountId, {
+        isActive: true,
+        lockReason: '',
+        lockedAt: null,
+        lockedBy: null,
+      });
+
+      // Bắn Socket.IO thông báo đã mở khóa
+      try {
+        const io = getIO();
+        if (io) {
+          io.to(`user_${user._id}`).emit('account_unlocked', {
+            userId: user._id.toString(),
+          });
+        }
+      } catch (socketErr) {
+        console.warn('[UserManagement] Socket emit error on unlock:', socketErr.message);
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Account unlocked successfully.',
+        data: {
+          userId: user._id,
+          isActive: true,
+          lockReason: '',
+          lockedAt: null,
+        },
+      });
+    }
   } catch (error) {
     console.error('[UserManagementController] Lỗi trong toggleUserStatus:', error);
     return res.status(500).json({
       success: false,
-      message: 'Lỗi máy chủ khi cập nhật trạng thái người dùng.',
-      error  : error.message,
+      message: 'Server error while updating user account status.',
+      error: error.message,
     });
   }
 };

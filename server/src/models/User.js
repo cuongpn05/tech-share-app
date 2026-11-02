@@ -50,6 +50,8 @@ const userSchema = new mongoose.Schema({
   rating: { type: Number, default: 5.0, min: 1.0, max: 5.0 },
   totalReviews: { type: Number, default: 0 },
   isActive: { type: Boolean, default: true },
+  lockReason: { type: String, default: '' },
+  lockedAt: { type: Date, default: null },
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
