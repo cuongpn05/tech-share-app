@@ -242,10 +242,38 @@ export async function getAdminEkycList(params: AdminEkycListParams = {}): Promis
   return response.data;
 }
 
+/**
+ * 5. Phê duyệt đơn xác thực eKYC (Admin)
+ */
+export async function approveAdminEkyc(
+  submissionId: string
+): Promise<{ success: boolean; message: string; data?: any }> {
+  const response = await apiClient.patch<{ success: boolean; message: string; data?: any }>(
+    `/admin/ekyc/${submissionId}/approve`
+  );
+  return response.data;
+}
+
+/**
+ * 6. Từ chối đơn xác thực eKYC kèm lý do (Admin)
+ */
+export async function rejectAdminEkyc(
+  submissionId: string,
+  reason: string
+): Promise<{ success: boolean; message: string; data?: any }> {
+  const response = await apiClient.patch<{ success: boolean; message: string; data?: any }>(
+    `/admin/ekyc/${submissionId}/reject`,
+    { reason }
+  );
+  return response.data;
+}
+
 export default {
   getEkycStatus,
   uploadEkycPhoto,
   submitEkycRequest,
   getAdminEkycList,
+  approveAdminEkyc,
+  rejectAdminEkyc,
 };
 

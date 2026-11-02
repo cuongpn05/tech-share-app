@@ -19,6 +19,8 @@ const {
   uploadEkycImage,
   submitEkycRequest,
   getAdminEkycSubmissions,
+  approveEkycSubmission,
+  rejectEkycSubmission,
 } = require('../controllers/ekycController');
 const { requireAuth } = require('../middlewares/authMiddleware');
 const { adminMiddleware } = require('../middlewares/adminMiddleware');
@@ -40,5 +42,7 @@ router.post('/submit', submitEkycRequest);
 
 // 4. Lấy danh sách đơn xác thực eKYC (Admin)
 router.get('/admin/submissions', adminMiddleware, getAdminEkycSubmissions);
+router.patch('/admin/submissions/:id/approve', adminMiddleware, approveEkycSubmission);
+router.patch('/admin/submissions/:id/reject', adminMiddleware, rejectEkycSubmission);
 
 module.exports = router;

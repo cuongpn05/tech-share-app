@@ -15,6 +15,7 @@ const User = require('../models/User');
 const Account = require('../models/Account');
 const EkycRequest = require('../models/EkycRequest');
 const { uploadToCloudinary } = require('../utils/cloudinary');
+const { createAndSendNotification } = require('../services/notificationService');
 
 /**
  * ─────────────────────────────────────────────────────────────
@@ -371,9 +372,158 @@ const getAdminEkycSubmissions = async (req, res) => {
   }
 };
 
+/**
+ * ─────────────────────────────────────────────────────────────
+ *  5. APPROVE EKYC SUBMISSION (Admin duyệt đơn eKYC)
+ * ─────────────────────────────────────────────────────────────
+ *  Route: PATCH /api/admin/ekyc/:id/approve
+ *  Quyền: Admin (requireAuth, adminMiddleware)
+ */
+const approveEkycSubmission = async (req, res) => {
+  try {
+    const adminId = (req.auth && (req.auth.id || req.auth._id)) || (req.user && req.user._id);
+    const { id } = req.params;
+
+    const ekycRequest = await EkycRequest.findById(id);
+    if (!ekycRequest) {
+      return res.status(404).json({
+        success: false,
+        message: 'eKYC verification submission not found.',
+      });
+    }
+
+    ekycRequest.status = 'approved';
+    ekycRequest.rejectReason = '';
+    ekycRequest.reviewedBy = adminId;
+    ekycRequest.reviewedAt = new Date();
+    await ekycRequest.save();
+
+    // Cập nhật trạng thái xác minh của User thành true
+    await User.updateOne(
+      { _id: ekycRequest.userId },
+      {
+        $set: {
+          isVerified: true,
+          'trust.isVerified': true,
+        },
+      }
+    );
+
+    // Gửi thông báo đến người dùng
+    try {
+      await createAndSendNotification({
+        userId: ekycRequest.userId,
+        title: 'eKYC Application Approved ✅',
+        body: 'Congratulations! Your identity verification (eKYC) application has been approved by administrators. You are now eligible to rent technology devices on TechShare.',
+        type: 'system',
+        relatedId: ekycRequest._id,
+        data: {
+          ekycId: ekycRequest._id.toString(),
+          status: 'approved',
+        },
+      });
+    } catch (notifErr) {
+      console.warn('[EkycController] Lỗi gửi thông báo phê duyệt eKYC:', notifErr.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'eKYC verification application approved successfully.',
+      data: ekycRequest,
+    });
+  } catch (error) {
+    console.error('[EkycController] Lỗi trong approveEkycSubmission:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi máy chủ khi phê duyệt đơn xác thực eKYC.',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * ─────────────────────────────────────────────────────────────
+ *  6. REJECT EKYC SUBMISSION (Admin từ chối đơn eKYC kèm lý do)
+ * ─────────────────────────────────────────────────────────────
+ *  Route: PATCH /api/admin/ekyc/:id/reject
+ *  Quyền: Admin (requireAuth, adminMiddleware)
+ */
+const rejectEkycSubmission = async (req, res) => {
+  try {
+    const adminId = (req.auth && (req.auth.id || req.auth._id)) || (req.user && req.user._id);
+    const { id } = req.params;
+    const reason = String(req.body.reason || req.body.rejectReason || '').trim();
+
+    if (!reason) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a reason for rejecting the eKYC application.',
+      });
+    }
+
+    const ekycRequest = await EkycRequest.findById(id);
+    if (!ekycRequest) {
+      return res.status(404).json({
+        success: false,
+        message: 'eKYC verification submission not found.',
+      });
+    }
+
+    ekycRequest.status = 'rejected';
+    ekycRequest.rejectReason = reason;
+    ekycRequest.reviewedBy = adminId;
+    ekycRequest.reviewedAt = new Date();
+    await ekycRequest.save();
+
+    // Cập nhật trạng thái xác minh của User thành false
+    await User.updateOne(
+      { _id: ekycRequest.userId },
+      {
+        $set: {
+          isVerified: false,
+          'trust.isVerified': false,
+        },
+      }
+    );
+
+    // Gửi thông báo đến người dùng kèm lý do từ chối
+    try {
+      await createAndSendNotification({
+        userId: ekycRequest.userId,
+        title: 'eKYC Application Rejected ❌',
+        body: `Your identity verification (eKYC) application was rejected. Reason: ${reason}`,
+        type: 'system',
+        relatedId: ekycRequest._id,
+        data: {
+          ekycId: ekycRequest._id.toString(),
+          status: 'rejected',
+          reason,
+        },
+      });
+    } catch (notifErr) {
+      console.warn('[EkycController] Lỗi gửi thông báo từ chối eKYC:', notifErr.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'eKYC verification application has been rejected.',
+      data: ekycRequest,
+    });
+  } catch (error) {
+    console.error('[EkycController] Lỗi trong rejectEkycSubmission:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi máy chủ khi từ chối đơn xác thực eKYC.',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getMyEkycStatus,
   uploadEkycImage,
   submitEkycRequest,
   getAdminEkycSubmissions,
+  approveEkycSubmission,
+  rejectEkycSubmission,
 };
