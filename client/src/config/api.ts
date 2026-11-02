@@ -50,4 +50,23 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+type AccountLockedHandler = (reason: string) => void;
+let accountLockedHandler: AccountLockedHandler | null = null;
+export const setAccountLockedHandler = (handler: AccountLockedHandler | null) => {
+  accountLockedHandler = handler;
+};
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 403 && error?.response?.data?.code === 'ACCOUNT_LOCKED') {
+      const reason = error.response.data.lockReason || error.response.data.message || '';
+      if (accountLockedHandler) {
+        accountLockedHandler(reason);
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default apiClient;

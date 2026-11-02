@@ -63,7 +63,9 @@ const requireAuth = async (req, res, next) => {
     if (account && account.isActive === false) {
       return res.status(403).json({
         success: false,
-        message: 'Tài khoản đã bị tạm khóa. Vui lòng liên hệ quản trị viên.',
+        code: 'ACCOUNT_LOCKED',
+        lockReason: account.lockReason || 'Violation of platform terms of service.',
+        message: `Your account has been locked by an administrator. Reason: ${account.lockReason || 'Violation of platform terms of service.'}`,
       });
     }
 

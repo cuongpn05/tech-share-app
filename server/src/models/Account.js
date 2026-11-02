@@ -28,6 +28,9 @@ const accountSchema = new mongoose.Schema({
     required: true,
   },
   isActive: { type: Boolean, default: true, index: true },
+  lockReason: { type: String, default: '' },
+  lockedAt: { type: Date, default: null },
+  lockedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   lastLogin: { type: Date },
 }, {
   timestamps: true,

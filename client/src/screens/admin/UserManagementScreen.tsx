@@ -3,14 +3,15 @@
  *  USER MANAGEMENT SCREEN
  *  client/src/screens/admin/UserManagementScreen.tsx
  * ============================================================
- *  Màn hình quản lý thành viên dành cho Admin Dashboard.
- *  Tính năng:
- *   - Hiển thị danh sách user (role: renter & owner, loại admin)
- *   - Tìm kiếm theo tên / email / username (debounce 400ms)
- *   - Lọc theo role (Tất cả / Người thuê / Chủ sở hữu)
- *   - Lọc theo trạng thái (Tất cả / Đang hoạt động / Đã khóa)
- *   - Phân trang (Load more khi scroll)
- *   - Pull-to-refresh
+ *  Admin Dashboard member management screen.
+ *  Features:
+ *   - Member list display (renters & owners)
+ *   - Real-time search by name / email / username (debounce 400ms)
+ *   - Role filter (All / Renters / Owners)
+ *   - Status filter (All / Active / Locked)
+ *   - Lock / Unlock user account with reason & real-time session kick-out
+ *   - Pagination & Pull-to-refresh
+ *   - 100% localized via STRINGS.ADMIN_USER_MANAGEMENT
  * ============================================================
  */
 
@@ -28,6 +29,11 @@ import {
   Platform,
   StatusBar,
   ScrollView,
+  Modal,
+  Alert,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, DrawerActions } from '@react-navigation/native';
@@ -35,9 +41,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../theme/tokens';
 import {
   fetchUsersList,
+  toggleUserStatus,
   MemberUser,
   Pagination,
 } from '../../services/userManagementService';
+import { STRINGS } from '../../constants/strings';
+
+const S = STRINGS.ADMIN_USER_MANAGEMENT;
 
 type RoleFilter   = '' | 'renter' | 'owner';
 type StatusFilter = '' | 'active' | 'inactive';
@@ -50,17 +60,8 @@ export interface UserManagementScreenProps {
 //  Constants
 // ─────────────────────────────────────────────────────────
 
-const ROLE_TABS: { label: string; value: RoleFilter }[] = [
-  { label: 'Tất cả',      value: '' },
-  { label: 'Người thuê',  value: 'renter' },
-  { label: 'Chủ sở hữu', value: 'owner' },
-];
-
-const STATUS_TABS: { label: string; value: StatusFilter }[] = [
-  { label: 'Tất cả',    value: '' },
-  { label: 'Hoạt động', value: 'active' },
-  { label: 'Đã khóa',   value: 'inactive' },
-];
+const ROLE_TABS = S.ROLE_TABS as readonly { label: string; value: RoleFilter }[];
+const STATUS_TABS = S.STATUS_TABS as readonly { label: string; value: StatusFilter }[];
 
 const PAGE_LIMIT = 20;
 
@@ -76,10 +77,12 @@ function getInitials(name: string): string {
 }
 
 function formatDate(iso: string | null): string {
-  if (!iso) return '—';
+  if (!iso) return S.CARD.DATE_UNKNOWN;
   try {
-    return new Date(iso).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  } catch { return '—'; }
+    return new Date(iso).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch {
+    return S.CARD.DATE_UNKNOWN;
+  }
 }
 
 // ─────────────────────────────────────────────────────────
@@ -92,7 +95,7 @@ const RoleBadge: React.FC<{ role: string }> = ({ role }) => {
     <View style={[styles.badge, isOwner ? styles.badgeOwner : styles.badgeRenter]}>
       <Ionicons name={isOwner ? 'key-outline' : 'person-outline'} size={10} color={isOwner ? '#7C3AED' : '#0EA5E9'} />
       <Text style={[styles.badgeText, isOwner ? styles.badgeTextOwner : styles.badgeTextRenter]}>
-        {isOwner ? 'Owner' : 'Renter'}
+        {isOwner ? S.CARD.ROLE_OWNER : S.CARD.ROLE_RENTER}
       </Text>
     </View>
   );
@@ -107,43 +110,92 @@ const UserAvatar: React.FC<{ avatar: string | null; name: string }> = ({ avatar,
     </View>
   );
 
-const UserListItem: React.FC<{ item: MemberUser }> = ({ item }) => (
-  <View style={styles.userCard}>
-    {/* Avatar + status dot */}
-    <View style={styles.avatarWrapper}>
-      <UserAvatar avatar={item.avatar} name={item.name} />
-      <View style={[styles.statusDot, { backgroundColor: item.isActive ? '#10B981' : '#EF4444' }]} />
+interface UserListItemProps {
+  item: MemberUser;
+  onLockPress: (user: MemberUser) => void;
+  onUnlockPress: (user: MemberUser) => void;
+}
+
+const UserListItem: React.FC<UserListItemProps> = ({ item, onLockPress, onUnlockPress }) => (
+  <View style={[styles.userCard, !item.isActive && styles.userCardLocked]}>
+    {/* Upper Section */}
+    <View style={styles.cardMainRow}>
+      {/* Avatar + status dot */}
+      <View style={styles.avatarWrapper}>
+        <UserAvatar avatar={item.avatar} name={item.name} />
+        <View style={[styles.statusDot, { backgroundColor: item.isActive ? '#10B981' : '#EF4444' }]} />
+      </View>
+
+      {/* Info */}
+      <View style={styles.userInfo}>
+        <View style={styles.userTopRow}>
+          <Text style={styles.userName} numberOfLines={1}>{item.name}</Text>
+          <RoleBadge role={item.role} />
+        </View>
+        <Text style={styles.userEmail} numberOfLines={1}>@{item.username}  ·  {item.email}</Text>
+        <View style={styles.userMeta}>
+          <View style={styles.metaItem}>
+            <Ionicons name="star" size={11} color="#F59E0B" />
+            <Text style={styles.metaText}>{item.rating.toFixed(1)}</Text>
+          </View>
+          <View style={styles.metaItem}>
+            <Ionicons name="shield-checkmark-outline" size={11} color={item.isVerified ? '#10B981' : '#94A3B8'} />
+            <Text style={[styles.metaText, { color: item.isVerified ? '#10B981' : '#94A3B8' }]}>
+              {item.isVerified ? S.STATUS_LABELS.VERIFIED : S.STATUS_LABELS.UNVERIFIED}
+            </Text>
+          </View>
+          <View style={styles.metaItem}>
+            <Ionicons name="calendar-outline" size={11} color={theme.colors.text.muted} />
+            <Text style={styles.metaText}>{formatDate(item.joinedAt)}</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Wallet */}
+      <View style={styles.walletBadge}>
+        <Text style={styles.walletAmount}>{item.walletBalance.toLocaleString('en-US')}</Text>
+        <Text style={styles.walletLabel}>{S.CARD.CURRENCY}</Text>
+      </View>
     </View>
 
-    {/* Info */}
-    <View style={styles.userInfo}>
-      <View style={styles.userTopRow}>
-        <Text style={styles.userName} numberOfLines={1}>{item.name}</Text>
-        <RoleBadge role={item.role} />
+    {/* Locked Reason Warning Banner */}
+    {!item.isActive && (
+      <View style={styles.lockReasonBanner}>
+        <Ionicons name="alert-circle" size={14} color="#DC2626" />
+        <Text style={styles.lockReasonText} numberOfLines={2}>
+          {S.CARD.LOCK_REASON_PREFIX(item.lockReason || 'Policy violation')}
+        </Text>
       </View>
-      <Text style={styles.userEmail} numberOfLines={1}>@{item.username}  ·  {item.email}</Text>
-      <View style={styles.userMeta}>
-        <View style={styles.metaItem}>
-          <Ionicons name="star" size={11} color="#F59E0B" />
-          <Text style={styles.metaText}>{item.rating.toFixed(1)}</Text>
-        </View>
-        <View style={styles.metaItem}>
-          <Ionicons name="shield-checkmark-outline" size={11} color={item.isVerified ? '#10B981' : '#94A3B8'} />
-          <Text style={[styles.metaText, { color: item.isVerified ? '#10B981' : '#94A3B8' }]}>
-            {item.isVerified ? 'Verified' : 'Unverified'}
-          </Text>
-        </View>
-        <View style={styles.metaItem}>
-          <Ionicons name="calendar-outline" size={11} color={theme.colors.text.muted} />
-          <Text style={styles.metaText}>{formatDate(item.joinedAt)}</Text>
-        </View>
-      </View>
-    </View>
+    )}
 
-    {/* Wallet */}
-    <View style={styles.walletBadge}>
-      <Text style={styles.walletAmount}>{item.walletBalance.toLocaleString('vi-VN')}</Text>
-      <Text style={styles.walletLabel}>VND</Text>
+    {/* Card Action Footer */}
+    <View style={styles.cardActionRow}>
+      <View style={styles.statusIndicatorRow}>
+        <View style={[styles.miniStatusDot, { backgroundColor: item.isActive ? '#10B981' : '#EF4444' }]} />
+        <Text style={[styles.miniStatusText, { color: item.isActive ? '#059669' : '#DC2626' }]}>
+          {item.isActive ? S.STATUS_LABELS.ACTIVE : S.STATUS_LABELS.LOCKED}
+        </Text>
+      </View>
+
+      {item.isActive ? (
+        <TouchableOpacity
+          style={styles.actionBtnLock}
+          onPress={() => onLockPress(item)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="lock-closed-outline" size={13} color="#DC2626" />
+          <Text style={styles.actionBtnLockText}>{S.CARD.ACTION_LOCK}</Text>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity
+          style={styles.actionBtnUnlock}
+          onPress={() => onUnlockPress(item)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="lock-open-outline" size={13} color="#16A34A" />
+          <Text style={styles.actionBtnUnlockText}>{S.CARD.ACTION_UNLOCK}</Text>
+        </TouchableOpacity>
+      )}
     </View>
   </View>
 );
@@ -169,13 +221,13 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
         nav.getParent().openDrawer();
       }
     } catch (e) {
-      console.warn('[UserManagement] Không thể mở drawer:', e);
+      console.warn('[UserManagement] Drawer open failed:', e);
     }
   }, [nav]);
 
-  const [search,         setSearch]         = useState('');
-  const [roleFilter,     setRoleFilter]     = useState<RoleFilter>('');
-  const [statusFilter,   setStatusFilter]   = useState<StatusFilter>('');
+  const [search,          setSearch]          = useState('');
+  const [roleFilter,      setRoleFilter]      = useState<RoleFilter>('');
+  const [statusFilter,    setStatusFilter]    = useState<StatusFilter>('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
   const [users,       setUsers]       = useState<MemberUser[]>([]);
@@ -184,6 +236,13 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing,  setRefreshing]  = useState(false);
   const [error,       setError]       = useState<string | null>(null);
+
+  // Lock Modal State
+  const [lockModalVisible,    setLockModalVisible]    = useState(false);
+  const [selectedUserForLock, setSelectedUserForLock] = useState<MemberUser | null>(null);
+  const [selectedPresetReason, setSelectedPresetReason] = useState<string>(S.LOCK_MODAL.PRESET_REASONS[0]);
+  const [customLockReason,    setCustomLockReason]    = useState<string>('');
+  const [submittingLock,      setSubmittingLock]      = useState(false);
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -215,10 +274,10 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
         setUsers(prev => append ? [...prev, ...newData] : newData);
         setPagination(response.pagination || null);
       } else {
-        setError(response.message || 'Không thể tải danh sách.');
+        setError(response.message || S.ALERTS.LOAD_ERROR);
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Lỗi kết nối máy chủ. Vui lòng thử lại.');
+      setError(err.response?.data?.message || err.message || S.ALERTS.NETWORK_ERROR);
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -234,6 +293,87 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
     if (!loadingMore && pagination?.hasNext) fetchUsers((pagination.page || 1) + 1, true);
   }, [loadingMore, pagination, fetchUsers]);
 
+  // ── Lock & Unlock Handlers ─────────────────────────────
+
+  const handleOpenLockModal = useCallback((user: MemberUser) => {
+    setSelectedUserForLock(user);
+    setSelectedPresetReason(S.LOCK_MODAL.PRESET_REASONS[0]);
+    setCustomLockReason('');
+    setLockModalVisible(true);
+  }, []);
+
+  const handleConfirmLock = async () => {
+    if (!selectedUserForLock) return;
+
+    const finalReason = customLockReason.trim() || selectedPresetReason;
+    if (!finalReason) {
+      Alert.alert(S.ALERTS.REASON_REQUIRED_TITLE, S.ALERTS.REASON_REQUIRED_MSG);
+      return;
+    }
+
+    try {
+      setSubmittingLock(true);
+      const res = await toggleUserStatus(selectedUserForLock._id, false, finalReason);
+
+      if (res.success) {
+        const targetUserId = selectedUserForLock._id;
+        const targetName = selectedUserForLock.name;
+
+        // Update local user list state immediately
+        setUsers(prev => prev.map(u => u._id === targetUserId ? {
+          ...u,
+          isActive: false,
+          lockReason: finalReason,
+          lockedAt: new Date().toISOString(),
+        } : u));
+
+        setLockModalVisible(false);
+        setSelectedUserForLock(null);
+        Alert.alert(S.ALERTS.LOCK_SUCCESS_TITLE, S.ALERTS.LOCK_SUCCESS_MSG(targetName));
+      } else {
+        Alert.alert(S.ALERTS.ERROR_TITLE, res.message || S.ALERTS.ACTION_ERROR);
+      }
+    } catch (err: any) {
+      Alert.alert(S.ALERTS.ERROR_TITLE, err.response?.data?.message || err.message || S.ALERTS.ACTION_ERROR);
+    } finally {
+      setSubmittingLock(false);
+    }
+  };
+
+  const handleConfirmUnlock = useCallback((user: MemberUser) => {
+    Alert.alert(
+      S.UNLOCK_ALERT.TITLE,
+      S.UNLOCK_ALERT.MSG(user.name),
+      [
+        { text: S.UNLOCK_ALERT.CANCEL, style: 'cancel' },
+        {
+          text: S.UNLOCK_ALERT.CONFIRM,
+          style: 'default',
+          onPress: async () => {
+            try {
+              const res = await toggleUserStatus(user._id, true);
+              if (res.success) {
+                // Update local user list state immediately
+                setUsers(prev => prev.map(u => u._id === user._id ? {
+                  ...u,
+                  isActive: true,
+                  lockReason: undefined,
+                  lockedAt: undefined,
+                } : u));
+
+                Alert.alert(S.ALERTS.UNLOCK_SUCCESS_TITLE, S.ALERTS.UNLOCK_SUCCESS_MSG(user.name));
+              } else {
+                Alert.alert(S.ALERTS.ERROR_TITLE, res.message || S.ALERTS.ACTION_ERROR);
+              }
+            } catch (err: any) {
+              Alert.alert(S.ALERTS.ERROR_TITLE, err.response?.data?.message || err.message || S.ALERTS.ACTION_ERROR);
+            }
+          },
+        },
+      ]
+    );
+  }, []);
+
   // ── Render ─────────────────────────────────────────────
 
   const totalCount = pagination?.total ?? 0;
@@ -241,9 +381,9 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
   const renderEmpty = () => loading ? null : (
     <View style={styles.emptyContainer}>
       <Ionicons name="people-outline" size={56} color={theme.colors.text.muted} />
-      <Text style={styles.emptyTitle}>Không tìm thấy thành viên</Text>
+      <Text style={styles.emptyTitle}>{S.EMPTY_STATES.TITLE}</Text>
       <Text style={styles.emptySubtitle}>
-        {debouncedSearch ? `Không có kết quả cho "${debouncedSearch}"` : 'Chưa có thành viên nào phù hợp với bộ lọc.'}
+        {debouncedSearch ? S.EMPTY_STATES.SEARCH_EMPTY(debouncedSearch) : S.EMPTY_STATES.FILTER_EMPTY}
       </Text>
     </View>
   );
@@ -251,7 +391,7 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
   const renderFooter = () => !loadingMore ? null : (
     <View style={styles.loadMoreIndicator}>
       <ActivityIndicator size="small" color={theme.colors.brand[500]} />
-      <Text style={styles.loadMoreText}>Đang tải thêm...</Text>
+      <Text style={styles.loadMoreText}>{S.EMPTY_STATES.LOADING_MORE}</Text>
     </View>
   );
 
@@ -266,23 +406,23 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
           onPress={handleOpenDrawer}
           style={styles.headerBtn}
           accessibilityRole="button"
-          accessibilityLabel="Mở menu quản trị"
+          accessibilityLabel="Open navigation menu"
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           activeOpacity={0.7}
         >
           <Ionicons name="menu-outline" size={24} color={theme.colors.text.primary} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Quản lý thành viên</Text>
+          <Text style={styles.headerTitle}>{S.HEADER.TITLE}</Text>
           <Text style={styles.headerSub}>
-            {loading ? 'Đang tải...' : `${totalCount.toLocaleString('vi-VN')} thành viên`}
+            {loading ? S.HEADER.LOADING : S.HEADER.SUBTITLE(totalCount)}
           </Text>
         </View>
         <TouchableOpacity
           onPress={handleRefresh}
           style={styles.headerBtn}
           accessibilityRole="button"
-          accessibilityLabel="Làm mới"
+          accessibilityLabel="Refresh"
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           activeOpacity={0.7}
         >
@@ -296,7 +436,7 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
           <Ionicons name="search-outline" size={18} color={theme.colors.text.muted} style={{ marginRight: 8 }} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Tìm theo tên, email, username..."
+            placeholder={S.SEARCH.PLACEHOLDER}
             placeholderTextColor={theme.colors.text.subtle}
             value={search}
             onChangeText={setSearch}
@@ -355,7 +495,7 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
           <Ionicons name="alert-circle-outline" size={16} color={theme.colors.red} />
           <Text style={styles.errorText} numberOfLines={2}>{error}</Text>
           <TouchableOpacity onPress={handleRefresh}>
-            <Text style={styles.errorRetry}>Thử lại</Text>
+            <Text style={styles.errorRetry}>{S.ALERTS.RETRY}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -364,7 +504,7 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
       {loading && (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.brand[500]} />
-          <Text style={styles.loadingText}>Đang tải danh sách thành viên...</Text>
+          <Text style={styles.loadingText}>{S.HEADER.LOADING}</Text>
         </View>
       )}
 
@@ -373,7 +513,13 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
         <FlatList
           data={users}
           keyExtractor={(item) => item._id}
-          renderItem={({ item }) => <UserListItem item={item} />}
+          renderItem={({ item }) => (
+            <UserListItem
+              item={item}
+              onLockPress={handleOpenLockModal}
+              onUnlockPress={handleConfirmUnlock}
+            />
+          )}
           ListEmptyComponent={renderEmpty}
           ListFooterComponent={renderFooter}
           onEndReached={handleLoadMore}
@@ -388,9 +534,128 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
           }
           contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 24 }]}
           showsVerticalScrollIndicator={false}
-          ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+          ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
         />
       )}
+
+      {/* LOCK ACCOUNT MODAL */}
+      <Modal
+        visible={lockModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { if (!submittingLock) setLockModalVisible(false); }}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalBackdrop}>
+              <View style={styles.modalCard}>
+                {/* Header */}
+                <View style={styles.modalHeader}>
+                  <View style={styles.modalHeaderTitleRow}>
+                    <Ionicons name="lock-closed" size={20} color="#DC2626" />
+                    <Text style={styles.modalTitle}>{S.LOCK_MODAL.TITLE}</Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setLockModalVisible(false)}
+                    disabled={submittingLock}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Ionicons name="close" size={22} color={theme.colors.text.muted} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Target User Banner */}
+                {selectedUserForLock && (
+                  <View style={styles.modalUserBanner}>
+                    <Ionicons name="person-circle-outline" size={28} color="#DC2626" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.modalUserName} numberOfLines={1}>{selectedUserForLock.name}</Text>
+                      <Text style={styles.modalUserSub} numberOfLines={1}>
+                        @{selectedUserForLock.username}  ·  {selectedUserForLock.email}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Guide Description */}
+                <Text style={styles.modalGuideText}>{S.LOCK_MODAL.GUIDE}</Text>
+
+                {/* Preset Reasons (Radio buttons) */}
+                <ScrollView style={styles.presetList} showsVerticalScrollIndicator={false}>
+                  {S.LOCK_MODAL.PRESET_REASONS.map((reason, index) => {
+                    const isSelected = selectedPresetReason === reason && !customLockReason.trim();
+                    return (
+                      <TouchableOpacity
+                        key={index}
+                        style={[styles.radioItem, isSelected && styles.radioItemSelected]}
+                        onPress={() => {
+                          setSelectedPresetReason(reason);
+                          setCustomLockReason('');
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[styles.radioCircle, isSelected && styles.radioCircleSelected]}>
+                          {isSelected && <View style={styles.radioInnerDot} />}
+                        </View>
+                        <Text style={[styles.radioLabel, isSelected && styles.radioLabelSelected]}>
+                          {reason}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+
+                {/* Custom Reason Input */}
+                <View style={styles.customReasonContainer}>
+                  <Text style={styles.customReasonLabel}>{S.LOCK_MODAL.CUSTOM_REASON_LABEL}</Text>
+                  <TextInput
+                    style={styles.customReasonInput}
+                    placeholder={S.LOCK_MODAL.CUSTOM_REASON_PLACEHOLDER}
+                    placeholderTextColor={theme.colors.text.subtle}
+                    value={customLockReason}
+                    onChangeText={setCustomLockReason}
+                    multiline
+                    numberOfLines={3}
+                    textAlignVertical="top"
+                    editable={!submittingLock}
+                  />
+                </View>
+
+                {/* Footer Buttons */}
+                <View style={styles.modalFooter}>
+                  <TouchableOpacity
+                    style={styles.modalCancelBtn}
+                    onPress={() => setLockModalVisible(false)}
+                    disabled={submittingLock}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.modalCancelBtnText}>{S.LOCK_MODAL.CANCEL_BTN}</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.modalConfirmBtn, submittingLock && styles.btnDisabled]}
+                    onPress={handleConfirmLock}
+                    disabled={submittingLock}
+                    activeOpacity={0.8}
+                  >
+                    {submittingLock ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Ionicons name="lock-closed" size={16} color="#FFFFFF" />
+                        <Text style={styles.modalConfirmBtnText}>{S.LOCK_MODAL.CONFIRM_BTN}</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -434,7 +699,10 @@ const styles = StyleSheet.create({
   listContent     : { paddingHorizontal: 16, paddingTop: 12 },
 
   // User card
-  userCard        : { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, paddingVertical: 14, paddingHorizontal: 14, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2, borderWidth: 1, borderColor: '#F1F5F9', gap: 12 },
+  userCard        : { backgroundColor: '#FFFFFF', borderRadius: 16, paddingVertical: 14, paddingHorizontal: 14, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2, borderWidth: 1, borderColor: '#F1F5F9', gap: 10 },
+  userCardLocked  : { borderColor: '#FECACA', backgroundColor: '#FFFDFD' },
+  cardMainRow     : { flexDirection: 'row', alignItems: 'center', gap: 12 },
+
   avatarWrapper   : { position: 'relative' },
   avatarImg       : { width: 44, height: 44, borderRadius: 22, backgroundColor: '#E2E8F0' },
   avatarPlaceholder: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center' },
@@ -462,6 +730,22 @@ const styles = StyleSheet.create({
   walletAmount    : { fontSize: 12, fontWeight: '700', color: '#10B981' },
   walletLabel     : { fontSize: 9, color: theme.colors.text.muted, fontWeight: '500' },
 
+  // Lock Reason Banner
+  lockReasonBanner: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FEF2F2', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#FCA5A5' },
+  lockReasonText  : { flex: 1, fontSize: 11, color: '#B91C1C', fontWeight: '500' },
+
+  // Card Action Footer
+  cardActionRow   : { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 8, marginTop: 2 },
+  statusIndicatorRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  miniStatusDot   : { width: 6, height: 6, borderRadius: 3 },
+  miniStatusText  : { fontSize: 11, fontWeight: '600' },
+
+  actionBtnLock   : { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA' },
+  actionBtnLockText: { fontSize: 11, fontWeight: '700', color: '#DC2626' },
+
+  actionBtnUnlock : { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, backgroundColor: '#F0FDF4', borderWidth: 1, borderColor: '#BBF7D0' },
+  actionBtnUnlockText: { fontSize: 11, fontWeight: '700', color: '#16A34A' },
+
   // Empty
   emptyContainer  : { alignItems: 'center', justifyContent: 'center', paddingTop: 60, paddingHorizontal: 40, gap: 12 },
   emptyTitle      : { fontSize: 16, fontWeight: '700', color: theme.colors.text.primary, textAlign: 'center' },
@@ -470,6 +754,41 @@ const styles = StyleSheet.create({
   // Load more
   loadMoreIndicator: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, gap: 8 },
   loadMoreText     : { fontSize: 13, color: theme.colors.text.muted },
+
+  // ── Modal Styles ─────────────────────────────────────────
+  modalOverlay    : { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(15, 23, 42, 0.65)' },
+  modalBackdrop   : { width: '100%', paddingHorizontal: 20, alignItems: 'center' },
+  modalCard       : { width: '100%', maxWidth: 440, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 16, elevation: 10, maxHeight: '88%' },
+
+  modalHeader     : { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  modalHeaderTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  modalTitle      : { fontSize: 16, fontWeight: '700', color: '#0F172A' },
+
+  modalUserBanner : { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FEF2F2', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: '#FECACA', marginBottom: 12 },
+  modalUserName   : { fontSize: 13, fontWeight: '700', color: '#991B1B' },
+  modalUserSub    : { fontSize: 11, color: '#B91C1C', marginTop: 1 },
+
+  modalGuideText  : { fontSize: 12, color: theme.colors.text.muted, marginBottom: 10, lineHeight: 17 },
+
+  presetList      : { maxHeight: 180, marginBottom: 12 },
+  radioItem       : { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7, paddingHorizontal: 10, borderRadius: 8, marginBottom: 4, backgroundColor: '#F8FAFC' },
+  radioItemSelected: { backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA' },
+  radioCircle     : { width: 16, height: 16, borderRadius: 8, borderWidth: 1.5, borderColor: '#94A3B8', alignItems: 'center', justifyContent: 'center' },
+  radioCircleSelected: { borderColor: '#DC2626' },
+  radioInnerDot   : { width: 8, height: 8, borderRadius: 4, backgroundColor: '#DC2626' },
+  radioLabel      : { fontSize: 12, color: theme.colors.text.primary, flex: 1 },
+  radioLabelSelected: { color: '#991B1B', fontWeight: '600' },
+
+  customReasonContainer: { marginBottom: 16 },
+  customReasonLabel: { fontSize: 12, fontWeight: '600', color: theme.colors.text.secondary, marginBottom: 6 },
+  customReasonInput: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, padding: 10, fontSize: 12, color: theme.colors.text.primary, minHeight: 64 },
+
+  modalFooter     : { flexDirection: 'row', gap: 10 },
+  modalCancelBtn  : { flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
+  modalCancelBtnText: { fontSize: 13, fontWeight: '600', color: theme.colors.text.secondary },
+  modalConfirmBtn : { flex: 1.5, paddingVertical: 11, borderRadius: 10, backgroundColor: '#DC2626', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  modalConfirmBtnText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
+  btnDisabled     : { opacity: 0.6 },
 });
 
 export default UserManagementScreen;

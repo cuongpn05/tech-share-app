@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import { clearAuth } from '../store/slices/authSlice';
+import { STRINGS } from '../constants/strings';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAppDispatch, useAppSelector } from '../store';
@@ -28,7 +30,7 @@ import { AiChatConsultant } from '../screens/ai/AiChatConsultant';
 import { socketService } from '../services/socketService';
 import { firebaseMessagingService } from '../services/firebaseMessagingService';
 import { notificationService } from '../services/notificationService';
-import { setAuthToken } from '../config/api';
+import { setAuthToken, setAccountLockedHandler } from '../config/api';
 import { navigationRef } from './navigationRef';
 import { theme } from '../theme/tokens';
 import { ScreenType } from '../types';
@@ -154,6 +156,18 @@ export function RootNavigator() {
     if (isAuthenticated && uid) {
       socketService.connect(uid);
 
+      // Lắng nghe sự kiện Admin khóa tài khoản (Kick-out real-time)
+      const unsubLock = socketService.onAccountLocked((data) => {
+        console.warn('[RootNavigator] Account locked by admin! Terminating session...');
+        socketService.disconnect();
+        setAuthToken(null);
+        dispatch(clearAuth());
+        Alert.alert(
+          STRINGS.AUTH_LOCKED.ALERT_TITLE,
+          `${STRINGS.AUTH_LOCKED.ALERT_MSG}\n\nReason: ${data.reason || STRINGS.AUTH_LOCKED.DEFAULT_REASON}`
+        );
+      });
+
       // Khởi tạo thông báo đẩy Firebase Cloud Messaging (FCM)
       firebaseMessagingService.init(uid);
 
@@ -162,6 +176,10 @@ export function RootNavigator() {
 
       // Tải danh sách Wishlist của user
       dispatch(fetchWishlist());
+
+      return () => {
+        unsubLock();
+      };
     }
   }, [isAuthenticated, user, token, dispatch]);
 
