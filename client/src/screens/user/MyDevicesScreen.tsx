@@ -145,21 +145,6 @@ export function MyDevicesScreen({ onBack }: MyDevicesScreenProps) {
           <Text style={styles.priceUnit}>{STRINGS.MY_DEVICES.PRICE_UNIT}</Text>
         </Text>
 
-        <View style={styles.stats}>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{item.viewsCount ?? 0}</Text>
-            <Text style={styles.statLabel}>{STRINGS.MY_DEVICES.RENTALS_LABEL}</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <View style={styles.ratingValue}>
-              <Ionicons name="star" size={18} color={theme.warning} />
-              <Text style={styles.statValue}>{item.rating}</Text>
-            </View>
-            <Text style={styles.statLabel}>{STRINGS.MY_DEVICES.RATING_LABEL}</Text>
-          </View>
-        </View>
-
         <Text style={styles.statusLabel}>
           {STRINGS.MY_DEVICES.DEVICE_STATUS_LABEL}
         </Text>
@@ -342,23 +327,6 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.weights.normal,
     color: theme.textSecondary,
   },
-  stats: {
-    flexDirection: 'row',
-    paddingVertical: theme.spacing.md,
-    marginVertical: theme.spacing.md,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: theme.border,
-  },
-  statItem: { flex: 1, alignItems: 'center', gap: theme.spacing.xs },
-  statValue: {
-    fontSize: theme.typography.sizes.title + 2,
-    fontWeight: theme.typography.weights.bold,
-    color: theme.textPrimary,
-  },
-  statLabel: { fontSize: theme.typography.sizes.bodySm, color: theme.textSecondary },
-  statDivider: { width: 1, backgroundColor: theme.border },
-  ratingValue: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs },
   statusLabel: {
     fontSize: theme.typography.sizes.body,
     fontWeight: theme.typography.weights.semibold,
