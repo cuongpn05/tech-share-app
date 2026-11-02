@@ -75,13 +75,13 @@ const WishlistRoute = ({ navigation }: any) => (
 );
 
 const OwnerProfileRoute = ({ route, navigation }: any) => (
-  <OwnerProfileScreen ownerId={route.params.ownerId} onBack={() => navigation.goBack()}
+  <OwnerProfileScreen ownerId={route?.params?.ownerId || ''} onBack={() => navigation.goBack()}
     onMessage={() => navigation.navigate('OwnerMessages')} />
 );
 
 const DeviceDetailRoute = ({ route, navigation }: any) => (
   <DeviceDetailScreen
-    deviceId={route.params?.deviceId ?? ''}
+    deviceId={route?.params?.deviceId || ''}
     onBack={() => navigation.goBack()}
     onRent={(deviceId) => navigation.navigate('BookingCreate', { deviceId })}
     onViewOwner={(ownerId) => navigation.navigate('OwnerProfile', { ownerId })}
@@ -90,7 +90,7 @@ const DeviceDetailRoute = ({ route, navigation }: any) => (
 
 const BookingCreateRoute = ({ route, navigation }: any) => (
   <BookingCreateScreen
-    deviceId={route.params.deviceId}
+    deviceId={route?.params?.deviceId || ''}
     onBack={() => navigation.goBack()}
     onSuccess={() => navigation.navigate('Home', { initialTab: 'bookings' })}
     onNavigateToVerification={() => navigation.navigate('EkycVerification')}
@@ -111,7 +111,7 @@ const MyBookingsRoute = ({ navigation }: any) => (
 
 const BookingDetailRoute = ({ route, navigation }: any) => (
   <BookingDetailScreen
-    bookingId={route.params.bookingId}
+    bookingId={route?.params?.bookingId || ''}
     onBack={() => navigation.goBack()}
     onNavigateToChat={(bookingId) => navigation.navigate('ChatDetail', { bookingId })}
     onNavigateToBookingCreate={(deviceId) => navigation.navigate('BookingCreate', { deviceId })}

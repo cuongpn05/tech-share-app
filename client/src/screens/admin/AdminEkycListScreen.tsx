@@ -3,16 +3,17 @@
  *  ADMIN EKYC SUBMISSIONS LIST SCREEN
  *  client/src/screens/admin/AdminEkycListScreen.tsx
  * ============================================================
- *  Mục đích:
- *   - Màn hình dành cho Quản trị viên (Admin) xem danh sách các đơn
- *     xác thực danh tính eKYC gửi lên từ collection `ekyc_requests`.
- *   - Hỗ trợ:
- *       + Lọc theo trạng thái: Tất cả / Chờ duyệt / Đã duyệt / Bị từ chối
- *       + Tìm kiếm theo: Tên người nộp, Email, Số CCCD, Số điện thoại
- *       + Xem thông tin hồ sơ và 2 ảnh CCCD (mặt trước / mặt sau)
- *       + Xem ảnh phóng to toàn màn hình để kiểm tra chi tiết
- *       + Phân trang & Pull-to-refresh
- *   - Lưu ý: Chỉ hiển thị danh sách (chưa bao gồm duyệt / từ chối).
+ *  Purpose:
+ *   - Screen for Administrators (Admin) to review identity verification
+ *     (eKYC) applications submitted to the collection `ekyc_requests`.
+ *   - Features:
+ *       + Filter by status: All / Pending / Approved / Rejected
+ *       + Search by: Applicant Name, Email, ID Number, Phone
+ *       + Inspect applicant profile and 2 ID card photos (Front / Back)
+ *       + Fullscreen zoom image modal
+ *       + Pagination & Pull-to-refresh
+ *       + Approve & Reject actions with reason selection modal
+ *   - Anti-hardcoding standard: All strings reference STRINGS.ADMIN_EKYC
  * ============================================================
  */
 
@@ -31,16 +32,22 @@ import {
   StatusBar,
   ScrollView,
   Platform,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DrawerActions } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../theme/tokens';
+import { STRINGS } from '../../constants/strings';
 import {
   getAdminEkycList,
+  approveAdminEkyc,
+  rejectAdminEkyc,
   AdminEkycItem,
   AdminEkycCounts,
 } from '../../services/ekycService';
+
+const S = STRINGS.ADMIN_EKYC;
 
 export interface AdminEkycListScreenProps {
   navigation?: any;
@@ -55,19 +62,21 @@ interface FilterTabOption {
 }
 
 const FILTER_TABS: FilterTabOption[] = [
-  { key: 'all',      label: 'Tất cả',    countKey: 'totalAll' },
-  { key: 'pending',  label: 'Chờ duyệt', countKey: 'totalPending' },
-  { key: 'approved', label: 'Đã duyệt',  countKey: 'totalApproved' },
-  { key: 'rejected', label: 'Từ chối',   countKey: 'totalRejected' },
+  { key: 'all',      label: S.TABS.ALL,      countKey: 'totalAll' },
+  { key: 'pending',  label: S.TABS.PENDING,  countKey: 'totalPending' },
+  { key: 'approved', label: S.TABS.APPROVED, countKey: 'totalApproved' },
+  { key: 'rejected', label: S.TABS.REJECTED, countKey: 'totalRejected' },
 ];
 
 const SEARCH_DEBOUNCE_MS = 350;
 const PAGE_LIMIT = 15;
 
+const DEFAULT_EKYC_REJECT_REASONS = S.REJECT_MODAL.DEFAULT_REASONS;
+
 export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
   const insets = useSafeAreaInsets();
 
-  // State danh sách & phân trang
+  // State: list & pagination
   const [submissions, setSubmissions] = useState<AdminEkycItem[]>([]);
   const [counts, setCounts] = useState<AdminEkycCounts>({
     totalAll: 0,
@@ -87,11 +96,19 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Modal phóng to ảnh CCCD
+  // Fullscreen photo preview
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [previewImageTitle, setPreviewImageTitle] = useState<string>('');
 
-  // Debounce tìm kiếm
+  // Actions: Approve / Reject
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [rejectModalVisible, setRejectModalVisible] = useState(false);
+  const [submissionToReject, setSubmissionToReject] = useState<AdminEkycItem | null>(null);
+  const [selectedRejectReason, setSelectedRejectReason] = useState<string>(DEFAULT_EKYC_REJECT_REASONS[0]);
+  const [customRejectReason, setCustomRejectReason] = useState('');
+  const [isSubmittingReject, setIsSubmittingReject] = useState(false);
+
+  // Debounce search query
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -103,7 +120,7 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
     };
   }, [searchQuery]);
 
-  // ── 1. Tải danh sách đơn eKYC từ Backend ───────────────────
+  // ── 1. Fetch Submissions from Backend ───────────────────────
   const fetchSubmissions = useCallback(
     async (
       targetStatus: EkycFilterStatus,
@@ -140,12 +157,12 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
           setHasNextPage(response.pagination?.hasNextPage ?? false);
           setPage(targetPage);
         } else {
-          setErrorMessage(response.message || 'Không thể tải danh sách đơn eKYC.');
+          setErrorMessage(response.message || S.ALERTS.LOAD_ERROR_DEFAULT);
         }
       } catch (err: any) {
         console.error('[AdminEkycListScreen] Fetch Error:', err);
         setErrorMessage(
-          err.response?.data?.message || 'Lỗi kết nối máy chủ khi lấy danh sách eKYC.'
+          err.response?.data?.message || S.ALERTS.NETWORK_ERROR
         );
       } finally {
         setIsLoading(false);
@@ -156,7 +173,7 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
     []
   );
 
-  // Tải lại dữ liệu khi tab hoặc search thay đổi
+  // Reload when tab or search changes
   useEffect(() => {
     fetchSubmissions(activeTab, debouncedSearch, 1, false);
   }, [activeTab, debouncedSearch, fetchSubmissions]);
@@ -166,28 +183,145 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
     fetchSubmissions(activeTab, debouncedSearch, 1, true);
   }, [activeTab, debouncedSearch, fetchSubmissions]);
 
-  // Load more khi cuộn đến cuối
+  // Load more on end reached
   const handleLoadMore = useCallback(() => {
     if (!isLoadingMore && hasNextPage) {
       fetchSubmissions(activeTab, debouncedSearch, page + 1, false);
     }
   }, [isLoadingMore, hasNextPage, activeTab, debouncedSearch, page, fetchSubmissions]);
 
-  // Mở ảnh phóng to
+  // View enlarged image
   const handleViewImage = (url: string, title: string) => {
     if (!url) return;
     setPreviewImageUrl(url);
     setPreviewImageTitle(title);
   };
 
-  // Định dạng ngày
+  // ── Handle Approve Submission ───────────────────────────────
+  const handleApprovePress = useCallback((item: AdminEkycItem) => {
+    Alert.alert(
+      S.ALERTS.CONFIRM_APPROVE_TITLE,
+      S.ALERTS.CONFIRM_APPROVE_MSG(
+        item.user.name,
+        item.idCardNumber || S.CARD.ID_NUMBER_EMPTY
+      ),
+      [
+        { text: S.ALERTS.CANCEL, style: 'cancel' },
+        {
+          text: S.ACTIONS.APPROVE,
+          onPress: async () => {
+            try {
+              setActionLoadingId(item._id);
+              const res = await approveAdminEkyc(item._id);
+              if (res.success) {
+                // Update local list
+                if (activeTab === 'pending') {
+                  setSubmissions((prev) => prev.filter((s) => s._id !== item._id));
+                } else {
+                  setSubmissions((prev) =>
+                    prev.map((s) =>
+                      s._id === item._id
+                        ? { ...s, status: 'approved' as const, rejectReason: '' }
+                        : s
+                    )
+                  );
+                }
+
+                // Update tab counters
+                setCounts((prev) => ({
+                  ...prev,
+                  totalPending: item.status === 'pending' ? Math.max(0, prev.totalPending - 1) : prev.totalPending,
+                  totalApproved: item.status !== 'approved' ? prev.totalApproved + 1 : prev.totalApproved,
+                  totalRejected: item.status === 'rejected' ? Math.max(0, prev.totalRejected - 1) : prev.totalRejected,
+                }));
+
+                Alert.alert(S.ALERTS.APPROVE_SUCCESS_TITLE, S.ALERTS.APPROVE_SUCCESS_MSG);
+              } else {
+                Alert.alert(S.ALERTS.ERROR_TITLE, res.message || S.ALERTS.APPROVE_ERROR_DEFAULT);
+              }
+            } catch (err: any) {
+              console.error('[AdminEkycListScreen] Approve error:', err);
+              Alert.alert(S.ALERTS.ERROR_TITLE, err.response?.data?.message || S.ALERTS.NETWORK_ERROR);
+            } finally {
+              setActionLoadingId(null);
+            }
+          },
+        },
+      ]
+    );
+  }, [activeTab]);
+
+  // ── Open Reject Modal ───────────────────────────────────────
+  const handleOpenRejectModal = useCallback((item: AdminEkycItem) => {
+    setSubmissionToReject(item);
+    setSelectedRejectReason(DEFAULT_EKYC_REJECT_REASONS[0]);
+    setCustomRejectReason('');
+    setRejectModalVisible(true);
+  }, []);
+
+  // ── Close Reject Modal ──────────────────────────────────────
+  const handleCloseRejectModal = useCallback(() => {
+    if (isSubmittingReject) return;
+    setRejectModalVisible(false);
+    setSubmissionToReject(null);
+    setCustomRejectReason('');
+  }, [isSubmittingReject]);
+
+  // ── Confirm Reject Submission ───────────────────────────────
+  const handleConfirmReject = useCallback(async () => {
+    if (!submissionToReject) return;
+    const finalReason = customRejectReason.trim() || selectedRejectReason;
+    if (!finalReason) {
+      Alert.alert(S.ALERTS.REASON_REQUIRED_TITLE, S.ALERTS.REASON_REQUIRED_MSG);
+      return;
+    }
+
+    try {
+      setIsSubmittingReject(true);
+      const res = await rejectAdminEkyc(submissionToReject._id, finalReason);
+      if (res.success) {
+        if (activeTab === 'pending') {
+          setSubmissions((prev) => prev.filter((s) => s._id !== submissionToReject._id));
+        } else {
+          setSubmissions((prev) =>
+            prev.map((s) =>
+              s._id === submissionToReject._id
+                ? { ...s, status: 'rejected' as const, rejectReason: finalReason }
+                : s
+            )
+          );
+        }
+
+        setCounts((prev) => ({
+          ...prev,
+          totalPending: submissionToReject.status === 'pending' ? Math.max(0, prev.totalPending - 1) : prev.totalPending,
+          totalApproved: submissionToReject.status === 'approved' ? Math.max(0, prev.totalApproved - 1) : prev.totalApproved,
+          totalRejected: submissionToReject.status !== 'rejected' ? prev.totalRejected + 1 : prev.totalRejected,
+        }));
+
+        setRejectModalVisible(false);
+        setSubmissionToReject(null);
+        setCustomRejectReason('');
+        Alert.alert(S.ALERTS.REJECT_SUCCESS_TITLE, S.ALERTS.REJECT_SUCCESS_MSG);
+      } else {
+        Alert.alert(S.ALERTS.ERROR_TITLE, res.message || S.ALERTS.REJECT_ERROR_DEFAULT);
+      }
+    } catch (err: any) {
+      console.error('[AdminEkycListScreen] Reject error:', err);
+      Alert.alert(S.ALERTS.ERROR_TITLE, err.response?.data?.message || S.ALERTS.NETWORK_ERROR);
+    } finally {
+      setIsSubmittingReject(false);
+    }
+  }, [submissionToReject, customRejectReason, selectedRejectReason, activeTab]);
+
+  // Format date helper
   const formatDate = (dateString?: string) => {
-    if (!dateString) return 'Chưa rõ';
+    if (!dateString) return S.CARD.DATE_UNKNOWN;
     try {
       const d = new Date(dateString);
-      return d.toLocaleDateString('vi-VN', {
+      return d.toLocaleDateString('en-US', {
+        month: 'short',
         day: '2-digit',
-        month: '2-digit',
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
@@ -197,26 +331,26 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
     }
   };
 
-  // Badge màu sắc cho từng trạng thái
+  // Status badge config
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pending':
         return {
-          label: 'Chờ duyệt',
+          label: S.STATUS_BADGES.PENDING,
           bg: '#FEF3C7',
           text: '#B45309',
           icon: 'time-outline' as const,
         };
       case 'approved':
         return {
-          label: 'Đã duyệt',
+          label: S.STATUS_BADGES.APPROVED,
           bg: '#ECFDF5',
           text: '#047857',
           icon: 'checkmark-circle' as const,
         };
       case 'rejected':
         return {
-          label: 'Bị từ chối',
+          label: S.STATUS_BADGES.REJECTED,
           bg: '#FEF2F2',
           text: '#B91C1C',
           icon: 'close-circle' as const,
@@ -231,14 +365,14 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
     }
   };
 
-  // ── 2. Render từng Card đơn eKYC ────────────────────────────
+  // ── 2. Render Card Component ────────────────────────────────
   const renderItem = ({ item }: { item: AdminEkycItem }) => {
     const badge = getStatusBadge(item.status);
     const u = item.user;
 
     return (
       <View style={styles.card}>
-        {/* Hàng 1: User avatar + Tên + Badge trạng thái */}
+        {/* Row 1: User avatar + Name + Status badge */}
         <View style={styles.cardTopRow}>
           <View style={styles.userAvatarContainer}>
             {u.avatar ? (
@@ -256,11 +390,11 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
                 {u.name}
               </Text>
               <View style={styles.roleTag}>
-                <Text style={styles.roleTagText}>Renter</Text>
+                <Text style={styles.roleTagText}>{S.CARD.ROLE_RENTER}</Text>
               </View>
             </View>
             <Text style={styles.timeText}>
-              Nộp lúc: {formatDate(item.createdAt)}
+              {S.CARD.SUBMITTED_AT(formatDate(item.createdAt))}
             </Text>
           </View>
 
@@ -272,7 +406,7 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
           </View>
         </View>
 
-        {/* Hàng 2: Thông tin liên hệ cơ bản (Email, SĐT, Địa chỉ) */}
+        {/* Row 2: Contact Info (Email, Phone, Address) */}
         <View style={styles.contactContainer}>
           <View style={styles.contactRow}>
             <Ionicons name="mail-outline" size={14} color="#64748B" />
@@ -288,45 +422,57 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
           </View>
         </View>
 
-        {/* Hàng 3: Ô Số CCCD nổi bật */}
+        {/* Row 3: National ID Number Box */}
         <View style={styles.idNumberBox}>
           <View style={styles.idNumberLeft}>
             <Ionicons name="barcode-outline" size={20} color={theme.colors.brand[500]} />
-            <Text style={styles.idNumberLabel}>Số CCCD / CMND:</Text>
+            <Text style={styles.idNumberLabel}>{S.CARD.ID_NUMBER_LABEL}</Text>
           </View>
-          <Text style={styles.idNumberValue}>{item.idCardNumber || 'Chưa cung cấp'}</Text>
+          <Text style={styles.idNumberValue}>
+            {item.idCardNumber || S.CARD.ID_NUMBER_EMPTY}
+          </Text>
         </View>
 
-        {/* Hàng 4: 2 Khung ảnh CCCD (Mặt trước & Mặt sau) */}
+        {/* Row 4: ID Card Photos (Front & Back) */}
         <View style={styles.photosSection}>
-          <Text style={styles.photosSectionTitle}>Hình ảnh thẻ CCCD đã tải lên:</Text>
+          <Text style={styles.photosSectionTitle}>{S.CARD.PHOTOS_TITLE}</Text>
           <View style={styles.photosRow}>
-            {/* Ảnh mặt trước */}
+            {/* Front Photo */}
             <TouchableOpacity
               style={styles.photoBox}
               activeOpacity={0.8}
-              onPress={() => handleViewImage(item.idCardFrontUrl, `CCCD Mặt trước - ${u.name}`)}
+              onPress={() =>
+                handleViewImage(
+                  item.idCardFrontUrl,
+                  S.CARD.IMAGE_TITLE(S.CARD.FRONT_PHOTO, u.name)
+                )
+              }
             >
               <Image source={{ uri: item.idCardFrontUrl }} style={styles.idCardImage} resizeMode="cover" />
               <View style={styles.photoLabelBar}>
                 <Ionicons name="scan-outline" size={13} color="#FFFFFF" />
-                <Text style={styles.photoLabelText}>Mặt trước</Text>
+                <Text style={styles.photoLabelText}>{S.CARD.FRONT_PHOTO}</Text>
               </View>
               <View style={styles.zoomHintIcon}>
                 <Ionicons name="expand-outline" size={14} color="#FFFFFF" />
               </View>
             </TouchableOpacity>
 
-            {/* Ảnh mặt sau */}
+            {/* Back Photo */}
             <TouchableOpacity
               style={styles.photoBox}
               activeOpacity={0.8}
-              onPress={() => handleViewImage(item.idCardBackUrl, `CCCD Mặt sau - ${u.name}`)}
+              onPress={() =>
+                handleViewImage(
+                  item.idCardBackUrl,
+                  S.CARD.IMAGE_TITLE(S.CARD.BACK_PHOTO, u.name)
+                )
+              }
             >
               <Image source={{ uri: item.idCardBackUrl }} style={styles.idCardImage} resizeMode="cover" />
               <View style={styles.photoLabelBar}>
                 <Ionicons name="scan-outline" size={13} color="#FFFFFF" />
-                <Text style={styles.photoLabelText}>Mặt sau</Text>
+                <Text style={styles.photoLabelText}>{S.CARD.BACK_PHOTO}</Text>
               </View>
               <View style={styles.zoomHintIcon}>
                 <Ionicons name="expand-outline" size={14} color="#FFFFFF" />
@@ -335,15 +481,82 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
           </View>
         </View>
 
-        {/* Lý do từ chối nếu có */}
+        {/* Rejection reason box if rejected */}
         {item.status === 'rejected' && item.rejectReason ? (
           <View style={styles.rejectReasonBox}>
             <Ionicons name="alert-circle" size={16} color="#DC2626" />
             <Text style={styles.rejectReasonText}>
-              Lý do từ chối: {item.rejectReason}
+              {S.CARD.REJECT_REASON_PREFIX(item.rejectReason)}
             </Text>
           </View>
         ) : null}
+
+        {/* Row 5: Action Buttons (Approve / Reject) */}
+        <View style={styles.cardActionsRow}>
+          {/* Reject Button (when not rejected) */}
+          {item.status !== 'rejected' && (
+            <TouchableOpacity
+              style={[
+                styles.rejectButton,
+                item.status === 'approved' && styles.reRejectButton,
+              ]}
+              activeOpacity={0.7}
+              onPress={() => handleOpenRejectModal(item)}
+              disabled={actionLoadingId === item._id}
+              accessibilityRole="button"
+              accessibilityLabel={S.ACTIONS.REJECT}
+            >
+              <Ionicons
+                name="close-circle-outline"
+                size={16}
+                color="#DC2626"
+                style={{ marginRight: 6 }}
+              />
+              <Text style={styles.rejectButtonText}>
+                {item.status === 'approved' ? S.ACTIONS.REVOKE_APPROVAL : S.ACTIONS.REJECT}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Approve Button (when not approved) */}
+          {item.status !== 'approved' && (
+            <TouchableOpacity
+              style={[
+                styles.approveButton,
+                item.status === 'rejected' && styles.reApproveButton,
+              ]}
+              activeOpacity={0.7}
+              onPress={() => handleApprovePress(item)}
+              disabled={actionLoadingId === item._id}
+              accessibilityRole="button"
+              accessibilityLabel={S.ACTIONS.APPROVE}
+            >
+              {actionLoadingId === item._id ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons
+                    name="checkmark-circle-outline"
+                    size={16}
+                    color="#FFFFFF"
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text style={styles.approveButtonText}>
+                    {item.status === 'rejected' ? S.ACTIONS.RE_APPROVE : S.ACTIONS.APPROVE}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+
+          {/* Identity Verified Badge when approved */}
+          {item.status === 'approved' && (
+            <View style={styles.approvedNoticeBadge}>
+              <Ionicons name="checkmark-circle" size={15} color="#047857" style={{ marginRight: 5 }} />
+              <Text style={styles.approvedNoticeText}>{S.ACTIONS.VERIFIED_NOTICE}</Text>
+            </View>
+          )}
+        </View>
       </View>
     );
   };
@@ -354,13 +567,13 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
     return (
       <View style={styles.emptyContainer}>
         <Ionicons name="finger-print-outline" size={64} color="#CBD5E1" />
-        <Text style={styles.emptyTitle}>Không có đơn xác thực nào</Text>
+        <Text style={styles.emptyTitle}>{S.EMPTY_STATES.TITLE}</Text>
         <Text style={styles.emptySubtitle}>
           {searchQuery
-            ? `Không tìm thấy kết quả phù hợp với từ khóa "${searchQuery}".`
+            ? S.EMPTY_STATES.SEARCH_EMPTY(searchQuery)
             : activeTab === 'pending'
-            ? 'Hiện tại không có đơn eKYC nào đang chờ duyệt.'
-            : 'Chưa có dữ liệu đơn xác thực eKYC nào.'}
+            ? S.EMPTY_STATES.PENDING_EMPTY
+            : S.EMPTY_STATES.ALL_EMPTY}
         </Text>
       </View>
     );
@@ -381,11 +594,11 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
         </TouchableOpacity>
 
         <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerTitle}>Duyệt hồ sơ eKYC</Text>
+          <Text style={styles.headerTitle}>{S.HEADER.TITLE}</Text>
           <Text style={styles.headerSubtitle}>
             {counts.totalPending > 0
-              ? `${counts.totalPending} đơn đang chờ xét duyệt`
-              : 'Tất cả đơn đã được xử lý'}
+              ? S.HEADER.SUBTITLE_PENDING(counts.totalPending)
+              : S.HEADER.SUBTITLE_ALL_CLEAR}
           </Text>
         </View>
 
@@ -398,13 +611,13 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
         </TouchableOpacity>
       </View>
 
-      {/* ─── THANH TÌM KIẾM ─── */}
+      {/* ─── SEARCH BAR ─── */}
       <View style={styles.searchSection}>
         <View style={styles.searchBar}>
           <Ionicons name="search-outline" size={18} color="#64748B" style={{ marginRight: 8 }} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Tìm theo tên, email, CCCD, SĐT..."
+            placeholder={S.SEARCH.PLACEHOLDER}
             placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -419,7 +632,7 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
         </View>
       </View>
 
-      {/* ─── BỘ LỌC TABS ─── */}
+      {/* ─── FILTER TABS ─── */}
       <View style={styles.tabsWrapper}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsContent}>
           {FILTER_TABS.map((tab) => {
@@ -446,7 +659,7 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
         </ScrollView>
       </View>
 
-      {/* ─── THÔNG BÁO LỖI NẾU CÓ ─── */}
+      {/* ─── ERROR BANNER ─── */}
       {errorMessage ? (
         <View style={styles.errorBanner}>
           <Ionicons name="alert-circle-outline" size={18} color="#DC2626" />
@@ -454,11 +667,11 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
         </View>
       ) : null}
 
-      {/* ─── DANH SÁCH ĐƠN (FLATLIST) ─── */}
+      {/* ─── SUBMISSIONS FLATLIST ─── */}
       {isLoading ? (
         <View style={styles.centerLoading}>
           <ActivityIndicator size="large" color={theme.colors.brand[500]} />
-          <Text style={styles.loadingText}>Đang tải danh sách hồ sơ eKYC...</Text>
+          <Text style={styles.loadingText}>{S.EMPTY_STATES.LOADING}</Text>
         </View>
       ) : (
         <FlatList
@@ -484,7 +697,7 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
             isLoadingMore ? (
               <View style={styles.loadingMoreBox}>
                 <ActivityIndicator size="small" color={theme.colors.brand[500]} />
-                <Text style={styles.loadingMoreText}>Đang tải thêm...</Text>
+                <Text style={styles.loadingMoreText}>{S.EMPTY_STATES.LOADING_MORE}</Text>
               </View>
             ) : null
           }
@@ -492,7 +705,7 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
         />
       )}
 
-      {/* ─── MODAL PHÓNG TO ẢNH CCCD FULL SCREEN ─── */}
+      {/* ─── FULLSCREEN ID CARD IMAGE PREVIEW MODAL ─── */}
       <Modal
         visible={Boolean(previewImageUrl)}
         transparent={true}
@@ -522,6 +735,134 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
             ) : null}
           </View>
         </View>
+      </Modal>
+
+      {/* ─── REJECT EKYC REASON MODAL ─── */}
+      <Modal
+        visible={rejectModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCloseRejectModal}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={handleCloseRejectModal}
+        >
+          <TouchableOpacity
+            style={styles.rejectModalCard}
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* Header Modal */}
+            <View style={styles.rejectModalHeader}>
+              <View style={styles.rejectModalIconWrap}>
+                <Ionicons name="close-circle" size={24} color="#DC2626" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={styles.rejectModalTitle}>{S.REJECT_MODAL.TITLE}</Text>
+                <Text style={styles.rejectModalSubTitle} numberOfLines={1}>
+                  {S.REJECT_MODAL.USER_PREFIX(submissionToReject?.user?.name || S.CARD.DATE_UNKNOWN)}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.rejectModalCloseBtn}
+                onPress={handleCloseRejectModal}
+                disabled={isSubmittingReject}
+              >
+                <Ionicons name="close" size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.rejectModalBody}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <Text style={styles.rejectReasonGuide}>
+                {S.REJECT_MODAL.GUIDE}
+              </Text>
+
+              {/* Preset Reason Options */}
+              <View style={styles.reasonsList}>
+                {DEFAULT_EKYC_REJECT_REASONS.map((reason, index) => {
+                  const isSelected = selectedRejectReason === reason && !customRejectReason;
+                  return (
+                    <TouchableOpacity
+                      key={`reject_reason_${index}`}
+                      style={[
+                        styles.reasonRadioItem,
+                        isSelected && styles.reasonRadioItemSelected,
+                      ]}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        setSelectedRejectReason(reason);
+                        setCustomRejectReason('');
+                      }}
+                    >
+                      <View style={[styles.radioCircle, isSelected && styles.radioCircleActive]}>
+                        {isSelected && <View style={styles.radioDot} />}
+                      </View>
+                      <Text
+                        style={[
+                          styles.reasonRadioText,
+                          isSelected && styles.reasonRadioTextActive,
+                        ]}
+                      >
+                        {reason}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Custom Reason Input */}
+              <Text style={styles.customReasonLabel}>{S.REJECT_MODAL.CUSTOM_REASON_LABEL}</Text>
+              <TextInput
+                style={styles.customReasonInput}
+                placeholder={S.REJECT_MODAL.CUSTOM_REASON_PLACEHOLDER}
+                placeholderTextColor="#94A3B8"
+                multiline
+                numberOfLines={3}
+                value={customRejectReason}
+                onChangeText={(text) => {
+                  setCustomRejectReason(text);
+                }}
+                textAlignVertical="top"
+                editable={!isSubmittingReject}
+              />
+            </ScrollView>
+
+            {/* Modal Actions */}
+            <View style={styles.rejectModalActions}>
+              <TouchableOpacity
+                style={styles.rejectModalCancelBtn}
+                onPress={handleCloseRejectModal}
+                disabled={isSubmittingReject}
+              >
+                <Text style={styles.rejectModalCancelText}>{S.REJECT_MODAL.CANCEL_BTN}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.rejectModalSubmitBtn,
+                  isSubmittingReject && { opacity: 0.7 },
+                ]}
+                onPress={handleConfirmReject}
+                disabled={isSubmittingReject}
+              >
+                {isSubmittingReject ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons name="send" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+                    <Text style={styles.rejectModalSubmitText}>{S.REJECT_MODAL.SUBMIT_BTN}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
     </View>
   );
@@ -890,6 +1231,78 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
+  // Action Buttons
+  cardActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  rejectButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  reRejectButton: {
+    flex: undefined,
+    paddingHorizontal: 14,
+  },
+  rejectButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+  approveButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0D9488',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    shadowColor: '#0D9488',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  reApproveButton: {
+    backgroundColor: '#059669',
+  },
+  approveButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  approvedNoticeBadge: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+  },
+  approvedNoticeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#047857',
+  },
+
   // Empty
   emptyContainer: {
     alignItems: 'center',
@@ -947,6 +1360,168 @@ const styles = StyleSheet.create({
   imageViewerFull: {
     width: '100%',
     height: '100%',
+  },
+
+  // Reject Modal
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  rejectModalCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    overflow: 'hidden',
+    maxHeight: '85%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  rejectModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    backgroundColor: '#FFFFFF',
+  },
+  rejectModalIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FEE2E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rejectModalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  rejectModalSubTitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  rejectModalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+  },
+  rejectModalBody: {
+    padding: 16,
+  },
+  rejectReasonGuide: {
+    fontSize: 13,
+    color: '#475569',
+    marginBottom: 12,
+    lineHeight: 18,
+  },
+  reasonsList: {
+    gap: 8,
+    marginBottom: 14,
+  },
+  reasonRadioItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  reasonRadioItemSelected: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FCA5A5',
+  },
+  radioCircle: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: '#94A3B8',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  radioCircleActive: {
+    borderColor: '#DC2626',
+  },
+  radioDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#DC2626',
+  },
+  reasonRadioText: {
+    fontSize: 13,
+    color: '#334155',
+    flex: 1,
+  },
+  reasonRadioTextActive: {
+    color: '#B91C1C',
+    fontWeight: '600',
+  },
+  customReasonLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#334155',
+    marginBottom: 6,
+  },
+  customReasonInput: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 10,
+    padding: 10,
+    fontSize: 13,
+    color: '#0F172A',
+    minHeight: 70,
+  },
+  rejectModalActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    backgroundColor: '#FFFFFF',
+  },
+  rejectModalCancelBtn: {
+    paddingVertical: 9,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+  },
+  rejectModalCancelText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  rejectModalSubmitBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: '#DC2626',
+  },
+  rejectModalSubmitText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
 
