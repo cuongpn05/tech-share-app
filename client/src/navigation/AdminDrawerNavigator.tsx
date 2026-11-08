@@ -7,6 +7,7 @@ import DeviceModerationListScreen from '../screens/admin/DeviceModerationListScr
 import DeviceModerationDetailScreen from '../screens/admin/DeviceModerationDetailScreen';
 import { UserManagementScreen } from '../screens/admin/UserManagementScreen';
 import AdminEkycListScreen from '../screens/admin/AdminEkycListScreen';
+import ExtensionRequestsScreen from '../screens/booking/ExtensionRequestsScreen';
 import ProfileScreen from '../screens/user/ProfileScreen';
 import AdminSidebarContent from './AdminSidebarContent';
 import { theme } from '../theme/tokens';
@@ -65,6 +66,7 @@ export const AdminDrawerNavigator: React.FC = () => {
         name="UserManagement"
         component={UserManagementScreen}
       />
+      <Drawer.Screen name="ExtensionRequests" component={ExtensionRequestsScreen} />
 
       <Drawer.Screen name="DeviceModeration" component={DeviceModerationStackNavigator} />
       <Drawer.Screen name="DepositDisputes">

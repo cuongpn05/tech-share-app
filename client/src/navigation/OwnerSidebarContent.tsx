@@ -166,6 +166,12 @@ export const OwnerSidebarContent: React.FC<OwnerSidebarContentProps> = ({
       badge: pendingBookings > 0 ? pendingBookings : undefined,
     },
     {
+      id: 'extension_requests',
+      title: OWNER_STRINGS.SIDEBAR.EXTENSION_REQUESTS,
+      icon: 'calendar-outline',
+      routeName: 'OwnerExtensionRequests',
+    },
+    {
       id: 'messages',
       title: OWNER_STRINGS.SIDEBAR.CUSTOMER_MESSAGES,
       icon: 'chatbubble-ellipses-outline',

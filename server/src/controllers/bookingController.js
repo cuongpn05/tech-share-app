@@ -414,8 +414,8 @@ const requestExtension = async (req, res) => {
     const { additionalDays, requestedDays } = req.body;
     const userId = (req.auth && (req.auth.id || req.auth._id)) || (req.user && req.user._id);
 
-    const days = parseInt(additionalDays || requestedDays, 10);
-    if (!days || isNaN(days) || days <= 0) {
+    const days = Number(additionalDays ?? requestedDays);
+    if (!Number.isInteger(days) || days <= 0) {
       return res.status(400).json({
         success: false,
         message: 'Số ngày gia hạn không hợp lệ (tối thiểu 1 ngày)',
@@ -450,11 +450,18 @@ const requestExtension = async (req, res) => {
       (booking.totalDays > 0 ? Math.round(booking.rentalFee / booking.totalDays) : 0);
 
     const additionalFee = Math.round(days * dailyRate);
+    if (!Number.isFinite(additionalFee) || additionalFee < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phụ phí gia hạn không hợp lệ',
+      });
+    }
 
     booking.extensionRequest = {
       requestedEndDate: newEndDate,
       requestedDays: days,
       additionalFee,
+      requestedAt: new Date(),
       status: 'pending',
     };
 
@@ -493,6 +500,202 @@ const requestExtension = async (req, res) => {
       message: 'Lỗi máy chủ khi gửi yêu cầu gia hạn',
       error: error.message,
     });
+  }
+};
+
+const getExtensionRequests = async (req, res) => {
+  try {
+    const userRole = req.userRole || req.auth?.role;
+    const userId = req.auth?.id || req.auth?._id || req.user?._id;
+    const { status = 'pending' } = req.query;
+
+    if (!['all', 'pending', 'approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Trạng thái yêu cầu gia hạn không hợp lệ' });
+    }
+
+    const query = { 'extensionRequest.status': { $in: ['pending', 'approved', 'rejected'] } };
+    if (status !== 'all') query['extensionRequest.status'] = status;
+    if (userRole !== 'admin') query.ownerId = userId;
+
+    const bookings = await Booking.find(query)
+      .populate('deviceId', 'name images brand model category pricePerDay dailyRate')
+      .populate('renterId', 'name username email phone avatar')
+      .populate('ownerId', 'name username email phone avatar')
+      .sort({ 'extensionRequest.requestedAt': -1, updatedAt: -1 });
+
+    return res.status(200).json({ success: true, count: bookings.length, data: bookings });
+  } catch (error) {
+    console.error('Error getting extension requests:', error);
+    return res.status(500).json({ success: false, message: 'Lỗi máy chủ khi lấy danh sách yêu cầu gia hạn' });
+  }
+};
+
+const getExtensionRequestById = async (req, res) => {
+  try {
+    const userRole = req.userRole || req.auth?.role;
+    const userId = req.auth?.id || req.auth?._id || req.user?._id;
+    const query = {
+      _id: req.params.id,
+      'extensionRequest.status': { $in: ['pending', 'approved', 'rejected'] },
+    };
+    if (userRole !== 'admin') query.ownerId = userId;
+
+    const booking = await Booking.findOne(query)
+      .populate('deviceId', 'name images brand model category pricePerDay dailyRate')
+      .populate('renterId', 'name username email phone avatar')
+      .populate('ownerId', 'name username email phone avatar');
+
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy yêu cầu gia hạn' });
+    }
+
+    return res.status(200).json({ success: true, data: booking });
+  } catch (error) {
+    console.error('Error getting extension request:', error);
+    return res.status(500).json({ success: false, message: 'Lỗi máy chủ khi lấy chi tiết yêu cầu gia hạn' });
+  }
+};
+
+const respondToExtensionRequest = async (req, res) => {
+  try {
+    const userRole = req.userRole || req.auth?.role;
+    const userId = req.auth?.id || req.auth?._id || req.user?._id;
+    const { action } = req.params;
+    const { reason } = req.body;
+
+    if (!['approve', 'reject'].includes(action)) {
+      return res.status(400).json({ success: false, message: 'Thao tác yêu cầu gia hạn không hợp lệ' });
+    }
+
+    const accessQuery = { _id: req.params.id };
+    if (userRole !== 'admin') accessQuery.ownerId = userId;
+    const booking = await Booking.findOne(accessQuery)
+      .populate('deviceId', 'name blockedDates isDeleted ownerId')
+      .populate('renterId', 'name username');
+
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy đơn thuê hoặc bạn không có quyền xử lý' });
+    }
+    if (booking.extensionRequest?.status !== 'pending') {
+      return res.status(409).json({ success: false, message: 'Yêu cầu gia hạn đã được xử lý hoặc không còn chờ duyệt' });
+    }
+
+    const updateQuery = { _id: booking._id, 'extensionRequest.status': 'pending' };
+    if (userRole !== 'admin') updateQuery.ownerId = userId;
+
+    let update;
+    let message;
+    if (action === 'approve') {
+      updateQuery.status = 'active';
+      updateQuery.endDate = booking.endDate;
+      if (booking.status !== 'active') {
+        return res.status(409).json({ success: false, message: 'Chỉ đơn thuê đang sử dụng mới đủ điều kiện gia hạn' });
+      }
+
+      const currentEndDate = new Date(booking.endDate);
+      const requestedDays = Number(booking.extensionRequest.requestedDays);
+      const additionalFee = Number(booking.extensionRequest.additionalFee);
+      if (!Number.isInteger(requestedDays) || requestedDays <= 0 ||
+          !Number.isFinite(additionalFee) || additionalFee < 0 ||
+          Number.isNaN(currentEndDate.getTime())) {
+        return res.status(400).json({ success: false, message: 'Thông tin thời hạn hoặc phụ phí gia hạn không hợp lệ' });
+      }
+
+      const proposedEndDate = new Date(currentEndDate.getTime() + requestedDays * 24 * 60 * 60 * 1000);
+      const storedEndDate = new Date(booking.extensionRequest.requestedEndDate);
+      if (Number.isNaN(storedEndDate.getTime()) || storedEndDate.getTime() !== proposedEndDate.getTime()) {
+        return res.status(409).json({ success: false, message: 'Ngày kết thúc đề xuất không khớp với số ngày gia hạn' });
+      }
+
+      const device = booking.deviceId;
+      if (!device || device.isDeleted || String(device.ownerId) !== String(booking.ownerId)) {
+        return res.status(409).json({ success: false, message: 'Thiết bị không còn đủ điều kiện cho thuê' });
+      }
+
+      const conflictingBooking = await Booking.exists({
+        _id: { $ne: booking._id },
+        deviceId: booking.deviceId._id,
+        status: { $in: ['active', 'approved', 'pending'] },
+        startDate: { $lt: proposedEndDate },
+        endDate: { $gt: currentEndDate },
+      });
+      if (conflictingBooking) {
+        return res.status(409).json({ success: false, message: 'Lịch thuê đã bị trùng trong thời gian gia hạn đề xuất' });
+      }
+
+      const blockedDate = (device.blockedDates || []).find((blocked) => {
+        const blockedStart = new Date(blocked.startDate);
+        const blockedEnd = new Date(blocked.endDate);
+        if (blockedEnd.getHours() === 0 && blockedEnd.getMinutes() === 0 && blockedEnd.getSeconds() === 0) {
+          blockedEnd.setHours(23, 59, 59, 999);
+        }
+        return currentEndDate < blockedEnd && proposedEndDate > blockedStart;
+      });
+      if (blockedDate) {
+        return res.status(409).json({ success: false, message: 'Thiết bị có ngày bận trong khoảng thời gian gia hạn đề xuất' });
+      }
+
+      update = {
+        $set: { endDate: proposedEndDate, 'extensionRequest.status': 'approved' },
+        $push: {
+          timeline: {
+            status: 'extension_approved',
+            timestamp: new Date(),
+            note: `Đã duyệt gia hạn ${requestedDays} ngày, phụ phí ${additionalFee.toLocaleString('vi-VN')} đ`,
+          },
+        },
+      };
+      message = 'Đã phê duyệt yêu cầu gia hạn';
+    } else {
+      const rejectionReason = typeof reason === 'string' ? reason.trim().slice(0, 500) : '';
+      update = {
+        $set: { 'extensionRequest.status': 'rejected' },
+        $push: {
+          timeline: {
+            status: 'extension_rejected',
+            timestamp: new Date(),
+            note: rejectionReason
+              ? `Đã từ chối yêu cầu gia hạn: ${rejectionReason}`
+              : 'Đã từ chối yêu cầu gia hạn',
+          },
+        },
+      };
+      message = 'Đã từ chối yêu cầu gia hạn';
+    }
+
+    const updatedBooking = await Booking.findOneAndUpdate(updateQuery, update, {
+      new: true,
+      runValidators: true,
+    })
+      .populate('deviceId', 'name images brand model category pricePerDay dailyRate')
+      .populate('renterId', 'name username email phone avatar')
+      .populate('ownerId', 'name username email phone avatar');
+
+    if (!updatedBooking) {
+      return res.status(409).json({ success: false, message: 'Yêu cầu gia hạn vừa được xử lý bởi người khác' });
+    }
+
+    const renterId = updatedBooking.renterId?._id || updatedBooking.renterId;
+    const deviceName = updatedBooking.deviceId?.name || 'thiết bị';
+    const rejectionReason = typeof reason === 'string' ? reason.trim().slice(0, 500) : '';
+    const notificationResult = await createAndSendNotification({
+      userId: renterId,
+      title: action === 'approve' ? 'Yêu cầu gia hạn đã được duyệt' : 'Yêu cầu gia hạn đã bị từ chối',
+      body: action === 'approve'
+        ? `Yêu cầu gia hạn ${updatedBooking.extensionRequest.requestedDays} ngày cho "${deviceName}" (đơn #${updatedBooking.bookingCode}) đã được duyệt.`
+        : `Yêu cầu gia hạn ${updatedBooking.extensionRequest.requestedDays} ngày cho "${deviceName}" (đơn #${updatedBooking.bookingCode}) đã bị từ chối.${rejectionReason ? ` Lý do: ${rejectionReason}` : ''}`,
+      type: 'order',
+      relatedId: updatedBooking._id,
+      data: { bookingId: updatedBooking._id.toString(), status: `extension_${action === 'approve' ? 'approved' : 'rejected'}` },
+    });
+    if (!notificationResult.success) {
+      console.error('Failed to notify renter about extension decision:', notificationResult.message || notificationResult.error);
+    }
+
+    return res.status(200).json({ success: true, message, data: updatedBooking });
+  } catch (error) {
+    console.error('Error responding to extension request:', error);
+    return res.status(500).json({ success: false, message: 'Lỗi máy chủ khi xử lý yêu cầu gia hạn' });
   }
 };
 
@@ -744,6 +947,9 @@ module.exports = {
   cancelBooking,
   getBookingById,
   requestExtension,
+  getExtensionRequests,
+  getExtensionRequestById,
+  respondToExtensionRequest,
   updateBeforeRentalPhotos,
   getOwnerBookings,
   updateBookingStatus,
