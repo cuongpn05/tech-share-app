@@ -5,16 +5,136 @@ const User = require('../models/User');
 const Device = require('../models/Device');
 const { asyncHandler } = require('../middlewares/asyncHandler');
 
+// Tuyến đường lấy danh sách các chủ sở hữu và thiết bị của họ hiển thị trên bản đồ (lọc theo category và tọa độ)
+router.get('/map-owners', asyncHandler(async (req, res) => {
+  const { category, lat, lng } = req.query;
+
+  // Lọc các thiết bị khả dụng
+  const deviceFilter = {
+    isDeleted: false,
+    status: 'available',
+    moderationStatus: { $in: ['approved', null] },
+  };
+
+  if (category && category !== 'all') {
+    const escaped = category.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    deviceFilter.category = new RegExp('^' + escaped + '$', 'i');
+  }
+
+  const devices = await Device.find(deviceFilter)
+    .select('_id name category brand condition pricePerDay dailyRate images specs status ownerId location addressText')
+    .sort({ createdAt: -1 })
+    .lean();
+
+  // Nhóm thiết bị theo ownerId
+  const ownerDevicesMap = new Map();
+  devices.forEach(d => {
+    const oId = String(d.ownerId);
+    if (!ownerDevicesMap.has(oId)) ownerDevicesMap.set(oId, []);
+    ownerDevicesMap.get(oId).push(d);
+  });
+
+  const ownerIds = Array.from(ownerDevicesMap.keys());
+  if (ownerIds.length === 0) {
+    return res.json({ success: true, count: 0, data: [] });
+  }
+
+  // Lấy thông tin người dùng / chủ sở hữu
+  const users = await User.find({
+    _id: { $in: ownerIds },
+    isActive: true,
+  })
+    .select('_id name avatar address phone email rating totalReviews trust.isVerified location')
+    .lean();
+
+  const userLat = Number(lat);
+  const userLng = Number(lng);
+  const hasUserCoords = Number.isFinite(userLat) && Number.isFinite(userLng);
+
+  // Hàm tính khoảng cách haversine (mét)
+  const calcDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371000;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.asin(Math.sqrt(Math.min(1, a)));
+  };
+
+  const results = [];
+  for (const user of users) {
+    const userDevices = ownerDevicesMap.get(String(user._id)) || [];
+    if (userDevices.length === 0) continue;
+
+    // Tọa độ của chủ sở hữu
+    let coordinates = user.location?.coordinates;
+    if (!coordinates || !Array.isArray(coordinates) || coordinates.length !== 2) {
+      coordinates = userDevices[0]?.location?.coordinates;
+    }
+    if (!coordinates || !Array.isArray(coordinates) || coordinates.length !== 2) continue;
+
+    let distanceMeters = null;
+    if (hasUserCoords) {
+      distanceMeters = Math.round(calcDistance(userLat, userLng, coordinates[1], coordinates[0]));
+    }
+
+    results.push({
+      _id: String(user._id),
+      id: String(user._id),
+      name: user.name || 'Chủ sở hữu',
+      avatar: user.avatar,
+      phone: user.phone,
+      rating: user.rating || 5,
+      totalReviews: user.totalReviews || 0,
+      isVerified: Boolean(user.trust?.isVerified),
+      address: typeof user.address === 'string' ? user.address : (userDevices[0]?.addressText || 'Việt Nam'),
+      coordinates: [coordinates[0], coordinates[1]], // [longitude, latitude]
+      deviceCount: userDevices.length,
+      distanceMeters,
+      devices: userDevices,
+    });
+  }
+
+  // Sắp xếp theo khoảng cách nếu có tọa độ người dùng, ngược lại sắp theo số lượng thiết bị
+  if (hasUserCoords) {
+    results.sort((a, b) => (a.distanceMeters ?? Infinity) - (b.distanceMeters ?? Infinity));
+  } else {
+    results.sort((a, b) => b.deviceCount - a.deviceCount);
+  }
+
+  return res.json({ success: true, count: results.length, data: results });
+}));
+
+// Tuyến đường lấy thông tin hồ sơ của chủ sở hữu
 router.get('/:id/profile', asyncHandler(async (req, res) => {
   if (!/^[a-fA-F0-9]{24}$/.test(req.params.id)) {
     return res.status(400).json({ success: false, message: 'Invalid owner ID' });
   }
   const owner = await User.findOne({ _id: req.params.id, isActive: true })
-    .select('name avatar address rating totalReviews trust.isVerified createdAt').lean();
+    .select('name avatar address rating totalReviews phone email trust.isVerified createdAt').lean();
   if (!owner) return res.status(404).json({ success: false, message: 'Owner not found' });
-  const deviceCount = await Device.countDocuments({ ownerId: req.params.id, isDeleted: false,
-    moderationStatus: { $in: ['approved', null] }, status: { $in: ['available', 'rented', 'maintenance'] } });
+  const deviceCount = await Device.countDocuments({
+    ownerId: req.params.id,
+    isDeleted: false,
+    moderationStatus: { $in: ['approved', null] },
+    status: { $in: ['available', 'rented', 'maintenance'] },
+  });
   return res.json({ success: true, data: { ...owner, deviceCount } });
+}));
+
+// Tuyến đường lấy danh sách các thiết bị thuộc chủ sở hữu
+router.get('/:id/devices', asyncHandler(async (req, res) => {
+  if (!/^[a-fA-F0-9]{24}$/.test(req.params.id)) {
+    return res.status(400).json({ success: false, message: 'Invalid owner ID' });
+  }
+  const devices = await Device.find({
+    ownerId: req.params.id,
+    isDeleted: false,
+    moderationStatus: { $in: ['approved', null] },
+  }).sort({ createdAt: -1 }).lean();
+
+  return res.json({ success: true, count: devices.length, data: devices });
 }));
 
 // Tuyến đường lấy thống kê KPIs và doanh thu cho Owner Dashboard
