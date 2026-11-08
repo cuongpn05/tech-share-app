@@ -154,7 +154,11 @@ const { getMessagingInstance } = require('../config/firebaseAdmin');
       }
     })();
 
-    return { success: true, data: savedNotification };
+    return {
+      success: Boolean(savedNotification),
+      data: savedNotification,
+      ...(!savedNotification ? { message: 'Notification could not be saved' } : {}),
+    };
   } catch (error) {
     console.warn('[Notification] Lỗi xử lý thông báo tổng thể:', error.message);
     return { success: false, error: error.message };

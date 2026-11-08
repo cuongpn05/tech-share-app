@@ -76,6 +76,7 @@ export const OWNER_STRINGS = {
     DASHBOARD_KPIS: 'Dashboard & KPIs',
     REVENUE_ANALYTICS: 'Revenue & Analytics',
     PENDING_BOOKINGS: 'Pending Bookings',
+    EXTENSION_REQUESTS: 'Extension Requests',
     CUSTOMER_MESSAGES: 'Customer Messages',
     MY_DEVICE_INVENTORY: 'My Device Inventory',
     LIST_NEW_DEVICES: 'List New Devices',

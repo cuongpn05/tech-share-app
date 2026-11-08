@@ -56,6 +56,7 @@ export const ADMIN_STRINGS = {
       DASHBOARD: 'Dashboard & KPIs',
       USERS: 'User Management',
       DEVICES: 'Device Moderation',
+      EXTENSIONS: 'Extension Requests',
       DISPUTES: 'Deposit Disputes',
       EKYC: 'eKYC Reviews',
       VOUCHERS: 'Vouchers & Promotions',
