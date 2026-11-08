@@ -357,10 +357,10 @@ const getBookingById = async (req, res) => {
     const booking = await Booking.findById(bookingId)
       .populate(
         'deviceId',
-        'name images brand model category pricePerDay dailyRate depositAmount depositValue description condition location addressText'
+        'name images brand model category pricePerDay dailyRate depositAmount depositValue description condition location addressText ownerId'
       )
-      .populate('ownerId', 'name avatar phone email rating totalReviews')
-      .populate('renterId', 'name avatar phone email rating isVerified trustScore');
+      .populate('ownerId', 'name avatar phone email rating totalReviews trust isVerified')
+      .populate('renterId', 'name username avatar phone email rating totalReviews isVerified trust trustScore address');
 
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy đơn thuê' });
@@ -371,27 +371,38 @@ const getBookingById = async (req, res) => {
       await booking.save();
     }
 
-    // Sync isReviewed for completed booking if a review already exists
-    if (!booking.isReviewed && booking.status === 'completed') {
+    // Sync isReviewed & isRenterReviewed for completed booking if reviews already exist
+    if (booking.status === 'completed' && (!booking.isReviewed || !booking.isRenterReviewed)) {
       try {
-        const existingReview = await Review.findOne({ bookingId: booking._id });
-        if (existingReview) {
-          booking.isReviewed = true;
-          booking.reviewId = existingReview._id;
-          await Booking.updateOne(
-            { _id: booking._id },
-            { isReviewed: true, reviewId: existingReview._id }
-          );
+        const existingReviews = await Review.find({ bookingId: booking._id });
+        const updateFields = {};
+        for (const rev of existingReviews) {
+          if (rev.targetType === 'renter') {
+            booking.isRenterReviewed = true;
+            booking.renterReviewId = rev._id;
+            updateFields.isRenterReviewed = true;
+            updateFields.renterReviewId = rev._id;
+          } else {
+            booking.isReviewed = true;
+            booking.reviewId = rev._id;
+            updateFields.isReviewed = true;
+            updateFields.reviewId = rev._id;
+          }
+        }
+        if (Object.keys(updateFields).length > 0) {
+          await Booking.updateOne({ _id: booking._id }, updateFields);
         }
       } catch (revErr) {
-        console.warn('Error syncing isReviewed in getBookingById:', revErr.message);
+        console.warn('Error syncing review flags in getBookingById:', revErr.message);
       }
     }
 
+    const userIdStr = userId ? userId.toString() : '';
     const renterIdStr = booking.renterId?._id ? booking.renterId._id.toString() : booking.renterId?.toString();
     const ownerIdStr = booking.ownerId?._id ? booking.ownerId._id.toString() : booking.ownerId?.toString();
-    const isRenter = renterIdStr === (userId ? userId.toString() : '');
-    const isOwner = ownerIdStr === (userId ? userId.toString() : '');
+    const deviceOwnerIdStr = booking.deviceId?.ownerId ? booking.deviceId.ownerId.toString() : '';
+    const isRenter = renterIdStr === userIdStr;
+    const isOwner = ownerIdStr === userIdStr || (deviceOwnerIdStr && deviceOwnerIdStr === userIdStr);
     const isAdmin = userRole === 'admin';
 
     if (!isRenter && !isOwner && !isAdmin) {
@@ -414,8 +425,8 @@ const requestExtension = async (req, res) => {
     const { additionalDays, requestedDays } = req.body;
     const userId = (req.auth && (req.auth.id || req.auth._id)) || (req.user && req.user._id);
 
-    const days = parseInt(additionalDays || requestedDays, 10);
-    if (!days || isNaN(days) || days <= 0) {
+    const days = Number(additionalDays ?? requestedDays);
+    if (!Number.isInteger(days) || days <= 0) {
       return res.status(400).json({
         success: false,
         message: 'Số ngày gia hạn không hợp lệ (tối thiểu 1 ngày)',
@@ -450,11 +461,18 @@ const requestExtension = async (req, res) => {
       (booking.totalDays > 0 ? Math.round(booking.rentalFee / booking.totalDays) : 0);
 
     const additionalFee = Math.round(days * dailyRate);
+    if (!Number.isFinite(additionalFee) || additionalFee < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phụ phí gia hạn không hợp lệ',
+      });
+    }
 
     booking.extensionRequest = {
       requestedEndDate: newEndDate,
       requestedDays: days,
       additionalFee,
+      requestedAt: new Date(),
       status: 'pending',
     };
 
@@ -496,6 +514,202 @@ const requestExtension = async (req, res) => {
   }
 };
 
+const getExtensionRequests = async (req, res) => {
+  try {
+    const userRole = req.userRole || req.auth?.role;
+    const userId = req.auth?.id || req.auth?._id || req.user?._id;
+    const { status = 'pending' } = req.query;
+
+    if (!['all', 'pending', 'approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Trạng thái yêu cầu gia hạn không hợp lệ' });
+    }
+
+    const query = { 'extensionRequest.status': { $in: ['pending', 'approved', 'rejected'] } };
+    if (status !== 'all') query['extensionRequest.status'] = status;
+    if (userRole !== 'admin') query.ownerId = userId;
+
+    const bookings = await Booking.find(query)
+      .populate('deviceId', 'name images brand model category pricePerDay dailyRate')
+      .populate('renterId', 'name username email phone avatar')
+      .populate('ownerId', 'name username email phone avatar')
+      .sort({ 'extensionRequest.requestedAt': -1, updatedAt: -1 });
+
+    return res.status(200).json({ success: true, count: bookings.length, data: bookings });
+  } catch (error) {
+    console.error('Error getting extension requests:', error);
+    return res.status(500).json({ success: false, message: 'Lỗi máy chủ khi lấy danh sách yêu cầu gia hạn' });
+  }
+};
+
+const getExtensionRequestById = async (req, res) => {
+  try {
+    const userRole = req.userRole || req.auth?.role;
+    const userId = req.auth?.id || req.auth?._id || req.user?._id;
+    const query = {
+      _id: req.params.id,
+      'extensionRequest.status': { $in: ['pending', 'approved', 'rejected'] },
+    };
+    if (userRole !== 'admin') query.ownerId = userId;
+
+    const booking = await Booking.findOne(query)
+      .populate('deviceId', 'name images brand model category pricePerDay dailyRate')
+      .populate('renterId', 'name username email phone avatar')
+      .populate('ownerId', 'name username email phone avatar');
+
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy yêu cầu gia hạn' });
+    }
+
+    return res.status(200).json({ success: true, data: booking });
+  } catch (error) {
+    console.error('Error getting extension request:', error);
+    return res.status(500).json({ success: false, message: 'Lỗi máy chủ khi lấy chi tiết yêu cầu gia hạn' });
+  }
+};
+
+const respondToExtensionRequest = async (req, res) => {
+  try {
+    const userRole = req.userRole || req.auth?.role;
+    const userId = req.auth?.id || req.auth?._id || req.user?._id;
+    const { action } = req.params;
+    const { reason } = req.body;
+
+    if (!['approve', 'reject'].includes(action)) {
+      return res.status(400).json({ success: false, message: 'Thao tác yêu cầu gia hạn không hợp lệ' });
+    }
+
+    const accessQuery = { _id: req.params.id };
+    if (userRole !== 'admin') accessQuery.ownerId = userId;
+    const booking = await Booking.findOne(accessQuery)
+      .populate('deviceId', 'name blockedDates isDeleted ownerId')
+      .populate('renterId', 'name username');
+
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy đơn thuê hoặc bạn không có quyền xử lý' });
+    }
+    if (booking.extensionRequest?.status !== 'pending') {
+      return res.status(409).json({ success: false, message: 'Yêu cầu gia hạn đã được xử lý hoặc không còn chờ duyệt' });
+    }
+
+    const updateQuery = { _id: booking._id, 'extensionRequest.status': 'pending' };
+    if (userRole !== 'admin') updateQuery.ownerId = userId;
+
+    let update;
+    let message;
+    if (action === 'approve') {
+      updateQuery.status = 'active';
+      updateQuery.endDate = booking.endDate;
+      if (booking.status !== 'active') {
+        return res.status(409).json({ success: false, message: 'Chỉ đơn thuê đang sử dụng mới đủ điều kiện gia hạn' });
+      }
+
+      const currentEndDate = new Date(booking.endDate);
+      const requestedDays = Number(booking.extensionRequest.requestedDays);
+      const additionalFee = Number(booking.extensionRequest.additionalFee);
+      if (!Number.isInteger(requestedDays) || requestedDays <= 0 ||
+          !Number.isFinite(additionalFee) || additionalFee < 0 ||
+          Number.isNaN(currentEndDate.getTime())) {
+        return res.status(400).json({ success: false, message: 'Thông tin thời hạn hoặc phụ phí gia hạn không hợp lệ' });
+      }
+
+      const proposedEndDate = new Date(currentEndDate.getTime() + requestedDays * 24 * 60 * 60 * 1000);
+      const storedEndDate = new Date(booking.extensionRequest.requestedEndDate);
+      if (Number.isNaN(storedEndDate.getTime()) || storedEndDate.getTime() !== proposedEndDate.getTime()) {
+        return res.status(409).json({ success: false, message: 'Ngày kết thúc đề xuất không khớp với số ngày gia hạn' });
+      }
+
+      const device = booking.deviceId;
+      if (!device || device.isDeleted || String(device.ownerId) !== String(booking.ownerId)) {
+        return res.status(409).json({ success: false, message: 'Thiết bị không còn đủ điều kiện cho thuê' });
+      }
+
+      const conflictingBooking = await Booking.exists({
+        _id: { $ne: booking._id },
+        deviceId: booking.deviceId._id,
+        status: { $in: ['active', 'approved', 'pending'] },
+        startDate: { $lt: proposedEndDate },
+        endDate: { $gt: currentEndDate },
+      });
+      if (conflictingBooking) {
+        return res.status(409).json({ success: false, message: 'Lịch thuê đã bị trùng trong thời gian gia hạn đề xuất' });
+      }
+
+      const blockedDate = (device.blockedDates || []).find((blocked) => {
+        const blockedStart = new Date(blocked.startDate);
+        const blockedEnd = new Date(blocked.endDate);
+        if (blockedEnd.getHours() === 0 && blockedEnd.getMinutes() === 0 && blockedEnd.getSeconds() === 0) {
+          blockedEnd.setHours(23, 59, 59, 999);
+        }
+        return currentEndDate < blockedEnd && proposedEndDate > blockedStart;
+      });
+      if (blockedDate) {
+        return res.status(409).json({ success: false, message: 'Thiết bị có ngày bận trong khoảng thời gian gia hạn đề xuất' });
+      }
+
+      update = {
+        $set: { endDate: proposedEndDate, 'extensionRequest.status': 'approved' },
+        $push: {
+          timeline: {
+            status: 'extension_approved',
+            timestamp: new Date(),
+            note: `Đã duyệt gia hạn ${requestedDays} ngày, phụ phí ${additionalFee.toLocaleString('vi-VN')} đ`,
+          },
+        },
+      };
+      message = 'Đã phê duyệt yêu cầu gia hạn';
+    } else {
+      const rejectionReason = typeof reason === 'string' ? reason.trim().slice(0, 500) : '';
+      update = {
+        $set: { 'extensionRequest.status': 'rejected' },
+        $push: {
+          timeline: {
+            status: 'extension_rejected',
+            timestamp: new Date(),
+            note: rejectionReason
+              ? `Đã từ chối yêu cầu gia hạn: ${rejectionReason}`
+              : 'Đã từ chối yêu cầu gia hạn',
+          },
+        },
+      };
+      message = 'Đã từ chối yêu cầu gia hạn';
+    }
+
+    const updatedBooking = await Booking.findOneAndUpdate(updateQuery, update, {
+      new: true,
+      runValidators: true,
+    })
+      .populate('deviceId', 'name images brand model category pricePerDay dailyRate')
+      .populate('renterId', 'name username email phone avatar')
+      .populate('ownerId', 'name username email phone avatar');
+
+    if (!updatedBooking) {
+      return res.status(409).json({ success: false, message: 'Yêu cầu gia hạn vừa được xử lý bởi người khác' });
+    }
+
+    const renterId = updatedBooking.renterId?._id || updatedBooking.renterId;
+    const deviceName = updatedBooking.deviceId?.name || 'thiết bị';
+    const rejectionReason = typeof reason === 'string' ? reason.trim().slice(0, 500) : '';
+    const notificationResult = await createAndSendNotification({
+      userId: renterId,
+      title: action === 'approve' ? 'Yêu cầu gia hạn đã được duyệt' : 'Yêu cầu gia hạn đã bị từ chối',
+      body: action === 'approve'
+        ? `Yêu cầu gia hạn ${updatedBooking.extensionRequest.requestedDays} ngày cho "${deviceName}" (đơn #${updatedBooking.bookingCode}) đã được duyệt.`
+        : `Yêu cầu gia hạn ${updatedBooking.extensionRequest.requestedDays} ngày cho "${deviceName}" (đơn #${updatedBooking.bookingCode}) đã bị từ chối.${rejectionReason ? ` Lý do: ${rejectionReason}` : ''}`,
+      type: 'order',
+      relatedId: updatedBooking._id,
+      data: { bookingId: updatedBooking._id.toString(), status: `extension_${action === 'approve' ? 'approved' : 'rejected'}` },
+    });
+    if (!notificationResult.success) {
+      console.error('Failed to notify renter about extension decision:', notificationResult.message || notificationResult.error);
+    }
+
+    return res.status(200).json({ success: true, message, data: updatedBooking });
+  } catch (error) {
+    console.error('Error responding to extension request:', error);
+    return res.status(500).json({ success: false, message: 'Lỗi máy chủ khi xử lý yêu cầu gia hạn' });
+  }
+};
+
 // @desc    Update beforeRental handover photos & condition notes
 // @route   PATCH /api/bookings/:id/handover-renter
 // @access  Private
@@ -524,12 +738,23 @@ const updateBeforeRentalPhotos = async (req, res) => {
 
     const renterIdStr = booking.renterId?._id ? booking.renterId._id.toString() : booking.renterId?.toString();
     const ownerIdStr = booking.ownerId?._id ? booking.ownerId._id.toString() : booking.ownerId?.toString();
-    const isRenter = renterIdStr === (userId ? userId.toString() : '');
-    const isOwner = ownerIdStr === (userId ? userId.toString() : '');
+
+    let resolvedUserId = userId ? userId.toString() : '';
+    const userDoc = await User.findOne({
+      $or: [{ _id: userId }, { accountId: userId }],
+    }).select('_id').lean().catch(() => null);
+    if (userDoc && userDoc._id) {
+      resolvedUserId = userDoc._id.toString();
+    }
+
+    const isRenter = renterIdStr === resolvedUserId || renterIdStr === (userId ? userId.toString() : '');
     const isAdmin = userRole === 'admin';
 
-    if (!isRenter && !isOwner && !isAdmin) {
-      return res.status(403).json({ success: false, message: 'Bạn không có quyền cập nhật ảnh đơn thuê này' });
+    if (!isRenter && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only the renter can upload before-rental handover photos when the booking is approved.',
+      });
     }
 
     if (booking.status !== 'approved') {
@@ -596,26 +821,193 @@ const updateBeforeRentalPhotos = async (req, res) => {
   }
 };
 
+// @desc    Update afterRental return inspection photos & condition notes by Owner (ONLY when active)
+// @route   PATCH /api/bookings/:id/handover-owner
+// @access  Private (Owner)
+const updateAfterRentalPhotos = async (req, res) => {
+  try {
+    const bookingId = req.params.id;
+    const { photos, conditionNotes } = req.body;
+    const userId = (req.auth && (req.auth.id || req.auth._id)) || (req.user && req.user._id);
+    const userRole = (req.auth && req.auth.role) || (req.user && req.user.role);
+
+    if (!Array.isArray(photos) || photos.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide at least 1 device return inspection photo.',
+      });
+    }
+
+    const booking = await Booking.findById(bookingId)
+      .populate('deviceId', 'name images brand ownerId')
+      .populate('renterId', 'name avatar')
+      .populate('ownerId', 'name avatar');
+
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+
+    let resolvedOwnerId = userId ? userId.toString() : '';
+    const userDoc = await User.findOne({
+      $or: [{ _id: userId }, { accountId: userId }],
+    }).select('_id').lean().catch(() => null);
+    if (userDoc && userDoc._id) {
+      resolvedOwnerId = userDoc._id.toString();
+    }
+
+    const ownerIdStr = booking.ownerId?._id ? booking.ownerId._id.toString() : booking.ownerId?.toString();
+    const deviceOwnerIdStr = booking.deviceId?.ownerId ? booking.deviceId.ownerId.toString() : '';
+    const isOwner =
+      ownerIdStr === resolvedOwnerId ||
+      ownerIdStr === (userId ? userId.toString() : '') ||
+      (deviceOwnerIdStr &&
+        (deviceOwnerIdStr === resolvedOwnerId || deviceOwnerIdStr === (userId ? userId.toString() : '')));
+    const isAdmin = userRole === 'admin';
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only the device owner can upload return inspection photos.',
+      });
+    }
+
+    if (booking.status !== 'active') {
+      return res.status(400).json({
+        success: false,
+        message: 'Owner can only capture and upload return inspection photos when the booking is active.',
+      });
+    }
+
+    const resolvedPhotos = await Promise.all(
+      photos.map(async (photoStr) => {
+        if (!photoStr || typeof photoStr !== 'string') return '';
+        if (
+          photoStr.startsWith('data:image/') ||
+          (!photoStr.startsWith('http://') &&
+            !photoStr.startsWith('https://') &&
+            !photoStr.startsWith('/uploads/') &&
+            !photoStr.startsWith('file://') &&
+            photoStr.length > 300)
+        ) {
+          const cldUrl = await uploadToCloudinary(photoStr, 'techshare/handover');
+          return cldUrl || photoStr;
+        }
+        return photoStr;
+      })
+    );
+    const validPhotos = resolvedPhotos.filter(Boolean);
+
+    if (!booking.handover) {
+      booking.handover = { beforePhotos: [], afterPhotos: [], beforeNote: '', afterNote: '' };
+    }
+    booking.handover.afterPhotos = validPhotos;
+    if (conditionNotes !== undefined) {
+      booking.handover.afterNote = conditionNotes;
+    }
+
+    booking.set('handover.afterPhotos', validPhotos);
+    if (conditionNotes !== undefined) {
+      booking.set('handover.afterNote', conditionNotes);
+    }
+    booking.markModified('handover');
+
+    booking.timeline.push({
+      status: booking.status,
+      timestamp: new Date(),
+      note: `Owner recorded ${validPhotos.length} return inspection photo(s) (afterRental).`,
+    });
+
+    await booking.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Return inspection photos saved successfully',
+      data: booking,
+    });
+  } catch (error) {
+    console.error('Error updating afterRental photos:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while saving return inspection photos',
+      error: error.message,
+    });
+  }
+};
+
 // @desc    Get owner bookings
 // @route   GET /api/bookings/owner-bookings
 // @access  Private
 const getOwnerBookings = async (req, res) => {
   try {
-    const userId = (req.auth && (req.auth.id || req.auth._id)) || (req.user && req.user._id) || req.query.ownerId || req.query.userId;
+    let userId = (req.auth && (req.auth.id || req.auth._id)) || (req.user && req.user._id) || req.query.ownerId || req.query.userId;
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Chưa xác thực người dùng' });
     }
 
+    // Resolve User._id in case accountId was passed
+    let resolvedOwnerId = userId;
+    const userDoc = await User.findOne({
+      $or: [{ _id: userId }, { accountId: userId }],
+    }).select('_id').lean().catch(() => null);
+    if (userDoc && userDoc._id) {
+      resolvedOwnerId = userDoc._id;
+    }
+
+    const ownerDevices = await Device.find({
+      ownerId: resolvedOwnerId,
+      isDeleted: { $ne: true },
+    }).select('_id').lean();
+    const deviceIds = ownerDevices.map((d) => d._id);
+
     const { status } = req.query;
-    let query = { ownerId: userId };
+    const query =
+      deviceIds.length > 0
+        ? { $or: [{ ownerId: resolvedOwnerId }, { deviceId: { $in: deviceIds } }] }
+        : { ownerId: resolvedOwnerId };
+
     if (status && status !== 'all') {
       query.status = status;
     }
 
-    const bookings = await Booking.find(query)
+    const bookingDocs = await Booking.find(query)
       .populate('deviceId', 'name images brand model category pricePerDay dailyRate depositAmount depositValue condition description location addressText specs')
       .populate('renterId', 'name username email phone avatar isVerified trust trustScore rating totalReviews address')
       .sort({ createdAt: -1 });
+
+    // Sync isReviewed & isRenterReviewed for completed bookings
+    const completedIds = bookingDocs.filter((b) => b.status === 'completed').map((b) => b._id);
+    const deviceReviewMap = new Map();
+    const renterReviewMap = new Map();
+
+    if (completedIds.length > 0) {
+      try {
+        const existingReviews = await Review.find({ bookingId: { $in: completedIds } }).lean();
+        existingReviews.forEach((rev) => {
+          const bIdStr = String(rev.bookingId);
+          if (rev.targetType === 'renter') {
+            renterReviewMap.set(bIdStr, rev._id);
+          } else {
+            deviceReviewMap.set(bIdStr, rev._id);
+          }
+        });
+      } catch (err) {
+        console.warn('Error syncing review flags in getOwnerBookings:', err.message);
+      }
+    }
+
+    const bookings = bookingDocs.map((doc) => {
+      const obj = doc.toJSON({ virtuals: true });
+      const idStr = String(obj._id);
+      if (deviceReviewMap.has(idStr)) {
+        obj.isReviewed = true;
+        obj.reviewId = deviceReviewMap.get(idStr);
+      }
+      if (renterReviewMap.has(idStr)) {
+        obj.isRenterReviewed = true;
+        obj.renterReviewId = renterReviewMap.get(idStr);
+      }
+      return obj;
+    });
 
     return res.status(200).json({ success: true, count: bookings.length, data: bookings });
   } catch (error) {
@@ -624,7 +1016,7 @@ const getOwnerBookings = async (req, res) => {
   }
 };
 
-// @desc    Update booking status by owner (approve/reject)
+// @desc    Update booking status by owner (approve/reject/active/completed)
 // @route   PATCH /api/bookings/:id/status
 // @access  Private
 const updateBookingStatus = async (req, res) => {
@@ -633,19 +1025,35 @@ const updateBookingStatus = async (req, res) => {
     const { status, reason } = req.body;
     const userId = (req.auth && (req.auth.id || req.auth._id)) || (req.user && req.user._id);
 
-    if (!['approved', 'rejected', 'cancelled'].includes(status)) {
-      return res.status(400).json({ success: false, message: 'Trạng thái cập nhật không hợp lệ (approved/rejected)' });
+    if (!['approved', 'rejected', 'cancelled', 'active', 'completed'].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Trạng thái cập nhật không hợp lệ (approved/rejected/cancelled/active/completed)',
+      });
     }
 
     const booking = await Booking.findById(bookingId)
-      .populate('deviceId', 'name')
+      .populate('deviceId', 'name ownerId')
       .populate('renterId', 'name email phone avatar');
 
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy đơn thuê' });
     }
 
-    const isOwner = String(booking.ownerId) === String(userId);
+    let resolvedOwnerId = userId;
+    const userDoc = await User.findOne({
+      $or: [{ _id: userId }, { accountId: userId }],
+    }).select('_id').lean().catch(() => null);
+    if (userDoc && userDoc._id) {
+      resolvedOwnerId = userDoc._id;
+    }
+
+    const isOwner =
+      String(booking.ownerId) === String(resolvedOwnerId) ||
+      String(booking.ownerId) === String(userId) ||
+      (booking.deviceId?.ownerId &&
+        (String(booking.deviceId.ownerId) === String(resolvedOwnerId) ||
+          String(booking.deviceId.ownerId) === String(userId)));
     const userRole = (req.auth && req.auth.role) || (req.user && req.user.role);
     const isAdmin = userRole === 'admin';
 
@@ -658,15 +1066,38 @@ const updateBookingStatus = async (req, res) => {
     }
 
     booking.status = status;
-    if (status === 'rejected' || status === 'cancelled') {
+    const devId = booking.deviceId?._id || booking.deviceId;
+
+    if (status === 'approved') {
+      if (!booking.qrToken) {
+        booking.qrToken = `TSQR-${booking.bookingCode}-${booking._id.toString().slice(-4).toUpperCase()}`;
+      }
+    } else if (status === 'rejected' || status === 'cancelled') {
       booking.statusReason = reason || 'Chủ máy từ chối yêu cầu thuê';
       booking.rejectReason = reason || 'Chủ máy từ chối yêu cầu thuê';
+    } else if (status === 'active') {
+      if (devId) {
+        await Device.findByIdAndUpdate(devId, { status: 'rented' }).catch(() => {});
+      }
+    } else if (status === 'completed') {
+      booking.paymentStatus = 'refunded';
+      if (devId) {
+        await Device.findByIdAndUpdate(devId, { status: 'available' }).catch(() => {});
+      }
     }
 
-    const actionText = status === 'approved'
-      ? 'Chủ máy đã phê duyệt yêu cầu thuê'
-      : `Chủ máy từ chối yêu cầu thuê. Lý do: ${reason || 'Không có'}`;
+    let actionText = 'Chủ máy cập nhật trạng thái đơn thuê';
+    if (status === 'approved') {
+      actionText = 'Chủ máy đã phê duyệt yêu cầu thuê';
+    } else if (status === 'rejected' || status === 'cancelled') {
+      actionText = `Chủ máy từ chối yêu cầu thuê. Lý do: ${reason || 'Không có'}`;
+    } else if (status === 'active') {
+      actionText = 'Chủ máy đã bàn giao thiết bị cho khách thuê (Đang thuê)';
+    } else if (status === 'completed') {
+      actionText = 'Đã nhận lại thiết bị và hoàn tất hợp đồng thuê';
+    }
 
+    if (!booking.timeline) booking.timeline = [];
     booking.timeline.push({
       status,
       timestamp: new Date(),
@@ -691,7 +1122,7 @@ const updateBookingStatus = async (req, res) => {
             status: 'approved',
           },
         }).catch((err) => console.error('❌ Lỗi gửi thông báo duyệt cho khách:', err.message));
-      } else {
+      } else if (status === 'rejected' || status === 'cancelled') {
         await createAndSendNotification({
           userId: renterIdVal,
           title: 'Yêu cầu thuê đã bị từ chối ❌',
@@ -703,6 +1134,30 @@ const updateBookingStatus = async (req, res) => {
             status: 'rejected',
           },
         }).catch((err) => console.error('❌ Lỗi gửi thông báo từ chối cho khách:', err.message));
+      } else if (status === 'active') {
+        await createAndSendNotification({
+          userId: renterIdVal,
+          title: 'Thiết bị đã được bàn giao! 📱',
+          body: `Đơn thuê "${deviceName}" (#${booking.bookingCode}) đã bắt đầu tính thời gian thuê. Chúc bạn trải nghiệm tốt!`,
+          type: 'order',
+          relatedId: booking._id,
+          data: {
+            bookingId: booking._id.toString(),
+            status: 'active',
+          },
+        }).catch((err) => console.error('❌ Lỗi gửi thông báo bàn giao cho khách:', err.message));
+      } else if (status === 'completed') {
+        await createAndSendNotification({
+          userId: renterIdVal,
+          title: 'Đơn thuê đã hoàn tất! 🎉',
+          body: `Chủ máy đã xác nhận nhận lại "${deviceName}" (#${booking.bookingCode}). Hãy để lại đánh giá trải nghiệm thuê nhé!`,
+          type: 'order',
+          relatedId: booking._id,
+          data: {
+            bookingId: booking._id.toString(),
+            status: 'completed',
+          },
+        }).catch((err) => console.error('❌ Lỗi gửi thông báo hoàn tất cho khách:', err.message));
       }
     }
 
@@ -726,15 +1181,39 @@ const updateBookingStatus = async (req, res) => {
       }
     } catch {}
 
+    const statusMessages = {
+      approved: 'Đã phê duyệt yêu cầu thuê thành công!',
+      rejected: 'Đã từ chối yêu cầu thuê!',
+      cancelled: 'Đã hủy đơn thuê!',
+      active: 'Đã xác nhận bàn giao thiết bị thành công!',
+      completed: 'Đã nhận lại thiết bị và hoàn tất đơn thuê!',
+    };
+
     return res.status(200).json({
       success: true,
-      message: status === 'approved' ? 'Đã phê duyệt yêu cầu thuê thành công!' : 'Đã từ chối yêu cầu thuê!',
+      message: statusMessages[status] || 'Đã cập nhật trạng thái đơn thuê!',
       data: booking,
     });
   } catch (error) {
     console.error('Error updating booking status:', error);
     return res.status(500).json({ success: false, message: 'Lỗi máy chủ khi cập nhật trạng thái đơn', error: error.message });
   }
+};
+
+// @desc    Handover booking (approved -> active)
+// @route   PATCH /api/bookings/:id/handover
+// @access  Private
+const handoverBooking = async (req, res) => {
+  req.body = { ...(req.body || {}), status: 'active' };
+  return updateBookingStatus(req, res);
+};
+
+// @desc    Complete booking (active -> completed)
+// @route   PATCH /api/bookings/:id/complete
+// @access  Private
+const completeBooking = async (req, res) => {
+  req.body = { ...(req.body || {}), status: 'completed' };
+  return updateBookingStatus(req, res);
 };
 
 module.exports = {
@@ -744,7 +1223,13 @@ module.exports = {
   cancelBooking,
   getBookingById,
   requestExtension,
+  getExtensionRequests,
+  getExtensionRequestById,
+  respondToExtensionRequest,
   updateBeforeRentalPhotos,
+  updateAfterRentalPhotos,
   getOwnerBookings,
   updateBookingStatus,
+  handoverBooking,
+  completeBooking,
 };

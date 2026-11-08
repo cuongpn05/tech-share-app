@@ -53,6 +53,7 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapReload, setMapReload] = useState(0);
+
   const webView = useRef<WebView>(null);
   const messageId = useRef(0);
 

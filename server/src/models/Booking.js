@@ -53,8 +53,9 @@ const bookingSchema = new mongoose.Schema({
   // 6. Nhóm Yêu cầu Gia hạn Thuê
   extensionRequest: {
     requestedEndDate: { type: Date },
-    requestedDays: { type: Number, default: 0 },
-    additionalFee: { type: Number, default: 0 },
+    requestedDays: { type: Number, default: 0, min: 0 },
+    additionalFee: { type: Number, default: 0, min: 0 },
+    requestedAt: { type: Date },
     status: { type: String, enum: ['none', 'pending', 'approved', 'rejected'], default: 'none' },
   },
 
@@ -69,9 +70,11 @@ const bookingSchema = new mongoose.Schema({
   ],
   isHiddenByRenter: { type: Boolean, default: false },
 
-  // 8. Đánh giá chất lượng dịch vụ (UC-R27)
+  // 8. Đánh giá chất lượng dịch vụ (UC-R27, UC-O21)
   isReviewed: { type: Boolean, default: false, index: true },
   reviewId: { type: mongoose.Schema.Types.ObjectId, ref: 'Review' },
+  isRenterReviewed: { type: Boolean, default: false, index: true },
+  renterReviewId: { type: mongoose.Schema.Types.ObjectId, ref: 'Review' },
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

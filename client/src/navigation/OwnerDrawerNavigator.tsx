@@ -7,6 +7,7 @@ import { HomeRoute } from './HomeRoute';
 import OwnerDashboardScreen from '../screens/owner/OwnerDashboardScreen';
 import { OwnerAnalyticsScreen } from '../screens/owner/OwnerAnalyticsScreen';
 import OwnerPendingBookingsScreen from '../screens/owner/OwnerPendingBookingsScreen';
+import ExtensionRequestsScreen from '../screens/booking/ExtensionRequestsScreen';
 import { PostDeviceScreen } from '../screens/device/PostDeviceScreen';
 import OwnerMessagesScreen from '../screens/owner/OwnerMessagesScreen';
 import NotificationScreen from '../screens/notification/NotificationScreen';
@@ -97,6 +98,7 @@ export const OwnerDrawerNavigator: React.FC = () => {
       </Drawer.Screen>
 
       <Drawer.Screen name="OwnerPendingBookings" component={OwnerPendingBookingsScreen} />
+      <Drawer.Screen name="OwnerExtensionRequests" component={ExtensionRequestsScreen} />
 
       <Drawer.Screen name="OwnerMessages" component={OwnerMessagesScreen} />
 

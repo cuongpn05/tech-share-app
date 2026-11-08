@@ -51,6 +51,12 @@ const MENU_ITEMS: MenuItem[] = [
     routeName: 'DeviceModeration',
   },
   {
+    id: 'extensions',
+    title: ADMIN_STRINGS.SIDEBAR.MENU.EXTENSIONS,
+    icon: 'calendar-outline',
+    routeName: 'ExtensionRequests',
+  },
+  {
     id: 'disputes',
     title: ADMIN_STRINGS.SIDEBAR.MENU.DISPUTES,
     icon: 'chatbox-ellipses-outline',

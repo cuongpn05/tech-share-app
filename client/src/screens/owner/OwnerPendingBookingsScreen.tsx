@@ -5,6 +5,7 @@ import {
   Text,
   StyleSheet,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   RefreshControl,
   Platform,
@@ -19,6 +20,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../theme/tokens';
 import { OWNER_STRINGS } from '../../constants/ownerStrings';
 import { OwnerApprovalCard } from '../../components/booking/OwnerApprovalCard';
+import { ReviewModal } from '../../components/booking/ReviewModal';
+import { HandoverCameraModal } from '../../components/booking/HandoverCameraModal';
 import { bookingService, Booking } from '../../services/bookingService';
 import { notificationService } from '../../services/notificationService';
 import { useAppSelector } from '../../store';
@@ -27,7 +30,7 @@ export interface OwnerPendingBookingsScreenProps {
   navigation?: any;
 }
 
-type TabType = 'pending' | 'approved' | 'all';
+type TabType = 'all' | 'pending' | 'approved' | 'active' | 'completed' | 'cancelled';
 
 export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProps> = ({
   navigation,
@@ -36,7 +39,7 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
   const currentUser = useAppSelector((state) => state.auth.user);
   const currentUserId = currentUser?._id || (currentUser as any)?.id;
 
-  const [activeTab, setActiveTab] = useState<TabType>('pending');
+  const [activeTab, setActiveTab] = useState<TabType>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -49,6 +52,15 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
   const [rejectModalVisible, setRejectModalVisible] = useState(false);
   const [selectedBookingForReject, setSelectedBookingForReject] = useState<Booking | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+
+  // Renter Review Modal State
+  const [reviewModalVisible, setReviewModalVisible] = useState(false);
+  const [selectedBookingForReview, setSelectedBookingForReview] = useState<Booking | null>(null);
+
+  // Owner Return Camera Modal State (ONLY when booking is active)
+  const [returnCameraModalVisible, setReturnCameraModalVisible] = useState(false);
+  const [selectedBookingForCamera, setSelectedBookingForCamera] = useState<Booking | null>(null);
+
   const [unreadNotifications, setUnreadNotifications] = useState(
     notificationService.getUnreadCountCached()
   );
@@ -56,13 +68,19 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
   // Tải danh sách đơn thuê từ Database Atlas dựa chính xác vào Owner
   const fetchBookings = useCallback(async () => {
     try {
-      // 1. Tải các đơn pending
-      const pendingData = await bookingService.getOwnerPendingBookings(currentUserId);
-      setPendingBookings(Array.isArray(pendingData) ? pendingData : []);
+      const [allData, pendingData] = await Promise.all([
+        bookingService.getOwnerBookings('all', currentUserId),
+        bookingService.getOwnerPendingBookings(currentUserId),
+      ]);
 
-      // 2. Tải toàn bộ đơn của owner
-      const allData = await bookingService.getOwnerBookings('all', currentUserId);
-      setAllBookings(Array.isArray(allData) ? allData : []);
+      const normalizedAll = Array.isArray(allData) ? allData : [];
+      const normalizedPending =
+        Array.isArray(pendingData) && pendingData.length > 0
+          ? pendingData
+          : normalizedAll.filter((b) => b.status === 'pending');
+
+      setAllBookings(normalizedAll);
+      setPendingBookings(normalizedPending);
     } catch (error) {
       console.warn('[OwnerPendingBookingsScreen] Lỗi khi tải dữ liệu từ server:', error);
     } finally {
@@ -75,20 +93,25 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
     if (currentUserId) {
       notificationService.fetchUnreadCount(currentUserId);
     }
-    const unsub = notificationService.onUnreadCountChange((count) => {
+    const unsubNotif = notificationService.onUnreadCountChange((count) => {
       setUnreadNotifications(count);
     });
+    const unsubBookings = bookingService.onBookingsUpdated(() => {
+      fetchBookings();
+    });
     return () => {
-      unsub();
+      unsubNotif();
+      unsubBookings();
     };
   }, [fetchBookings, currentUserId]);
 
   useFocusEffect(
     useCallback(() => {
+      fetchBookings();
       if (currentUserId) {
         notificationService.fetchUnreadCount(currentUserId);
       }
-    }, [currentUserId])
+    }, [fetchBookings, currentUserId])
   );
 
   const onRefresh = async () => {
@@ -97,49 +120,32 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
     setRefreshing(false);
   };
 
-  // Xử lý Duyệt đơn thuê
-  const handleApprove = (booking: Booking) => {
-    const renterName = booking.renterId?.name || 'khách hàng';
-    const deviceName = booking.deviceId?.name || 'thiết bị';
-
-    Alert.alert(
-      strings.CONFIRM_APPROVE_TITLE,
-      `Bạn có chắc chắn muốn duyệt yêu cầu thuê máy "${deviceName}" từ ${renterName} (#${booking.bookingCode})?`,
-      [
-        { text: strings.CANCEL, style: 'cancel' },
-        {
-          text: strings.CONFIRM,
-          style: 'default',
-          onPress: async () => {
-            try {
-              setProcessingId(booking._id);
-              await bookingService.updateBookingStatusByOwner(booking._id, 'approved');
-              Alert.alert('Thành công', strings.APPROVE_SUCCESS);
-              await fetchBookings();
-            } catch (error: any) {
-              const msg = error?.response?.data?.message || strings.OPERATION_FAILED;
-              Alert.alert('Lỗi', msg);
-            } finally {
-              setProcessingId(null);
-            }
-          },
-        },
-      ]
-    );
+  // Approve booking request immediately without confirmation popup
+  const handleApprove = async (booking: Booking) => {
+    try {
+      setProcessingId(booking._id);
+      await bookingService.updateBookingStatusByOwner(booking._id, 'approved');
+      await fetchBookings();
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || strings.OPERATION_FAILED;
+      Alert.alert(strings.ERROR_TITLE, msg);
+    } finally {
+      setProcessingId(null);
+    }
   };
 
-  // Mở modal từ chối
+  // Open decline modal (ONLY action that asks for confirmation & reason)
   const handleOpenReject = (booking: Booking) => {
     setSelectedBookingForReject(booking);
     setRejectReason('');
     setRejectModalVisible(true);
   };
 
-  // Xác nhận từ chối đơn thuê
+  // Confirm decline booking request
   const handleConfirmReject = async () => {
     if (!selectedBookingForReject) return;
     try {
-      const reasonToSubmit = rejectReason.trim() || 'Chủ máy bận vào thời gian này';
+      const reasonToSubmit = rejectReason.trim() || strings.DEFAULT_REJECT_REASON;
       setProcessingId(selectedBookingForReject._id);
       setRejectModalVisible(false);
 
@@ -149,18 +155,17 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
         reasonToSubmit
       );
 
-      Alert.alert('Đã từ chối', strings.REJECT_SUCCESS);
       await fetchBookings();
     } catch (error: any) {
       const msg = error?.response?.data?.message || strings.OPERATION_FAILED;
-      Alert.alert('Lỗi', msg);
+      Alert.alert(strings.ERROR_TITLE, msg);
     } finally {
       setProcessingId(null);
       setSelectedBookingForReject(null);
     }
   };
 
-  // Mở khung chat với khách thuê
+  // Open chat with renter
   const handleChat = (booking: Booking) => {
     if (!navigation) return;
     navigation.navigate('ChatDetail', {
@@ -169,13 +174,65 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
     });
   };
 
+  // Handover device immediately without confirmation popup (approved -> active)
+  const handleHandover = async (booking: Booking) => {
+    try {
+      setProcessingId(booking._id);
+      await bookingService.updateBookingStatusByOwner(booking._id, 'active');
+      await fetchBookings();
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || strings.OPERATION_FAILED;
+      Alert.alert(strings.ERROR_TITLE, msg);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  // Receive device & complete rental immediately without confirmation popup (active -> completed)
+  const handleComplete = async (booking: Booking) => {
+    try {
+      setProcessingId(booking._id);
+      await bookingService.updateBookingStatusByOwner(booking._id, 'completed');
+      await fetchBookings();
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || strings.OPERATION_FAILED;
+      Alert.alert(strings.ERROR_TITLE, msg);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  // Mở modal đánh giá khách thuê khi đơn hàng đã completed
+  const handleOpenReviewRenter = (booking: Booking) => {
+    setSelectedBookingForReview(booking);
+    setReviewModalVisible(true);
+  };
+
+  // Mở modal chụp ảnh kiểm tra máy khi trả (chỉ khi đơn hàng đang active)
+  const handleOpenReturnCamera = (booking: Booking) => {
+    if (booking.status !== 'active') return;
+    setSelectedBookingForCamera(booking);
+    setReturnCameraModalVisible(true);
+  };
+
   // Lọc danh sách theo tab và thanh tìm kiếm
   const getFilteredBookings = () => {
     let sourceList: Booking[] = [];
     if (activeTab === 'pending') {
-      sourceList = pendingBookings;
+      sourceList =
+        pendingBookings.length > 0
+          ? pendingBookings
+          : allBookings.filter((b) => b.status === 'pending');
     } else if (activeTab === 'approved') {
       sourceList = allBookings.filter((b) => b.status === 'approved');
+    } else if (activeTab === 'active') {
+      sourceList = allBookings.filter((b) => b.status === 'active');
+    } else if (activeTab === 'completed') {
+      sourceList = allBookings.filter((b) => b.status === 'completed');
+    } else if (activeTab === 'cancelled') {
+      sourceList = allBookings.filter(
+        (b) => b.status === 'cancelled' || b.status === 'rejected'
+      );
     } else {
       sourceList = allBookings;
     }
@@ -194,8 +251,24 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
   };
 
   const filteredList = getFilteredBookings();
-  const pendingCount = pendingBookings.length;
+  const pendingCount =
+    pendingBookings.length || allBookings.filter((b) => b.status === 'pending').length;
   const approvedCount = allBookings.filter((b) => b.status === 'approved').length;
+  const activeCount = allBookings.filter((b) => b.status === 'active').length;
+  const completedCount = allBookings.filter((b) => b.status === 'completed').length;
+  const cancelledCount = allBookings.filter(
+    (b) => b.status === 'cancelled' || b.status === 'rejected'
+  ).length;
+  const allCount = allBookings.length;
+
+  const tabItems: { key: TabType; label: string; count: number }[] = [
+    { key: 'all', label: strings.TABS.ALL, count: allCount },
+    { key: 'pending', label: strings.TABS.PENDING, count: pendingCount },
+    { key: 'approved', label: strings.TABS.APPROVED, count: approvedCount },
+    { key: 'active', label: strings.TABS.ACTIVE, count: activeCount },
+    { key: 'completed', label: strings.TABS.COMPLETED, count: completedCount },
+    { key: 'cancelled', label: strings.TABS.CANCELLED, count: cancelledCount },
+  ];
 
   const insets = useSafeAreaInsets();
   const topInset = Math.max(
@@ -265,69 +338,52 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
       </View>
 
       {/* 3. Segmented Tabs Filter */}
-      <View style={styles.tabsContainer}>
-        <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'pending' && styles.tabButtonActive]}
-          onPress={() => setActiveTab('pending')}
-          activeOpacity={0.8}
+      <View style={styles.tabsWrapper}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabsContainer}
         >
-          <Text
-            style={[styles.tabButtonText, activeTab === 'pending' && styles.tabButtonTextActive]}
-          >
-            {strings.TABS.PENDING}
-          </Text>
-          {pendingCount > 0 && (
-            <View
-              style={[
-                styles.badgeCounter,
-                activeTab === 'pending' ? styles.badgeCounterActive : styles.badgeCounterInactive,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.badgeCounterText,
-                  activeTab === 'pending' && styles.badgeCounterTextActive,
-                ]}
+          {tabItems.map((tab) => {
+            const isTabActive = activeTab === tab.key;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                style={[styles.tabButton, isTabActive && styles.tabButtonActive]}
+                onPress={() => setActiveTab(tab.key)}
+                activeOpacity={0.8}
               >
-                {pendingCount}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'approved' && styles.tabButtonActive]}
-          onPress={() => setActiveTab('approved')}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={[styles.tabButtonText, activeTab === 'approved' && styles.tabButtonTextActive]}
-          >
-            {strings.TABS.APPROVED}
-          </Text>
-          {approvedCount > 0 && (
-            <View style={[styles.badgeCounter, styles.badgeCounterInactive]}>
-              <Text style={styles.badgeCounterText}>{approvedCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'all' && styles.tabButtonActive]}
-          onPress={() => setActiveTab('all')}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.tabButtonText, activeTab === 'all' && styles.tabButtonTextActive]}>
-            {strings.TABS.ALL}
-          </Text>
-        </TouchableOpacity>
+                <Text style={[styles.tabButtonText, isTabActive && styles.tabButtonTextActive]}>
+                  {tab.label}
+                </Text>
+                {tab.count > 0 && (
+                  <View
+                    style={[
+                      styles.badgeCounter,
+                      isTabActive ? styles.badgeCounterActive : styles.badgeCounterInactive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.badgeCounterText,
+                        isTabActive && styles.badgeCounterTextActive,
+                      ]}
+                    >
+                      {tab.count}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
       {/* 4. Main List of Bookings */}
       {loading ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={theme.colors.brand[500]} />
-          <Text style={styles.loadingText}>Đang tải dữ liệu từ database...</Text>
+          <Text style={styles.loadingText}>{strings.LOADING_TEXT}</Text>
         </View>
       ) : (
         <FlatList
@@ -350,6 +406,10 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
               }
               onApprove={handleApprove}
               onReject={handleOpenReject}
+              onHandover={handleHandover}
+              onComplete={handleComplete}
+              onTakeReturnPhotos={handleOpenReturnCamera}
+              onReviewRenter={handleOpenReviewRenter}
               onChat={handleChat}
               isProcessing={processingId === item._id}
             />
@@ -363,7 +423,7 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
               <Text style={styles.emptySubtitle}>{strings.EMPTY_SUBTITLE}</Text>
               <TouchableOpacity style={styles.reloadButton} onPress={onRefresh} activeOpacity={0.8}>
                 <Ionicons name="refresh" size={16} color={theme.colors.brand[600]} />
-                <Text style={styles.reloadButtonText}>Làm mới danh sách</Text>
+                <Text style={styles.reloadButtonText}>{strings.RELOAD_BUTTON}</Text>
               </TouchableOpacity>
             </View>
           }
@@ -447,6 +507,34 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
           </View>
         </View>
       </Modal>
+
+      {/* 6. Renter Review Modal (Same mechanism as Renter reviewing Owner) */}
+      <ReviewModal
+        visible={reviewModalVisible}
+        booking={selectedBookingForReview}
+        mode="owner_to_renter"
+        onClose={() => {
+          setReviewModalVisible(false);
+          setSelectedBookingForReview(null);
+        }}
+        onSuccess={() => {
+          fetchBookings();
+        }}
+      />
+
+      {/* 7. Owner Return Inspection Camera Modal (ONLY when booking is active) */}
+      <HandoverCameraModal
+        visible={returnCameraModalVisible}
+        booking={selectedBookingForCamera}
+        mode="owner_after"
+        onClose={() => {
+          setReturnCameraModalVisible(false);
+          setSelectedBookingForCamera(null);
+        }}
+        onSuccess={() => {
+          fetchBookings();
+        }}
+      />
     </View>
   );
 };
@@ -531,10 +619,12 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     color: theme.colors.text.primary,
   },
+  tabsWrapper: {
+    marginBottom: 14,
+  },
   tabsContainer: {
     flexDirection: 'row',
     paddingHorizontal: theme.spacing.lg,
-    marginBottom: 14,
     gap: 8,
   },
   tabButton: {

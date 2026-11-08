@@ -7,8 +7,11 @@ export interface ExtensionRequestInfo {
   requestedEndDate?: string;
   requestedDays?: number;
   additionalFee?: number;
+  requestedAt?: string;
   status?: 'none' | 'pending' | 'approved' | 'rejected';
 }
+
+export type ExtensionRequestStatus = 'pending' | 'approved' | 'rejected' | 'all';
 
 export interface BookingTimelineItem {
   status: string;
@@ -50,6 +53,8 @@ export interface Booking {
   timeline?: BookingTimelineItem[];
   isReviewed?: boolean;
   reviewId?: string;
+  isRenterReviewed?: boolean;
+  renterReviewId?: string;
   createdAt: string;
 }
 
@@ -104,10 +109,32 @@ export const bookingService = {
     action: 'approve' | 'reject',
     rejectReason?: string
   ): Promise<Booking> => {
-    const res = await apiClient.put(`/bookings/${bookingId}/respond-extension`, {
-      action,
-      rejectReason,
-    });
+    const res = await apiClient.patch(
+      `/bookings/extension-requests/${bookingId}/${action}`,
+      action === 'reject' ? { reason: rejectReason } : {}
+    );
+    return res.data.data;
+  },
+
+  getExtensionRequests: async (status: ExtensionRequestStatus = 'pending'): Promise<Booking[]> => {
+    const res = await apiClient.get('/bookings/extension-requests', { params: { status } });
+    return res.data.data;
+  },
+
+  getExtensionRequestById: async (bookingId: string): Promise<Booking> => {
+    const res = await apiClient.get(`/bookings/extension-requests/${bookingId}`);
+    return res.data.data;
+  },
+
+  approveExtensionRequest: async (bookingId: string): Promise<Booking> => {
+    const res = await apiClient.patch(`/bookings/extension-requests/${bookingId}/approve`);
+    bookingService.notifyBookingsUpdated();
+    return res.data.data;
+  },
+
+  rejectExtensionRequest: async (bookingId: string, reason?: string): Promise<Booking> => {
+    const res = await apiClient.patch(`/bookings/extension-requests/${bookingId}/reject`, { reason });
+    bookingService.notifyBookingsUpdated();
     return res.data.data;
   },
 
@@ -216,6 +243,20 @@ export const bookingService = {
       photos,
       conditionNotes,
     });
+    bookingService.notifyBookingsUpdated();
+    return res.data.data;
+  },
+
+  updateAfterRentalPhotos: async (
+    bookingId: string,
+    photos: string[],
+    conditionNotes?: string
+  ): Promise<Booking> => {
+    const res = await apiClient.patch(`/bookings/${bookingId}/handover-owner`, {
+      photos,
+      conditionNotes,
+    });
+    bookingService.notifyBookingsUpdated();
     return res.data.data;
   },
 
