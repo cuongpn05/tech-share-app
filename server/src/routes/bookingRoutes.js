@@ -10,8 +10,11 @@ const {
   getExtensionRequestById,
   respondToExtensionRequest,
   updateBeforeRentalPhotos,
+  updateAfterRentalPhotos,
   getOwnerBookings,
   updateBookingStatus,
+  handoverBooking,
+  completeBooking,
 } = require('../controllers/bookingController');
 const { requireAuth, requireRole } = require('../middlewares/authMiddleware');
 
@@ -30,9 +33,13 @@ router.get('/extension-requests/:id', requireAuth, requireRole('owner', 'admin')
 router.patch('/extension-requests/:id/approve', requireAuth, requireRole('owner', 'admin'), extensionAction('approve'));
 router.patch('/extension-requests/:id/reject', requireAuth, requireRole('owner', 'admin'), extensionAction('reject'));
 router.patch('/:id/status', requireAuth, updateBookingStatus);
+router.patch('/:id/handover', requireAuth, handoverBooking);
+router.patch('/:id/complete', requireAuth, completeBooking);
 router.put('/:id/cancel', requireAuth, cancelBooking);
 router.post('/:id/extend', requireAuth, requestExtension);
 router.patch('/:id/handover-renter', requireAuth, updateBeforeRentalPhotos);
+router.patch('/:id/handover-owner', requireAuth, updateAfterRentalPhotos);
+router.post('/:id/handover-owner', requireAuth, updateAfterRentalPhotos);
 router.get('/:id', requireAuth, getBookingById);
 
 module.exports = router;

@@ -22,6 +22,7 @@ import { uploadImage } from '../../services/uploadService';
 interface HandoverCameraModalProps {
   visible: boolean;
   booking: Booking | null;
+  mode?: 'renter_before' | 'owner_after';
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -63,9 +64,11 @@ const PHOTO_SLOTS: PhotoSlot[] = [
 export function HandoverCameraModal({
   visible,
   booking,
+  mode = 'renter_before',
   onClose,
   onSuccess,
 }: HandoverCameraModalProps) {
+  const isOwnerAfter = mode === 'owner_after';
   const [photos, setPhotos] = useState<string[]>(['', '', '', '']);
   const [conditionNotes, setConditionNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -75,10 +78,13 @@ export function HandoverCameraModal({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const existing =
-      booking?.handoverPhotos?.beforeRental ||
-      (booking as any)?.handover?.beforePhotos ||
-      [];
+    const existing = isOwnerAfter
+      ? booking?.handoverPhotos?.afterRental ||
+        (booking as any)?.handover?.afterPhotos ||
+        []
+      : booking?.handoverPhotos?.beforeRental ||
+        (booking as any)?.handover?.beforePhotos ||
+        [];
 
     if (Array.isArray(existing) && existing.length > 0) {
       const initial = ['', '', '', ''];
@@ -90,20 +96,34 @@ export function HandoverCameraModal({
       setPhotos(['', '', '', '']);
     }
 
-    const note =
-      booking?.conditionNotes?.before ||
-      (booking as any)?.handover?.beforeNote ||
-      '';
+    const note = isOwnerAfter
+      ? booking?.conditionNotes?.after ||
+        (booking as any)?.handover?.afterNote ||
+        ''
+      : booking?.conditionNotes?.before ||
+        (booking as any)?.handover?.beforeNote ||
+        '';
     setConditionNotes(note);
-  }, [booking, visible]);
+  }, [booking, visible, isOwnerAfter]);
 
   if (!booking) return null;
 
-  const isLocked = booking.status !== 'approved';
+  const isLocked = isOwnerAfter
+    ? booking.status !== 'active'
+    : booking.status !== 'approved';
+
+  const lockedMessage = isOwnerAfter
+    ? STRINGS.HANDOVER_CAMERA.OWNER_NOT_ALLOWED_STATUS
+    : STRINGS.HANDOVER_CAMERA.NOT_ALLOWED_ACTIVE;
+
+  const beforeReferencePhotos: string[] =
+    booking.handoverPhotos?.beforeRental ||
+    (booking as any)?.handover?.beforePhotos ||
+    [];
 
   const handlePickImage = (index: number) => {
     if (isLocked) {
-      setErrorMessage(STRINGS.HANDOVER_CAMERA.NOT_ALLOWED_ACTIVE);
+      setErrorMessage(lockedMessage);
       return;
     }
     setPickerSlotIndex(index);
@@ -166,7 +186,7 @@ export function HandoverCameraModal({
 
   const handleSave = async () => {
     if (isLocked) {
-      setErrorMessage(STRINGS.HANDOVER_CAMERA.NOT_ALLOWED_ACTIVE);
+      setErrorMessage(lockedMessage);
       return;
     }
 
@@ -185,15 +205,24 @@ export function HandoverCameraModal({
           if (photoUri.startsWith('http://') || photoUri.startsWith('https://')) {
             return photoUri;
           }
-          return await uploadImage(photoUri, `handover-${booking._id}-${i}`);
+          const prefix = isOwnerAfter ? 'return' : 'handover';
+          return await uploadImage(photoUri, `${prefix}-${booking._id}-${i}`);
         })
       );
 
-      await bookingService.updateBeforeRentalPhotos(
-        booking._id,
-        uploadedPhotos,
-        conditionNotes.trim()
-      );
+      if (isOwnerAfter) {
+        await bookingService.updateAfterRentalPhotos(
+          booking._id,
+          uploadedPhotos,
+          conditionNotes.trim()
+        );
+      } else {
+        await bookingService.updateBeforeRentalPhotos(
+          booking._id,
+          uploadedPhotos,
+          conditionNotes.trim()
+        );
+      }
       setSaveSuccessVisible(true);
     } catch (err: any) {
       console.error('Error saving handover photos:', err);
@@ -225,9 +254,16 @@ export function HandoverCameraModal({
                 <Ionicons name="camera" size={22} color={colors.light.primary} />
               </View>
               <View style={styles.headerTitleContainer}>
-                <Text style={styles.title} numberOfLines={1}>{STRINGS.HANDOVER_CAMERA.TITLE}</Text>
+                <Text style={styles.title} numberOfLines={1}>
+                  {isOwnerAfter
+                    ? STRINGS.HANDOVER_CAMERA.OWNER_RETURN_TITLE
+                    : STRINGS.HANDOVER_CAMERA.TITLE}
+                </Text>
                 <Text style={styles.subtitle} numberOfLines={1}>
-                  Order #{booking.bookingCode} • {STRINGS.HANDOVER_CAMERA.SUBTITLE}
+                  Order #{booking.bookingCode} •{' '}
+                  {isOwnerAfter
+                    ? STRINGS.HANDOVER_CAMERA.OWNER_RETURN_SUBTITLE
+                    : STRINGS.HANDOVER_CAMERA.SUBTITLE}
                 </Text>
               </View>
             </View>
@@ -236,13 +272,11 @@ export function HandoverCameraModal({
             </TouchableOpacity>
           </View>
 
-          {/* Locked Notice Banner if order is active/completed */}
+          {/* Locked Notice Banner */}
           {isLocked && (
             <View style={styles.lockedNoticeBox}>
               <Ionicons name="lock-closed" size={16} color={colors.light.warning} />
-              <Text style={styles.lockedNoticeText}>
-                {STRINGS.HANDOVER_CAMERA.NOT_ALLOWED_ACTIVE}
-              </Text>
+              <Text style={styles.lockedNoticeText}>{lockedMessage}</Text>
             </View>
           )}
 
@@ -262,6 +296,35 @@ export function HandoverCameraModal({
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollBody}>
+            {/* Reference Before-Rental Photos for Owner when inspecting return */}
+            {isOwnerAfter && beforeReferencePhotos.length > 0 && (
+              <View style={{ marginBottom: 14 }}>
+                <Text style={[styles.notesLabel, { marginBottom: 8 }]}>
+                  {STRINGS.HANDOVER_CAMERA.BEFORE_RENTAL_REF_LABEL}
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {beforeReferencePhotos.map((refUri, idx) => (
+                    <TouchableOpacity
+                      key={`before-ref-${idx}`}
+                      onPress={() => setPreviewPhoto(refUri)}
+                      activeOpacity={0.85}
+                      style={{
+                        width: 72,
+                        height: 72,
+                        borderRadius: 10,
+                        overflow: 'hidden',
+                        marginRight: 8,
+                        borderWidth: 1,
+                        borderColor: colors.light.border,
+                      }}
+                    >
+                      <Image source={{ uri: refUri }} style={{ width: '100%', height: '100%' }} />
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
             {/* 4 Photo Slots Grid */}
             <View style={styles.slotsGrid}>
               {PHOTO_SLOTS.map((slot, index) => {
@@ -335,11 +398,19 @@ export function HandoverCameraModal({
             <View style={styles.notesContainer}>
               <View style={styles.notesHeaderRow}>
                 <Ionicons name="document-text-outline" size={16} color={colors.light.primaryDark} />
-                <Text style={styles.notesLabel}>{STRINGS.HANDOVER_CAMERA.NOTES_LABEL}</Text>
+                <Text style={styles.notesLabel}>
+                  {isOwnerAfter
+                    ? STRINGS.HANDOVER_CAMERA.OWNER_NOTES_LABEL
+                    : STRINGS.HANDOVER_CAMERA.NOTES_LABEL}
+                </Text>
               </View>
               <TextInput
                 style={[styles.notesInput, isLocked && styles.inputDisabled]}
-                placeholder={STRINGS.HANDOVER_CAMERA.NOTES_PLACEHOLDER}
+                placeholder={
+                  isOwnerAfter
+                    ? STRINGS.HANDOVER_CAMERA.OWNER_NOTES_PLACEHOLDER
+                    : STRINGS.HANDOVER_CAMERA.NOTES_PLACEHOLDER
+                }
                 placeholderTextColor={colors.light.textMuted}
                 multiline
                 numberOfLines={3}
@@ -354,7 +425,11 @@ export function HandoverCameraModal({
               <View style={styles.adviceIconWrap}>
                 <Ionicons name="shield-checkmark" size={18} color={colors.light.primaryDark} />
               </View>
-              <Text style={styles.adviceText}>{STRINGS.HANDOVER_CAMERA.ADVICE_TEXT}</Text>
+              <Text style={styles.adviceText}>
+                {isOwnerAfter
+                  ? STRINGS.HANDOVER_CAMERA.OWNER_ADVICE_TEXT
+                  : STRINGS.HANDOVER_CAMERA.ADVICE_TEXT}
+              </Text>
             </View>
           </ScrollView>
 
@@ -382,7 +457,11 @@ export function HandoverCameraModal({
                 ) : (
                   <>
                     <Ionicons name="checkmark-done-circle" size={18} color={colors.light.white} />
-                    <Text style={styles.saveBtnText}>{STRINGS.HANDOVER_CAMERA.SAVE_RECORD_BTN}</Text>
+                    <Text style={styles.saveBtnText}>
+                      {isOwnerAfter
+                        ? STRINGS.HANDOVER_CAMERA.OWNER_SAVE_RECORD_BTN
+                        : STRINGS.HANDOVER_CAMERA.SAVE_RECORD_BTN}
+                    </Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -472,7 +551,11 @@ export function HandoverCameraModal({
               </View>
 
               <Text style={styles.dialogTitle}>{STRINGS.HANDOVER_CAMERA.SUCCESS_ALERT_TITLE}</Text>
-              <Text style={styles.dialogSubtitle}>{STRINGS.HANDOVER_CAMERA.SUCCESS_ALERT_MSG}</Text>
+              <Text style={styles.dialogSubtitle}>
+                {isOwnerAfter
+                  ? STRINGS.HANDOVER_CAMERA.OWNER_SUCCESS_ALERT_MSG
+                  : STRINGS.HANDOVER_CAMERA.SUCCESS_ALERT_MSG}
+              </Text>
 
               <TouchableOpacity
                 style={styles.dialogCtaBtn}
