@@ -50,6 +50,8 @@ export interface Booking {
   timeline?: BookingTimelineItem[];
   isReviewed?: boolean;
   reviewId?: string;
+  isRenterReviewed?: boolean;
+  renterReviewId?: string;
   createdAt: string;
 }
 
@@ -216,6 +218,20 @@ export const bookingService = {
       photos,
       conditionNotes,
     });
+    bookingService.notifyBookingsUpdated();
+    return res.data.data;
+  },
+
+  updateAfterRentalPhotos: async (
+    bookingId: string,
+    photos: string[],
+    conditionNotes?: string
+  ): Promise<Booking> => {
+    const res = await apiClient.patch(`/bookings/${bookingId}/handover-owner`, {
+      photos,
+      conditionNotes,
+    });
+    bookingService.notifyBookingsUpdated();
     return res.data.data;
   },
 

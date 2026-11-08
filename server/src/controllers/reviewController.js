@@ -17,6 +17,7 @@ const calculateAndUpdateOwnerReputation = async (ownerId) => {
 
   const ownerReviews = await Review.find({
     ownerId: validOwnerId,
+    targetType: { $ne: 'renter' },
     $or: [
       { comment: { $exists: true, $ne: '' } },
       { rating: { $exists: true, $gte: 1 } },
@@ -51,13 +52,51 @@ const calculateAndUpdateOwnerReputation = async (ownerId) => {
   return { rating, ownerRating, trustScore, totalReviews };
 };
 
-// @desc    Create a review for a completed booking
+/**
+ * Calculate and update reputation metrics for renter from the 'reviews' collection (targetType: 'renter')
+ */
+const calculateAndUpdateRenterReputation = async (renterId) => {
+  if (!renterId) return null;
+  const validRenterId = mongoose.Types.ObjectId.isValid(renterId)
+    ? new mongoose.Types.ObjectId(renterId)
+    : null;
+  if (!validRenterId) return null;
+
+  const renterReviews = await Review.find({
+    renterId: validRenterId,
+    targetType: 'renter',
+    $or: [
+      { comment: { $exists: true, $ne: '' } },
+      { rating: { $exists: true, $gte: 1 } },
+    ],
+  });
+
+  const totalReviews = renterReviews.length;
+  let rating = 5.0;
+  let trustScore = 100;
+
+  if (totalReviews > 0) {
+    const sumRating = renterReviews.reduce((sum, r) => sum + (Number(r.rating) || 5), 0);
+    rating = Number((sumRating / totalReviews).toFixed(1));
+    trustScore = Math.max(0, Math.min(100, Math.round((rating / 5) * 100)));
+  }
+
+  await User.findByIdAndUpdate(validRenterId, {
+    rating,
+    totalReviews,
+    'trust.score': trustScore,
+  });
+
+  return { rating, trustScore, totalReviews };
+};
+
+// @desc    Create a review for a completed booking (Renter -> Device/Owner OR Owner -> Renter)
 // @route   POST /api/reviews
 // @access  Private
 const createReview = async (req, res) => {
   try {
-    const renterId = (req.auth && (req.auth.id || req.auth._id)) || (req.user && req.user._id);
-    const { bookingId, rating, comment, ownerRating, ownerFeedback, images } = req.body;
+    const userId = (req.auth && (req.auth.id || req.auth._id)) || (req.user && req.user._id);
+    const { bookingId, rating, comment, ownerRating, ownerFeedback, images, targetType } = req.body;
 
     if (!bookingId) {
       return res.status(400).json({ success: false, message: 'Booking ID is required.' });
@@ -72,19 +111,9 @@ const createReview = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please provide review comments.' });
     }
 
-    // Unified review: synchronize owner rating and feedback with overall rating & comment
-    const numOwnerRating = ownerRating !== undefined && ownerRating !== null ? Number(ownerRating) : numRating;
-    if (isNaN(numOwnerRating) || numOwnerRating < 1 || numOwnerRating > 5) {
-      return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5 stars.' });
-    }
-    const finalOwnerFeedback = ownerFeedback !== undefined && ownerFeedback !== null && ownerFeedback.trim() !== ''
-      ? ownerFeedback.trim()
-      : comment.trim();
-
-    // Validate booking
-    const booking = await Booking.findOne({ _id: bookingId, renterId }).populate('deviceId');
+    const booking = await Booking.findById(bookingId).populate('deviceId');
     if (!booking) {
-      return res.status(404).json({ success: false, message: 'Valid rental booking not found for your account.' });
+      return res.status(404).json({ success: false, message: 'Valid rental booking not found.' });
     }
 
     if (booking.status !== 'completed') {
@@ -94,6 +123,119 @@ const createReview = async (req, res) => {
       });
     }
 
+    const isOwnerCaller = String(booking.ownerId) === String(userId);
+    const isRenterCaller = String(booking.renterId) === String(userId);
+    const isRenterTarget = targetType === 'renter' || (isOwnerCaller && !isRenterCaller);
+
+    // ── CASE 1: OWNER REVIEWING RENTER (targetType: 'renter') ──
+    if (isRenterTarget) {
+      if (!isOwnerCaller) {
+        return res.status(403).json({
+          success: false,
+          message: 'Only the device owner of this booking can review the renter.',
+        });
+      }
+
+      if (booking.isRenterReviewed) {
+        return res.status(400).json({
+          success: false,
+          message: 'You have already reviewed the renter for this booking.',
+        });
+      }
+
+      let review;
+      const existingRenterReview = await Review.findOne({
+        bookingId: booking._id,
+        targetType: 'renter',
+      });
+
+      if (existingRenterReview) {
+        if (existingRenterReview.comment && existingRenterReview.comment.trim()) {
+          booking.isRenterReviewed = true;
+          booking.renterReviewId = existingRenterReview._id;
+          await booking.save();
+          return res.status(400).json({
+            success: false,
+            message: 'A review for this renter already exists for this booking.',
+          });
+        }
+        existingRenterReview.rating = numRating;
+        existingRenterReview.comment = comment.trim();
+        existingRenterReview.ownerRating = numRating;
+        existingRenterReview.ownerFeedback = comment.trim();
+        existingRenterReview.images = Array.isArray(images) ? images : [];
+        await existingRenterReview.save();
+        review = existingRenterReview;
+      } else {
+        review = await Review.create({
+          bookingId: booking._id,
+          deviceId: booking.deviceId?._id || booking.deviceId,
+          renterId: booking.renterId,
+          ownerId: booking.ownerId,
+          reviewerId: booking.ownerId,
+          targetType: 'renter',
+          rating: numRating,
+          comment: comment.trim(),
+          ownerRating: numRating,
+          ownerFeedback: comment.trim(),
+          images: Array.isArray(images) ? images : [],
+        });
+      }
+
+      booking.isRenterReviewed = true;
+      booking.renterReviewId = review._id;
+      if (!booking.timeline) booking.timeline = [];
+      booking.timeline.push({
+        status: 'renter_reviewed',
+        timestamp: new Date(),
+        note: `Owner submitted renter review (${numRating}★)`,
+      });
+      await booking.save();
+
+      try {
+        if (booking.renterId) {
+          await calculateAndUpdateRenterReputation(booking.renterId);
+        }
+      } catch (err) {
+        console.error('Error recalculating renter reputation:', err.message);
+      }
+
+      if (booking.renterId) {
+        createAndSendNotification({
+          userId: booking.renterId,
+          title: 'Owner Reviewed Your Rental! ⭐',
+          body: `The device owner left you a ${numRating}-star review for order #${booking.bookingCode}.`,
+          type: 'order',
+          relatedId: review._id,
+          data: {
+            bookingId: booking._id.toString(),
+            reviewId: review._id.toString(),
+            targetType: 'renter',
+          },
+        }).catch((err) => console.error('Error sending renter review notification:', err.message));
+      }
+
+      return res.status(201).json({
+        success: true,
+        message: 'Thank you for reviewing the renter!',
+        data: review,
+      });
+    }
+
+    // ── CASE 2: RENTER REVIEWING DEVICE & OWNER (targetType: 'device') ──
+    const renterId = userId;
+    if (!isRenterCaller) {
+      return res.status(404).json({ success: false, message: 'Valid rental booking not found for your account.' });
+    }
+
+    const numOwnerRating = ownerRating !== undefined && ownerRating !== null ? Number(ownerRating) : numRating;
+    if (isNaN(numOwnerRating) || numOwnerRating < 1 || numOwnerRating > 5) {
+      return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5 stars.' });
+    }
+    const finalOwnerFeedback = ownerFeedback !== undefined && ownerFeedback !== null && ownerFeedback.trim() !== ''
+      ? ownerFeedback.trim()
+      : comment.trim();
+
     if (booking.isReviewed) {
       return res.status(400).json({
         success: false,
@@ -102,7 +244,10 @@ const createReview = async (req, res) => {
     }
 
     let review;
-    const existingReview = await Review.findOne({ bookingId: booking._id });
+    const existingReview = await Review.findOne({
+      bookingId: booking._id,
+      targetType: { $ne: 'renter' },
+    });
     if (existingReview) {
       if (existingReview.comment && existingReview.comment.trim()) {
         booking.isReviewed = true;
@@ -152,6 +297,7 @@ const createReview = async (req, res) => {
       const devId = booking.deviceId._id || booking.deviceId;
       const deviceReviews = await Review.find({
         deviceId: devId,
+        targetType: { $ne: 'renter' },
         comment: { $exists: true, $ne: '' },
       });
       if (deviceReviews.length > 0) {
@@ -212,6 +358,7 @@ const getDeviceReviews = async (req, res) => {
     }
     const reviews = await Review.find({
       deviceId,
+      targetType: { $ne: 'renter' },
       comment: { $exists: true, $ne: '' },
     })
       .populate('renterId', 'name avatar trust isVerified')
@@ -231,9 +378,19 @@ const getDeviceReviews = async (req, res) => {
 const getBookingReview = async (req, res) => {
   try {
     const { bookingId } = req.params;
-    const review = await Review.findOne({ bookingId })
-      .populate('renterId', 'name avatar')
-      .populate('ownerId', 'name avatar');
+    const { targetType } = req.query;
+
+    const filter = { bookingId };
+    if (targetType === 'renter') {
+      filter.targetType = 'renter';
+    } else if (targetType === 'device' || targetType === 'owner') {
+      filter.targetType = { $ne: 'renter' };
+    }
+
+    const review = await Review.findOne(filter)
+      .populate('renterId', 'name avatar trust isVerified')
+      .populate('ownerId', 'name avatar trust isVerified')
+      .populate('reviewerId', 'name avatar trust isVerified');
 
     if (!review) {
       return res.status(404).json({ success: false, message: 'No review found for this booking.' });

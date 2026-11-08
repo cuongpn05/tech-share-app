@@ -1,12 +1,22 @@
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const Booking = require('../models/Booking');
 const Device = require('../models/Device');
 const Message = require('../models/Message');
 const Account = require('../models/Account');
 const Role = require('../models/Role');
+const Review = require('../models/Review');
 const jwt = require('jsonwebtoken');
 
 const { createAndSendNotification } = require('../services/notificationService');
+
+async function findUserByIdOrAccount(id) {
+  if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+  let user = await User.findById(id).lean();
+  if (user) return user;
+  user = await User.findOne({ accountId: id }).lean();
+  return user;
+}
 
 /**
  * Tìm kiếm thông tin User chủ thiết bị từ request
@@ -15,17 +25,17 @@ async function resolveOwnerUser(req) {
   let ownerUser = null;
   // 1. Kiểm tra từ req.user (khi qua middleware requireAuth)
   if (req.user && req.user._id) {
-    ownerUser = await User.findById(req.user._id).lean();
+    ownerUser = await findUserByIdOrAccount(req.user._id);
     if (ownerUser) return ownerUser;
   }
-  if (req.auth && req.auth.id) {
-    ownerUser = await User.findById(req.auth.id).lean();
+  if (req.auth && (req.auth.id || req.auth._id)) {
+    ownerUser = await findUserByIdOrAccount(req.auth.id || req.auth._id);
     if (ownerUser) return ownerUser;
   }
   // 2. Kiểm tra từ query params userId hoặc ownerId
   const requestedId = req.query.userId || req.query.ownerId;
   if (requestedId) {
-    ownerUser = await User.findById(requestedId).lean();
+    ownerUser = await findUserByIdOrAccount(requestedId);
     if (ownerUser) return ownerUser;
   }
   // 3. Kiểm tra từ JWT Bearer token trong Header
@@ -39,8 +49,8 @@ async function resolveOwnerUser(req) {
       } catch {
         decoded = jwt.decode(token);
       }
-      if (decoded?.id) {
-        ownerUser = await User.findById(decoded.id).lean();
+      if (decoded?.id || decoded?._id) {
+        ownerUser = await findUserByIdOrAccount(decoded.id || decoded._id);
         if (ownerUser) return ownerUser;
       }
     } catch {}
@@ -401,6 +411,104 @@ exports.getOwnerCustomerMessages = async (req, res) => {
   }
 };
 
+async function buildOwnerBookingQuery(ownerId, status) {
+  const ownerDevices = await Device.find({ ownerId, isDeleted: { $ne: true } }).select('_id').lean();
+  const deviceIds = ownerDevices.map((d) => d._id);
+  const query =
+    deviceIds.length > 0
+      ? { $or: [{ ownerId }, { deviceId: { $in: deviceIds } }] }
+      : { ownerId };
+
+  if (status && status !== 'all') {
+    query.status = status;
+  }
+  return query;
+}
+
+async function syncReviewsAndSerializeBookings(bookingDocs) {
+  if (!Array.isArray(bookingDocs) || bookingDocs.length === 0) return [];
+
+  const completedIds = bookingDocs
+    .filter((b) => b.status === 'completed')
+    .map((b) => b._id);
+
+  let deviceReviewMap = new Map();
+  let renterReviewMap = new Map();
+
+  if (completedIds.length > 0) {
+    try {
+      const existingReviews = await Review.find({ bookingId: { $in: completedIds } }).lean();
+      existingReviews.forEach((rev) => {
+        const bIdStr = String(rev.bookingId);
+        if (rev.targetType === 'renter') {
+          renterReviewMap.set(bIdStr, rev._id);
+        } else {
+          deviceReviewMap.set(bIdStr, rev._id);
+        }
+      });
+    } catch (err) {
+      console.warn('[Owner Controller] Không thể đồng bộ trạng thái đánh giá:', err.message);
+    }
+  }
+
+  return bookingDocs.map((doc) => {
+    const obj = typeof doc.toJSON === 'function' ? doc.toJSON({ virtuals: true }) : { ...doc };
+    const idStr = String(obj._id);
+
+    // Đảm bảo các trường phẳng (virtuals) luôn tồn tại ngay cả khi document từ .lean()
+    if (obj.totalDays === undefined && obj.startDate && obj.endDate) {
+      obj.totalDays = Math.max(
+        1,
+        Math.ceil((new Date(obj.endDate) - new Date(obj.startDate)) / (1000 * 60 * 60 * 24))
+      );
+    }
+    if (obj.pricing) {
+      if (obj.pricePerDayAtBooking === undefined) obj.pricePerDayAtBooking = obj.pricing.pricePerDayAtBooking;
+      if (obj.rentalFee === undefined) obj.rentalFee = obj.pricing.rentalFee;
+      if (obj.depositFee === undefined) obj.depositFee = obj.pricing.depositFee;
+      if (obj.voucherCode === undefined) obj.voucherCode = obj.pricing.voucherCode;
+      if (obj.voucherDiscount === undefined) obj.voucherDiscount = obj.pricing.voucherDiscount;
+      if (obj.totalAmount === undefined) obj.totalAmount = obj.pricing.totalAmount;
+    }
+    if (obj.delivery) {
+      if (obj.deliveryMethod === undefined) obj.deliveryMethod = obj.delivery.method || 'pickup';
+      if (obj.deliveryAddress === undefined) obj.deliveryAddress = obj.delivery.address || '';
+    }
+    if (obj.handover) {
+      if (obj.qrToken === undefined) obj.qrToken = obj.handover.qrToken;
+      if (!obj.handoverPhotos) {
+        obj.handoverPhotos = {
+          beforeRental: obj.handover.beforePhotos || [],
+          afterRental: obj.handover.afterPhotos || [],
+        };
+      }
+      if (!obj.conditionNotes) {
+        obj.conditionNotes = {
+          before: obj.handover.beforeNote || '',
+          after: obj.handover.afterNote || '',
+        };
+      }
+    }
+    if (obj.status === 'rejected' && !obj.rejectReason && obj.statusReason) {
+      obj.rejectReason = obj.statusReason;
+    }
+    if (obj.status === 'cancelled' && !obj.cancelReason && obj.statusReason) {
+      obj.cancelReason = obj.statusReason;
+    }
+
+    if (deviceReviewMap.has(idStr)) {
+      obj.isReviewed = true;
+      obj.reviewId = deviceReviewMap.get(idStr);
+    }
+    if (renterReviewMap.has(idStr)) {
+      obj.isRenterReviewed = true;
+      obj.renterReviewId = renterReviewMap.get(idStr);
+    }
+
+    return obj;
+  });
+}
+
 /**
  * Lấy danh sách các yêu cầu thuê mới từ khách hàng đang chờ phê duyệt (status: 'pending')
  * Lưu ý lấy chính xác theo User ID của Chủ máy (Owner)
@@ -412,14 +520,14 @@ exports.getOwnerPendingBookings = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Không tìm thấy thông tin chủ thiết bị' });
     }
 
-    const bookings = await Booking.find({
-      ownerId: ownerUser._id,
-      status: 'pending',
-    })
+    const query = await buildOwnerBookingQuery(ownerUser._id, 'pending');
+
+    const bookingDocs = await Booking.find(query)
       .populate('renterId', 'name username email phone avatar isVerified trust trustScore rating totalReviews address')
       .populate('deviceId', 'name images brand model category pricePerDay dailyRate depositAmount depositValue condition description location addressText specs')
-      .sort({ createdAt: -1 })
-      .lean();
+      .sort({ createdAt: -1 });
+
+    const bookings = await syncReviewsAndSerializeBookings(bookingDocs);
 
     return res.status(200).json({
       success: true,
@@ -450,16 +558,14 @@ exports.getOwnerBookings = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Không tìm thấy thông tin chủ thiết bị' });
     }
 
-    const query = { ownerId: ownerUser._id };
-    if (req.query.status && req.query.status !== 'all') {
-      query.status = req.query.status;
-    }
+    const query = await buildOwnerBookingQuery(ownerUser._id, req.query.status);
 
-    const bookings = await Booking.find(query)
+    const bookingDocs = await Booking.find(query)
       .populate('renterId', 'name username email phone avatar isVerified trust trustScore rating totalReviews address')
       .populate('deviceId', 'name images brand model category pricePerDay dailyRate depositAmount depositValue condition description location addressText specs')
-      .sort({ createdAt: -1 })
-      .lean();
+      .sort({ createdAt: -1 });
+
+    const bookings = await syncReviewsAndSerializeBookings(bookingDocs);
 
     return res.status(200).json({
       success: true,
@@ -481,7 +587,7 @@ exports.getOwnerBookings = async (req, res) => {
 };
 
 /**
- * Phê duyệt (approved) hoặc Từ chối (rejected) yêu cầu thuê từ khách
+ * Cập nhật trạng thái đơn thuê bởi Chủ máy (approved, rejected, cancelled, active, completed)
  */
 exports.updateBookingStatus = async (req, res) => {
   try {
@@ -493,20 +599,25 @@ exports.updateBookingStatus = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Chưa xác thực thông tin chủ thiết bị' });
     }
 
-    if (!['approved', 'rejected', 'cancelled'].includes(status)) {
-      return res.status(400).json({ success: false, message: 'Trạng thái xử lý không hợp lệ (approved/rejected)' });
+    if (!['approved', 'rejected', 'cancelled', 'active', 'completed'].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Trạng thái xử lý không hợp lệ (approved/rejected/cancelled/active/completed)',
+      });
     }
 
     const booking = await Booking.findById(bookingId)
-      .populate('deviceId', 'name')
-      .populate('renterId', 'name email phone');
+      .populate('deviceId', 'name ownerId')
+      .populate('renterId', 'name email phone avatar');
 
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy đơn thuê' });
     }
 
-    // Kiểm tra quyền sở hữu đơn
-    const isOwner = String(booking.ownerId) === String(ownerUser._id);
+    // Kiểm tra quyền sở hữu đơn (theo booking.ownerId hoặc device.ownerId)
+    const isOwner =
+      String(booking.ownerId) === String(ownerUser._id) ||
+      (booking.deviceId?.ownerId && String(booking.deviceId.ownerId) === String(ownerUser._id));
     const userRole = (req.auth && req.auth.role) || (req.user && req.user.role) || ownerUser.role;
     const isAdmin = userRole === 'admin';
 
@@ -519,15 +630,38 @@ exports.updateBookingStatus = async (req, res) => {
     }
 
     booking.status = status;
-    if (status === 'rejected' || status === 'cancelled') {
+    const devId = booking.deviceId?._id || booking.deviceId;
+
+    if (status === 'approved') {
+      if (!booking.qrToken) {
+        booking.qrToken = `TSQR-${booking.bookingCode}-${booking._id.toString().slice(-4).toUpperCase()}`;
+      }
+    } else if (status === 'rejected' || status === 'cancelled') {
       booking.statusReason = reason || 'Chủ máy từ chối yêu cầu thuê';
       booking.rejectReason = reason || 'Chủ máy từ chối yêu cầu thuê';
+    } else if (status === 'active') {
+      if (devId) {
+        await Device.findByIdAndUpdate(devId, { status: 'rented' }).catch(() => {});
+      }
+    } else if (status === 'completed') {
+      booking.paymentStatus = 'refunded';
+      if (devId) {
+        await Device.findByIdAndUpdate(devId, { status: 'available' }).catch(() => {});
+      }
     }
 
-    const actionText = status === 'approved'
-      ? 'Chủ máy đã phê duyệt yêu cầu thuê'
-      : `Chủ máy từ chối yêu cầu thuê. Lý do: ${reason || 'Không có'}`;
+    let actionText = 'Chủ máy cập nhật trạng thái đơn thuê';
+    if (status === 'approved') {
+      actionText = 'Chủ máy đã phê duyệt yêu cầu thuê';
+    } else if (status === 'rejected' || status === 'cancelled') {
+      actionText = `Chủ máy từ chối yêu cầu thuê. Lý do: ${reason || 'Không có'}`;
+    } else if (status === 'active') {
+      actionText = 'Chủ máy đã bàn giao thiết bị cho khách thuê (Đang thuê)';
+    } else if (status === 'completed') {
+      actionText = 'Đã nhận lại thiết bị và hoàn tất hợp đồng thuê';
+    }
 
+    if (!booking.timeline) booking.timeline = [];
     booking.timeline.push({
       status,
       timestamp: new Date(),
@@ -552,7 +686,7 @@ exports.updateBookingStatus = async (req, res) => {
             status: 'approved',
           },
         }).catch((err) => console.error('❌ Lỗi gửi thông báo duyệt cho khách:', err.message));
-      } else {
+      } else if (status === 'rejected' || status === 'cancelled') {
         await createAndSendNotification({
           userId: renterIdVal,
           title: 'Yêu cầu thuê đã bị từ chối ❌',
@@ -564,6 +698,30 @@ exports.updateBookingStatus = async (req, res) => {
             status: 'rejected',
           },
         }).catch((err) => console.error('❌ Lỗi gửi thông báo từ chối cho khách:', err.message));
+      } else if (status === 'active') {
+        await createAndSendNotification({
+          userId: renterIdVal,
+          title: 'Thiết bị đã được bàn giao! 📱',
+          body: `Đơn thuê "${deviceName}" (#${booking.bookingCode}) đã bắt đầu tính thời gian thuê. Chúc bạn trải nghiệm tốt!`,
+          type: 'order',
+          relatedId: booking._id,
+          data: {
+            bookingId: booking._id.toString(),
+            status: 'active',
+          },
+        }).catch((err) => console.error('❌ Lỗi gửi thông báo bàn giao cho khách:', err.message));
+      } else if (status === 'completed') {
+        await createAndSendNotification({
+          userId: renterIdVal,
+          title: 'Đơn thuê đã hoàn tất! 🎉',
+          body: `Chủ máy đã xác nhận nhận lại "${deviceName}" (#${booking.bookingCode}). Hãy để lại đánh giá trải nghiệm thuê nhé!`,
+          type: 'order',
+          relatedId: booking._id,
+          data: {
+            bookingId: booking._id.toString(),
+            status: 'completed',
+          },
+        }).catch((err) => console.error('❌ Lỗi gửi thông báo hoàn tất cho khách:', err.message));
       }
     }
 
@@ -587,9 +745,17 @@ exports.updateBookingStatus = async (req, res) => {
       }
     } catch {}
 
+    const statusMessages = {
+      approved: 'Đã phê duyệt yêu cầu thuê thành công!',
+      rejected: 'Đã từ chối yêu cầu thuê!',
+      cancelled: 'Đã hủy đơn thuê!',
+      active: 'Đã xác nhận bàn giao thiết bị thành công!',
+      completed: 'Đã nhận lại thiết bị và hoàn tất đơn thuê!',
+    };
+
     return res.status(200).json({
       success: true,
-      message: status === 'approved' ? 'Đã phê duyệt yêu cầu thuê thành công!' : 'Đã từ chối yêu cầu thuê!',
+      message: statusMessages[status] || 'Đã cập nhật trạng thái đơn thuê!',
       data: booking,
     });
   } catch (error) {

@@ -2,11 +2,12 @@ import { apiClient } from '../config/api';
 
 export interface CreateReviewPayload {
   bookingId: string;
-  rating: number; // 1–5 (Đánh giá chung / Thiết bị & Dịch vụ)
+  rating: number; // 1–5 (Đánh giá chung / Thiết bị & Dịch vụ hoặc Khách thuê)
   comment: string;
   ownerRating?: number; // 1–5 (Tự động đồng bộ với rating nếu không truyền)
   ownerFeedback?: string;
   images?: string[];
+  targetType?: 'device' | 'owner' | 'renter';
 }
 
 export interface ReviewItem {
@@ -16,6 +17,7 @@ export interface ReviewItem {
   renterId: any; // populated: { _id, name, avatar, trustScore }
   reviewerId?: any;
   ownerId: any;
+  targetType?: 'device' | 'owner' | 'renter';
   rating: number;
   comment: string;
   ownerRating: number;
@@ -35,8 +37,13 @@ export const reviewService = {
     return res.data.data;
   },
 
-  getBookingReview: async (bookingId: string): Promise<ReviewItem> => {
-    const res = await apiClient.get(`/reviews/booking/${bookingId}`);
+  getBookingReview: async (
+    bookingId: string,
+    targetType?: 'device' | 'owner' | 'renter'
+  ): Promise<ReviewItem> => {
+    const res = await apiClient.get(`/reviews/booking/${bookingId}`, {
+      params: targetType ? { targetType } : {},
+    });
     return res.data.data;
   },
 

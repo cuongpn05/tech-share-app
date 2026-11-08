@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -24,18 +24,41 @@ interface ReviewModalProps {
   onClose: () => void;
   booking: Booking | null;
   onSuccess: () => void;
+  mode?: 'renter_to_owner' | 'owner_to_renter';
 }
 
-export function ReviewModal({ visible, onClose, booking, onSuccess }: ReviewModalProps) {
+export function ReviewModal({
+  visible,
+  onClose,
+  booking,
+  onSuccess,
+  mode = 'renter_to_owner',
+}: ReviewModalProps) {
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [loading, setLoading] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const isRenterReview = mode === 'owner_to_renter';
+
+  useEffect(() => {
+    if (visible) {
+      setRating(5);
+      setComment('');
+      setErrorMessage(null);
+      setShowSuccessModal(false);
+    }
+  }, [visible, booking?._id, mode]);
+
   const deviceName = booking?.deviceId?.name || STRINGS.REVIEW_MODAL.DEFAULT_DEVICE_NAME;
   const deviceImage = booking?.deviceId?.images?.[0] || 'https://via.placeholder.com/150';
   const ownerName = booking?.ownerId?.name || STRINGS.REVIEW_MODAL.DEFAULT_OWNER_NAME;
+  const renterName =
+    booking?.renterId?.name ||
+    booking?.renterId?.username ||
+    STRINGS.REVIEW_MODAL.DEFAULT_RENTER_NAME;
+  const renterAvatar = booking?.renterId?.avatar || deviceImage;
 
   const toggleTag = (tag: string) => {
     if (comment.includes(tag)) {
@@ -43,6 +66,7 @@ export function ReviewModal({ visible, onClose, booking, onSuccess }: ReviewModa
         comment
           .replace(tag, '')
           .replace(/,\s*,/g, ',')
+          .replace(/^,\s*|\s*,\s*$/g, '')
           .trim()
       );
     } else {
@@ -54,19 +78,33 @@ export function ReviewModal({ visible, onClose, booking, onSuccess }: ReviewModa
     if (!booking) return;
 
     if (!comment.trim()) {
-      setErrorMessage(STRINGS.REVIEW_MODAL.INCOMPLETE_ALERT_MSG);
+      setErrorMessage(
+        isRenterReview
+          ? STRINGS.REVIEW_MODAL.RENTER_INCOMPLETE_ALERT_MSG
+          : STRINGS.REVIEW_MODAL.INCOMPLETE_ALERT_MSG
+      );
       return;
     }
 
     try {
       setLoading(true);
-      await reviewService.createReview({
-        bookingId: booking._id,
-        rating,
-        comment: comment.trim(),
-        ownerRating: rating,
-        ownerFeedback: comment.trim(),
-      });
+      if (isRenterReview) {
+        await reviewService.createReview({
+          bookingId: booking._id,
+          rating,
+          comment: comment.trim(),
+          targetType: 'renter',
+        });
+      } else {
+        await reviewService.createReview({
+          bookingId: booking._id,
+          rating,
+          comment: comment.trim(),
+          ownerRating: rating,
+          ownerFeedback: comment.trim(),
+          targetType: 'device',
+        });
+      }
 
       setShowSuccessModal(true);
     } catch (error: any) {
@@ -78,6 +116,10 @@ export function ReviewModal({ visible, onClose, booking, onSuccess }: ReviewModa
   };
 
   if (!booking) return null;
+
+  const activeTags = isRenterReview
+    ? STRINGS.REVIEW_MODAL.RENTER_TAGS
+    : STRINGS.REVIEW_MODAL.TAGS || STRINGS.REVIEW_MODAL.DEVICE_TAGS;
 
   return (
     <Modal visible={visible} transparent={true} animationType="slide" onRequestClose={onClose}>
@@ -96,7 +138,9 @@ export function ReviewModal({ visible, onClose, booking, onSuccess }: ReviewModa
                 <Ionicons name="star" size={20} color={colors.light.warning} />
               </View>
               <View>
-                <Text style={styles.title}>{STRINGS.REVIEW_MODAL.TITLE}</Text>
+                <Text style={styles.title}>
+                  {isRenterReview ? STRINGS.REVIEW_MODAL.RENTER_TITLE : STRINGS.REVIEW_MODAL.TITLE}
+                </Text>
                 <Text style={styles.subtitle}>{STRINGS.REVIEW_MODAL.ORDER_PREFIX}{booking.bookingCode}</Text>
               </View>
             </View>
@@ -106,15 +150,21 @@ export function ReviewModal({ visible, onClose, booking, onSuccess }: ReviewModa
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollBody}>
-            {/* Device Info Card */}
+            {/* Device / Renter Info Card */}
             <View style={styles.deviceCard}>
-              <Image source={{ uri: deviceImage }} style={styles.deviceThumb} />
+              <Image
+                source={{ uri: isRenterReview ? renterAvatar : deviceImage }}
+                style={styles.deviceThumb}
+              />
               <View style={styles.deviceInfo}>
                 <Text style={styles.deviceName} numberOfLines={2}>
-                  {deviceName}
+                  {isRenterReview ? renterName : deviceName}
                 </Text>
                 <Text style={styles.ownerText}>
-                  {STRINGS.REVIEW_MODAL.OWNER_PREFIX}<Text style={{ fontWeight: '700' }}>{ownerName}</Text>
+                  {isRenterReview ? STRINGS.REVIEW_MODAL.DEVICE_PREFIX : STRINGS.REVIEW_MODAL.OWNER_PREFIX}
+                  <Text style={{ fontWeight: '700' }}>
+                    {isRenterReview ? deviceName : ownerName}
+                  </Text>
                 </Text>
               </View>
             </View>
@@ -124,11 +174,15 @@ export function ReviewModal({ visible, onClose, booking, onSuccess }: ReviewModa
               <View style={styles.sectionHeaderRow}>
                 <Ionicons name="sparkles" size={18} color={colors.light.primary} />
                 <Text style={styles.sectionTitle}>
-                  {STRINGS.REVIEW_MODAL.SECTION_TITLE || STRINGS.REVIEW_MODAL.DEVICE_SECTION_TITLE}
+                  {isRenterReview
+                    ? STRINGS.REVIEW_MODAL.RENTER_SECTION_TITLE
+                    : STRINGS.REVIEW_MODAL.SECTION_TITLE || STRINGS.REVIEW_MODAL.DEVICE_SECTION_TITLE}
                 </Text>
               </View>
               <Text style={styles.sectionSubtitle}>
-                {STRINGS.REVIEW_MODAL.SECTION_SUBTITLE || STRINGS.REVIEW_MODAL.DEVICE_SECTION_SUBTITLE}
+                {isRenterReview
+                  ? STRINGS.REVIEW_MODAL.RENTER_SECTION_SUBTITLE
+                  : STRINGS.REVIEW_MODAL.SECTION_SUBTITLE || STRINGS.REVIEW_MODAL.DEVICE_SECTION_SUBTITLE}
               </Text>
 
               {/* Star selector */}
@@ -152,7 +206,7 @@ export function ReviewModal({ visible, onClose, booking, onSuccess }: ReviewModa
 
               {/* Quick tags */}
               <View style={styles.tagsContainer}>
-                {(STRINGS.REVIEW_MODAL.TAGS || STRINGS.REVIEW_MODAL.DEVICE_TAGS).map((tag) => {
+                {activeTags.map((tag) => {
                   const isSelected = comment.includes(tag);
                   return (
                     <TouchableOpacity
@@ -171,7 +225,11 @@ export function ReviewModal({ visible, onClose, booking, onSuccess }: ReviewModa
               {/* Unified comment input */}
               <TextInput
                 style={[styles.textInput, { minHeight: 90 }]}
-                placeholder={STRINGS.REVIEW_MODAL.COMMENT_PLACEHOLDER || STRINGS.REVIEW_MODAL.DEVICE_COMMENT_PLACEHOLDER}
+                placeholder={
+                  isRenterReview
+                    ? STRINGS.REVIEW_MODAL.RENTER_COMMENT_PLACEHOLDER
+                    : STRINGS.REVIEW_MODAL.COMMENT_PLACEHOLDER || STRINGS.REVIEW_MODAL.DEVICE_COMMENT_PLACEHOLDER
+                }
                 placeholderTextColor={colors.light.textSecondary}
                 value={comment}
                 onChangeText={setComment}
@@ -213,7 +271,11 @@ export function ReviewModal({ visible, onClose, booking, onSuccess }: ReviewModa
               </View>
 
               <Text style={styles.dialogTitle}>{STRINGS.REVIEW_MODAL.SUCCESS_ALERT_TITLE}</Text>
-              <Text style={styles.dialogMessage}>{STRINGS.REVIEW_MODAL.SUCCESS_ALERT_MSG}</Text>
+              <Text style={styles.dialogMessage}>
+                {isRenterReview
+                  ? STRINGS.REVIEW_MODAL.RENTER_SUCCESS_ALERT_MSG
+                  : STRINGS.REVIEW_MODAL.SUCCESS_ALERT_MSG}
+              </Text>
 
               <TouchableOpacity
                 style={styles.dialogCtaBtn}

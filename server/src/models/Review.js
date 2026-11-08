@@ -10,7 +10,7 @@ const reviewSchema = new mongoose.Schema({
   reviewerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   targetType: {
     type: String,
-    enum: ['device', 'owner'],
+    enum: ['device', 'owner', 'renter'],
     default: 'device',
   },
 
@@ -25,10 +25,10 @@ const reviewSchema = new mongoose.Schema({
   toObject: { virtuals: true },
 });
 
-// Auto-assign reviewerId = renterId and sync unified rating/feedback
+// Auto-assign reviewerId based on targetType and sync unified rating/feedback
 reviewSchema.pre('validate', function (next) {
   if (!this.reviewerId) {
-    this.reviewerId = this.renterId;
+    this.reviewerId = this.targetType === 'renter' ? this.ownerId : this.renterId;
   }
   if ((this.ownerRating === undefined || this.ownerRating === null) && this.rating) {
     this.ownerRating = this.rating;

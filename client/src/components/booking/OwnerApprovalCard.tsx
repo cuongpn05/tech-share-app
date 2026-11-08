@@ -18,6 +18,10 @@ export interface OwnerApprovalCardProps {
   onChat?: (booking: Booking) => void;
   onApprove?: (booking: Booking) => void;
   onReject?: (booking: Booking) => void;
+  onHandover?: (booking: Booking) => void;
+  onComplete?: (booking: Booking) => void;
+  onTakeReturnPhotos?: (booking: Booking) => void;
+  onReviewRenter?: (booking: Booking) => void;
   onViewDetails?: (booking: Booking) => void;
   isProcessing?: boolean;
 }
@@ -26,7 +30,14 @@ export const OwnerApprovalCard: React.FC<OwnerApprovalCardProps> = ({
   booking,
   onPress,
   onChat,
+  onApprove,
+  onReject,
+  onHandover,
+  onComplete,
+  onTakeReturnPhotos,
+  onReviewRenter,
   onViewDetails,
+  isProcessing = false,
 }) => {
   const navigation = useNavigation<any>();
   const strings = OWNER_STRINGS.PENDING_REQUESTS;
@@ -37,17 +48,30 @@ export const OwnerApprovalCard: React.FC<OwnerApprovalCardProps> = ({
   const renterAvatar = renter.avatar;
   const isVerified = Boolean(renter.trust?.isVerified || renter.isVerified);
 
-  const deviceName = device.name || strings.DEFAULT_DEVICE_NAME;
+  const deviceName = device.name || device.title || strings.DEFAULT_DEVICE_NAME;
   const deviceImage =
     (Array.isArray(device.images) && device.images.length > 0 ? device.images[0] : null) ||
     device.image ||
     '';
 
-  const totalDays = booking.totalDays || 1;
+  const totalDays =
+    booking.totalDays ||
+    (booking.startDate && booking.endDate
+      ? Math.max(
+          1,
+          Math.ceil(
+            (new Date(booking.endDate).getTime() - new Date(booking.startDate).getTime()) /
+              (1000 * 60 * 60 * 24)
+          )
+        )
+      : 1);
+
   const rentalFee =
     booking.rentalFee ||
     (booking as any).pricing?.rentalFee ||
-    ((booking.pricePerDayAtBooking || device.pricePerDay || 0) * totalDays);
+    booking.totalAmount ||
+    (booking as any).pricing?.totalAmount ||
+    (booking.pricePerDayAtBooking || device.pricePerDay || 0) * totalDays;
 
   const formatShortDate = (dateStr?: string) => {
     if (!dateStr) return '';
@@ -65,11 +89,64 @@ export const OwnerApprovalCard: React.FC<OwnerApprovalCardProps> = ({
       ? `${startDateStr} - ${endDateStr} (${totalDays} ${strings.DAYS_UNIT})`
       : `${totalDays} ${strings.DAYS_UNIT}`;
 
-  const formattedRentalPrice = `${(rentalFee || 0).toLocaleString('vi-VN')} ${strings.CURRENCY_SUFFIX}`;
+  const formattedRentalPrice = `${(rentalFee || 0).toLocaleString('en-US')} ${strings.CURRENCY_SUFFIX}`;
 
-  const isPending = booking.status === 'pending';
-  const isApproved = booking.status === 'approved';
-  const isRejected = booking.status === 'rejected';
+  const getStatusMeta = (status?: string) => {
+    switch (status) {
+      case 'pending':
+        return {
+          label: strings.STATUS_PENDING,
+          icon: 'time-outline' as const,
+          color: theme.colors.amber,
+          bgColor: theme.colors.amberLight,
+        };
+      case 'approved':
+        return {
+          label: strings.STATUS_APPROVED,
+          icon: 'checkmark-circle-outline' as const,
+          color: theme.colors.brand[600],
+          bgColor: theme.colors.brand[50],
+        };
+      case 'active':
+        return {
+          label: strings.STATUS_ACTIVE,
+          icon: 'play-circle-outline' as const,
+          color: theme.colors.blue,
+          bgColor: theme.colors.blueLight,
+        };
+      case 'completed':
+        return {
+          label: strings.STATUS_COMPLETED,
+          icon: 'checkmark-done-circle-outline' as const,
+          color: theme.colors.green,
+          bgColor: theme.colors.greenLight,
+        };
+      case 'cancelled':
+        return {
+          label: strings.STATUS_CANCELLED,
+          icon: 'close-circle-outline' as const,
+          color: theme.colors.red,
+          bgColor: theme.colors.redLight,
+        };
+      case 'disputed':
+        return {
+          label: strings.STATUS_DISPUTED,
+          icon: 'warning-outline' as const,
+          color: theme.colors.red,
+          bgColor: theme.colors.redLight,
+        };
+      case 'rejected':
+      default:
+        return {
+          label: strings.STATUS_REJECTED,
+          icon: 'close-circle-outline' as const,
+          color: theme.colors.red,
+          bgColor: theme.colors.redLight,
+        };
+    }
+  };
+
+  const statusMeta = getStatusMeta(booking.status);
 
   const handleCardPress = () => {
     if (onPress) {
@@ -100,41 +177,21 @@ export const OwnerApprovalCard: React.FC<OwnerApprovalCardProps> = ({
         <View
           style={[
             styles.statusBadge,
-            isPending && styles.statusBadgePending,
-            isApproved && styles.statusBadgeApproved,
-            isRejected && styles.statusBadgeRejected,
+            { backgroundColor: statusMeta.bgColor },
           ]}
         >
           <Ionicons
-            name={
-              isPending
-                ? 'time-outline'
-                : isApproved
-                ? 'checkmark-circle-outline'
-                : 'close-circle-outline'
-            }
+            name={statusMeta.icon}
             size={12}
-            color={
-              isPending
-                ? theme.colors.amber
-                : isApproved
-                ? theme.colors.green
-                : theme.colors.red
-            }
+            color={statusMeta.color}
           />
           <Text
             style={[
               styles.statusBadgeText,
-              isPending && styles.statusTextPending,
-              isApproved && styles.statusTextApproved,
-              isRejected && styles.statusTextRejected,
+              { color: statusMeta.color },
             ]}
           >
-            {isPending
-              ? strings.STATUS_PENDING
-              : isApproved
-              ? strings.STATUS_APPROVED
-              : strings.STATUS_REJECTED}
+            {statusMeta.label}
           </Text>
         </View>
       </View>
@@ -209,8 +266,108 @@ export const OwnerApprovalCard: React.FC<OwnerApprovalCardProps> = ({
           )}
         </View>
 
-        {/* Bên phải: Nút icon Chat nhanh (32x32) và Icon chevron-forward */}
+        {/* Bên phải: Nút thao tác nhanh theo trạng thái, Chat nhanh và Icon chevron-forward */}
         <View style={styles.footerActions}>
+          {booking.status === 'pending' && (onApprove || onReject) && (
+            <View style={styles.inlineActionGroup}>
+              {onReject && (
+                <TouchableOpacity
+                  style={styles.rejectActionBtn}
+                  onPress={(e) => {
+                    e.stopPropagation?.();
+                    onReject(booking);
+                  }}
+                  disabled={isProcessing}
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.rejectActionText}>{strings.REJECT_BUTTON}</Text>
+                </TouchableOpacity>
+              )}
+              {onApprove && (
+                <TouchableOpacity
+                  style={styles.approveActionBtn}
+                  onPress={(e) => {
+                    e.stopPropagation?.();
+                    onApprove(booking);
+                  }}
+                  disabled={isProcessing}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="checkmark-circle" size={14} color={theme.colors.white} />
+                  <Text style={styles.approveActionText}>{strings.APPROVE_BUTTON}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {booking.status === 'approved' && onHandover && (
+            <TouchableOpacity
+              style={styles.handoverActionBtn}
+              onPress={(e) => {
+                e.stopPropagation?.();
+                onHandover(booking);
+              }}
+              disabled={isProcessing}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="play-circle" size={14} color={theme.colors.white} />
+              <Text style={styles.approveActionText}>{strings.HANDOVER_BUTTON}</Text>
+            </TouchableOpacity>
+          )}
+
+          {booking.status === 'active' && (onTakeReturnPhotos || onComplete) && (
+            <View style={styles.inlineActionGroup}>
+              {onTakeReturnPhotos && (
+                <TouchableOpacity
+                  style={styles.chatIconButton}
+                  onPress={(e) => {
+                    e.stopPropagation?.();
+                    onTakeReturnPhotos(booking);
+                  }}
+                  disabled={isProcessing}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="camera-outline" size={15} color={theme.colors.brand[600]} />
+                </TouchableOpacity>
+              )}
+              {onComplete && (
+                <TouchableOpacity
+                  style={styles.completeActionBtn}
+                  onPress={(e) => {
+                    e.stopPropagation?.();
+                    onComplete(booking);
+                  }}
+                  disabled={isProcessing}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="checkmark-done-circle" size={14} color={theme.colors.white} />
+                  <Text style={styles.approveActionText}>{strings.COMPLETE_BUTTON}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {booking.status === 'completed' && (
+            booking.isRenterReviewed ? (
+              <View style={styles.reviewedRenterPill}>
+                <Ionicons name="checkmark-circle" size={13} color={theme.colors.green} />
+                <Text style={styles.reviewedRenterPillText}>{strings.RENTER_REVIEWED_BADGE}</Text>
+              </View>
+            ) : onReviewRenter ? (
+              <TouchableOpacity
+                style={styles.reviewRenterBtn}
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  onReviewRenter(booking);
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="star" size={13} color={theme.colors.white} />
+                <Text style={styles.reviewRenterBtnText}>{strings.REVIEW_RENTER_BUTTON}</Text>
+              </TouchableOpacity>
+            ) : null
+          )}
+
           {onChat && (
             <TouchableOpacity
               style={styles.chatIconButton}
@@ -400,6 +557,84 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  inlineActionGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  rejectActionBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: theme.colors.redLight,
+    borderWidth: 1,
+    borderColor: theme.colors.redBorder,
+  },
+  rejectActionText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: theme.colors.red,
+  },
+  approveActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: theme.colors.brand[600],
+  },
+  handoverActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: theme.colors.blue,
+  },
+  completeActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: theme.colors.green,
+  },
+  approveActionText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: theme.colors.white,
+  },
+  reviewRenterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: theme.colors.amber,
+  },
+  reviewRenterBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: theme.colors.white,
+  },
+  reviewedRenterPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 10,
+    backgroundColor: theme.colors.greenLight,
+  },
+  reviewedRenterPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: theme.colors.green,
   },
   chatIconButton: {
     width: 32,

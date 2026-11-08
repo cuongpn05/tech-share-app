@@ -178,6 +178,7 @@ export function BookingDetailScreen({
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const [cancelModalVisible, setCancelModalVisible] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   const fetchDetail = useCallback(async () => {
     try {
@@ -257,6 +258,62 @@ export function BookingDetailScreen({
     }
   };
 
+  const handleOwnerUpdateStatus = async (
+    nextStatus: 'approved' | 'rejected' | 'active' | 'completed',
+    confirmTitle?: string,
+    confirmMsg?: string
+  ) => {
+    if (!booking) return;
+
+    // Only ask for confirmation when rejecting the booking
+    if (nextStatus === 'rejected') {
+      Alert.alert(
+        confirmTitle || 'Decline Booking Request',
+        confirmMsg || `Are you sure you want to decline booking #${booking.bookingCode}?`,
+        [
+          { text: STRINGS.COMMON.CANCEL, style: 'cancel' },
+          {
+            text: STRINGS.COMMON.CONFIRM,
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                setIsUpdatingStatus(true);
+                await bookingService.updateBookingStatusByOwner(
+                  booking._id,
+                  'rejected',
+                  'Owner unavailable during requested dates'
+                );
+                await fetchDetail();
+              } catch (err: any) {
+                Alert.alert(
+                  STRINGS.BOOKING_DETAIL.ALERT_ERROR_TITLE,
+                  err.response?.data?.message || 'Unable to update booking status'
+                );
+              } finally {
+                setIsUpdatingStatus(false);
+              }
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    // Execute immediately without confirmation for approved, active, and completed
+    try {
+      setIsUpdatingStatus(true);
+      await bookingService.updateBookingStatusByOwner(booking._id, nextStatus);
+      await fetchDetail();
+    } catch (err: any) {
+      Alert.alert(
+        STRINGS.BOOKING_DETAIL.ALERT_ERROR_TITLE,
+        err.response?.data?.message || 'Unable to update booking status'
+      );
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -280,6 +337,15 @@ export function BookingDetailScreen({
 
   const device = booking.deviceId || {};
   const owner = booking.ownerId || {};
+  const renter = booking.renterId || {};
+  const currentUserId = currentUser?._id || (currentUser as any)?.id;
+  const ownerIdVal = (booking.ownerId as any)?._id || booking.ownerId;
+  const renterIdVal = (booking.renterId as any)?._id || booking.renterId;
+  const isOwner = Boolean(
+    currentUserId &&
+      (String(ownerIdVal) === String(currentUserId) ||
+        (currentUser?.role === 'owner' && String(renterIdVal) !== String(currentUserId)))
+  );
   const statusConfig = STATUS_CONFIG[booking.status] || STATUS_CONFIG.pending;
   const paymentConfig =
     PAYMENT_STATUS_CONFIG[booking.paymentStatus] || PAYMENT_STATUS_CONFIG.unpaid;
@@ -314,10 +380,24 @@ export function BookingDetailScreen({
     (booking as any).handover?.beforeNote ||
     '';
 
+  const afterPhotos: string[] =
+    booking.handoverPhotos?.afterRental?.length
+      ? booking.handoverPhotos.afterRental
+      : (booking as any).handover?.afterPhotos || [];
+
+  const afterNote: string =
+    booking.conditionNotes?.after ||
+    (booking as any).handover?.afterNote ||
+    '';
+
   const showHandoverCard =
     booking.status === 'approved' ||
     booking.status === 'active' ||
     booking.status === 'completed';
+
+  const showReturnInspectionCard =
+    (booking.status === 'active' || booking.status === 'completed') &&
+    (isOwner || afterPhotos.length > 0);
 
   return (
     <View style={styles.container}>
@@ -390,24 +470,40 @@ export function BookingDetailScreen({
 
           <View style={styles.subtleDivider} />
 
-          {/* Owner Info & Direct Chat */}
+          {/* Owner / Renter Info & Direct Chat */}
           <View style={styles.ownerRow}>
             <Image
-              source={{ uri: owner.avatar || 'https://via.placeholder.com/100' }}
+              source={{
+                uri:
+                  (isOwner ? renter.avatar : owner.avatar) ||
+                  'https://via.placeholder.com/100',
+              }}
               style={styles.ownerAvatar}
             />
             <View style={styles.ownerInfo}>
               <Text style={styles.ownerName} numberOfLines={1}>
-                {owner.name || STRINGS.BOOKING_DETAIL.DEFAULT_OWNER_NAME}
+                {isOwner
+                  ? renter.name || renter.username || 'Customer'
+                  : owner.name || STRINGS.BOOKING_DETAIL.DEFAULT_OWNER_NAME}
               </Text>
               <View style={styles.ownerMetaRow}>
                 <View style={styles.ownerRatingBadge}>
                   <Ionicons name="star" size={11} color={colors.light.ratingStar} />
                   <Text style={styles.ownerRatingText}>
-                    {owner.rating ? Number(owner.rating).toFixed(1) : '5.0'}
+                    {isOwner
+                      ? renter.rating
+                        ? Number(renter.rating).toFixed(1)
+                        : '5.0'
+                      : owner.rating
+                      ? Number(owner.rating).toFixed(1)
+                      : '5.0'}
                   </Text>
                 </View>
-                <Text style={styles.ownerRoleSub}>• Device Owner</Text>
+                <Text style={styles.ownerRoleSub}>
+                  {isOwner
+                    ? `${STRINGS.BOOKING_DETAIL.RENTER_ROLE_LABEL} • ${STRINGS.BOOKING_DETAIL.TRUST_SCORE_PREFIX}${renter.trust?.score ?? renter.trustScore ?? 100}`
+                    : '• Device Owner'}
+                </Text>
               </View>
             </View>
 
@@ -666,7 +762,7 @@ export function BookingDetailScreen({
                   </View>
                 ) : null}
 
-                {booking.status === 'approved' && (
+                {!isOwner && booking.status === 'approved' && (
                   <TouchableOpacity
                     style={styles.retakeBtn}
                     onPress={() => setHandoverCameraModalVisible(true)}
@@ -687,10 +783,12 @@ export function BookingDetailScreen({
                 <Text style={styles.emptyHandoverTitle}>{STRINGS.BOOKING_DETAIL.NO_PHOTOS_TITLE}</Text>
                 <Text style={styles.emptyHandoverDesc}>
                   {booking.status === 'approved'
-                    ? STRINGS.BOOKING_DETAIL.NO_PHOTOS_DESC
+                    ? isOwner
+                      ? STRINGS.BOOKING_DETAIL.NO_PHOTOS_OWNER_APPROVED_DESC
+                      : STRINGS.BOOKING_DETAIL.NO_PHOTOS_DESC
                     : STRINGS.BOOKING_DETAIL.NO_PHOTOS_ACTIVE_DESC}
                 </Text>
-                {booking.status === 'approved' && (
+                {!isOwner && booking.status === 'approved' && (
                   <TouchableOpacity
                     style={styles.takePhotosCta}
                     onPress={() => setHandoverCameraModalVisible(true)}
@@ -705,8 +803,8 @@ export function BookingDetailScreen({
               </View>
             )}
 
-            {/* Quick handover QR button (only visible when approved) */}
-            {booking.status === 'approved' && (
+            {/* Quick handover QR button (only visible to Renter when approved) */}
+            {!isOwner && booking.status === 'approved' && (
               <TouchableOpacity
                 style={styles.openQrCta}
                 onPress={() => setQrModalVisible(true)}
@@ -719,99 +817,303 @@ export function BookingDetailScreen({
             )}
           </View>
         )}
+
+        {/* ── 6. RETURN INSPECTION RECORD & PHOTOS (OWNER ACTIVE / COMPLETED) ── */}
+        {showReturnInspectionCard && (
+          <View style={styles.unifiedCard}>
+            <View style={styles.cardHeaderRow}>
+              <View style={styles.cardHeaderLeft}>
+                <Ionicons name="camera" size={17} color={colors.light.primary} />
+                <Text style={styles.cardTitle}>
+                  {STRINGS.BOOKING_DETAIL.RETURN_RECORD_TITLE}
+                </Text>
+              </View>
+              {afterPhotos.length > 0 && (
+                <View style={styles.photoCountBadge}>
+                  <Text style={styles.photoCountBadgeText}>
+                    {STRINGS.BOOKING_DETAIL.PHOTOS_COUNT(afterPhotos.length)}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {afterPhotos.length > 0 ? (
+              <View style={styles.handoverPhotosWrap}>
+                <Text style={styles.handoverPhotosDesc}>
+                  {STRINGS.BOOKING_DETAIL.RETURN_PHOTOS_DESC}
+                </Text>
+
+                <View style={styles.photoGrid}>
+                  {afterPhotos.map((url: string, idx: number) => (
+                    <TouchableOpacity
+                      key={`after-${idx}`}
+                      style={styles.photoThumbItem}
+                      onPress={() => setPreviewImage(url)}
+                      activeOpacity={0.85}
+                    >
+                      <Image source={{ uri: url }} style={styles.photoThumbImage} />
+                      <View style={styles.photoThumbTag}>
+                        <Text style={styles.photoThumbTagText}>
+                          {STRINGS.BOOKING_DETAIL.ANGLE_PREFIX}{idx + 1}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {afterNote ? (
+                  <View style={styles.conditionNoteBox}>
+                    <Text style={styles.conditionNoteTitle}>
+                      {STRINGS.BOOKING_DETAIL.RETURN_CONDITION_NOTES}
+                    </Text>
+                    <Text style={styles.conditionNoteContent}>{afterNote}</Text>
+                  </View>
+                ) : null}
+
+                {isOwner && booking.status === 'active' && (
+                  <TouchableOpacity
+                    style={styles.retakeBtn}
+                    onPress={() => setHandoverCameraModalVisible(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="camera-outline" size={16} color={colors.light.primary} />
+                    <Text style={styles.retakeBtnText}>
+                      {STRINGS.BOOKING_DETAIL.UPDATE_RETAKE_RETURN_PHOTOS}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : (
+              <View style={styles.emptyHandoverBox}>
+                <View style={styles.emptyHandoverIcon}>
+                  <Ionicons name="camera-outline" size={26} color={colors.light.primary} />
+                </View>
+                <Text style={styles.emptyHandoverTitle}>
+                  {STRINGS.BOOKING_DETAIL.NO_RETURN_PHOTOS_TITLE}
+                </Text>
+                <Text style={styles.emptyHandoverDesc}>
+                  {booking.status === 'active'
+                    ? STRINGS.BOOKING_DETAIL.NO_RETURN_PHOTOS_ACTIVE_DESC
+                    : STRINGS.BOOKING_DETAIL.NO_RETURN_PHOTOS_COMPLETED_DESC}
+                </Text>
+                {isOwner && booking.status === 'active' && (
+                  <TouchableOpacity
+                    style={styles.takePhotosCta}
+                    onPress={() => setHandoverCameraModalVisible(true)}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="camera" size={16} color={colors.light.white} />
+                    <Text style={styles.takePhotosCtaText}>
+                      {STRINGS.BOOKING_DETAIL.TAKE_RETURN_PHOTOS_CTA}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+          </View>
+        )}
       </ScrollView>
 
       {/* ── BOTTOM ACTION BAR ── */}
       {/* Only show bottom bar when actions are available */}
       {(booking.status === 'pending' ||
         booking.status === 'approved' ||
-        (isActive && !isPendingExtension) ||
+        isActive ||
         booking.status === 'completed') && (
         <View style={[styles.bottomBar, { paddingBottom: bottomInset + 8 }]}>
-          {/* Pending: Cancel booking button */}
-          {booking.status === 'pending' && (
-            <TouchableOpacity
-              style={[styles.cancelBtn, isCancelling && { opacity: 0.6 }]}
-              onPress={handleCancelBooking}
-              disabled={isCancelling}
-            >
-              {isCancelling ? (
-                <ActivityIndicator size="small" color={colors.light.error} />
-              ) : (
-                <>
-                  <Ionicons name="close-circle-outline" size={18} color={colors.light.error} />
-                  <Text style={styles.cancelBtnText}>{STRINGS.BOOKING_DETAIL.CANCEL_BOOKING}</Text>
-                </>
+          {isOwner ? (
+            <>
+              {/* Owner Pending: Decline + Approve */}
+              {booking.status === 'pending' && (
+                <View style={styles.approvedActionRow}>
+                  <TouchableOpacity
+                    style={[styles.cancelBtn, { flex: 1 }, isUpdatingStatus && { opacity: 0.6 }]}
+                    onPress={() =>
+                      handleOwnerUpdateStatus(
+                        'rejected',
+                        'Decline Booking Request',
+                        `Are you sure you want to decline booking #${booking.bookingCode}?`
+                      )
+                    }
+                    disabled={isUpdatingStatus}
+                  >
+                    <Ionicons name="close-circle-outline" size={18} color={colors.light.error} />
+                    <Text style={styles.cancelBtnText}>
+                      {STRINGS.BOOKING_DETAIL.REJECT_BOOKING_BTN}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.qrPrimaryBtn, { flex: 1.4 }, isUpdatingStatus && { opacity: 0.6 }]}
+                    onPress={() =>
+                      handleOwnerUpdateStatus(
+                        'approved',
+                        'Approve Booking Request',
+                        `Confirm approval for booking #${booking.bookingCode}?`
+                      )
+                    }
+                    disabled={isUpdatingStatus}
+                  >
+                    <Ionicons name="checkmark-circle" size={18} color={colors.light.white} />
+                    <Text style={styles.qrPrimaryBtnText}>
+                      {STRINGS.BOOKING_DETAIL.APPROVE_BOOKING_BTN}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               )}
-            </TouchableOpacity>
+
+              {/* Owner Approved: Confirm Handover -> Active */}
+              {booking.status === 'approved' && (
+                <TouchableOpacity
+                  style={[styles.actionPrimaryBtn, isUpdatingStatus && { opacity: 0.6 }]}
+                  onPress={() =>
+                    handleOwnerUpdateStatus(
+                      'active',
+                      'Confirm Device Handover',
+                      `Confirm that you have handed over "${device.name || 'device'}" to the renter?`
+                    )
+                  }
+                  disabled={isUpdatingStatus}
+                >
+                  <Ionicons name="play-circle" size={18} color={colors.light.white} />
+                  <Text style={styles.actionPrimaryBtnText}>
+                    {STRINGS.BOOKING_DETAIL.CONFIRM_HANDOVER_BTN}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Owner Active: Take Return Photos + Receive Device & Complete */}
+              {isActive && (
+                <View style={styles.approvedActionRow}>
+                  <TouchableOpacity
+                    style={[styles.cameraSecondaryBtn, { flex: 1 }]}
+                    onPress={() => setHandoverCameraModalVisible(true)}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="camera" size={18} color={colors.light.primary} />
+                    <Text style={styles.cameraSecondaryBtnText}>
+                      {STRINGS.BOOKING_DETAIL.TAKE_RETURN_PHOTOS_BTN}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.qrPrimaryBtn, { flex: 1.4 }, isUpdatingStatus && { opacity: 0.6 }]}
+                    onPress={() =>
+                      handleOwnerUpdateStatus(
+                        'completed',
+                        'Complete Rental Order',
+                        `Confirm that you have received "${device.name || 'device'}" back in good condition and complete order #${booking.bookingCode}?`
+                      )
+                    }
+                    disabled={isUpdatingStatus}
+                  >
+                    <Ionicons name="checkmark-done-circle" size={18} color={colors.light.white} />
+                    <Text style={styles.qrPrimaryBtnText}>
+                      {STRINGS.BOOKING_DETAIL.COMPLETE_BOOKING_BTN}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Owner Completed: Review Renter or Reviewed Badge */}
+              {booking.status === 'completed' &&
+                (booking.isRenterReviewed ? (
+                  <View style={styles.ratedBadge}>
+                    <Ionicons name="checkmark-circle" size={18} color={colors.light.primary} />
+                    <Text style={styles.ratedBadgeText}>
+                      {STRINGS.BOOKING_DETAIL.RENTER_REVIEWED_BADGE}
+                    </Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.reviewActionBtn}
+                    onPress={() => setReviewModalVisible(true)}
+                  >
+                    <Ionicons name="star" size={18} color={colors.light.white} />
+                    <Text style={styles.reviewActionBtnText}>
+                      {STRINGS.BOOKING_DETAIL.REVIEW_RENTER_BTN}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+            </>
+          ) : (
+            <>
+              {/* Renter Pending: Cancel booking button */}
+              {booking.status === 'pending' && (
+                <TouchableOpacity
+                  style={[styles.cancelBtn, isCancelling && { opacity: 0.6 }]}
+                  onPress={handleCancelBooking}
+                  disabled={isCancelling}
+                >
+                  {isCancelling ? (
+                    <ActivityIndicator size="small" color={colors.light.error} />
+                  ) : (
+                    <>
+                      <Ionicons name="close-circle-outline" size={18} color={colors.light.error} />
+                      <Text style={styles.cancelBtnText}>{STRINGS.BOOKING_DETAIL.CANCEL_BOOKING}</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+
+              {/* Renter Approved: QR code & handover photo buttons */}
+              {booking.status === 'approved' && (
+                <View style={styles.approvedActionRow}>
+                  <TouchableOpacity
+                    style={styles.qrPrimaryBtn}
+                    onPress={() => setQrModalVisible(true)}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="qr-code" size={18} color={colors.light.white} />
+                    <Text style={styles.qrPrimaryBtnText}>{STRINGS.BOOKING_DETAIL.HANDOVER_QR_BTN}</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.cameraSecondaryBtn}
+                    onPress={() => setHandoverCameraModalVisible(true)}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="camera" size={18} color={colors.light.primary} />
+                    <Text style={styles.cameraSecondaryBtnText}>
+                      {STRINGS.BOOKING_DETAIL.TAKE_PHOTOS_BTN}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Renter Active: Extend rental button (hidden when pending approval) */}
+              {isActive && !isPendingExtension && (
+                <TouchableOpacity
+                  style={styles.actionPrimaryBtn}
+                  onPress={() => setExtensionModalVisible(true)}
+                >
+                  <Ionicons name="calendar-outline" size={18} color={colors.light.white} />
+                  <Text style={styles.actionPrimaryBtnText}>
+                    {STRINGS.BOOKING_DETAIL.EXTEND_RENTAL}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Renter Completed: Review or Rent again */}
+              {booking.status === 'completed' &&
+                (booking.isReviewed ? (
+                  <TouchableOpacity style={styles.reRentBtn} onPress={handleReRent}>
+                    <Ionicons name="repeat" size={18} color={colors.light.white} />
+                    <Text style={styles.reRentBtnText}>{STRINGS.BOOKING_DETAIL.RENT_AGAIN}</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.reviewActionBtn}
+                    onPress={() => setReviewModalVisible(true)}
+                  >
+                    <Ionicons name="star" size={18} color={colors.light.white} />
+                    <Text style={styles.reviewActionBtnText}>
+                      {STRINGS.BOOKING_DETAIL.REVIEW_QUALITY_BTN}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+            </>
           )}
-
-          {/* Approved: QR code & handover photo buttons */}
-          {booking.status === 'approved' && (
-            <View style={styles.approvedActionRow}>
-              <TouchableOpacity
-                style={styles.qrPrimaryBtn}
-                onPress={() => setQrModalVisible(true)}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="qr-code" size={18} color={colors.light.white} />
-                <Text style={styles.qrPrimaryBtnText}>{STRINGS.BOOKING_DETAIL.HANDOVER_QR_BTN}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.cameraSecondaryBtn}
-                onPress={() => setHandoverCameraModalVisible(true)}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="camera" size={18} color={colors.light.primary} />
-                <Text style={styles.cameraSecondaryBtnText}>
-                  {STRINGS.BOOKING_DETAIL.TAKE_PHOTOS_BTN}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Active: Extend rental button (hidden when pending approval) */}
-          {isActive && !isPendingExtension && (
-            <TouchableOpacity
-              style={styles.actionPrimaryBtn}
-              onPress={() => setExtensionModalVisible(true)}
-            >
-              <Ionicons name="calendar-outline" size={18} color={colors.light.white} />
-              <Text style={styles.actionPrimaryBtnText}>
-                {STRINGS.BOOKING_DETAIL.EXTEND_RENTAL}
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Completed: Review or Rent again (for Renter) */}
-          {booking.status === 'completed' && (() => {
-            const currentUserId = currentUser?._id || (currentUser as any)?.id;
-            const isOwner = Boolean(
-              currentUserId &&
-              ((booking.ownerId as any)?._id === currentUserId || booking.ownerId === currentUserId)
-            );
-
-            // Owner does not rate renter
-            if (isOwner) return null;
-
-            return booking.isReviewed ? (
-              <TouchableOpacity style={styles.reRentBtn} onPress={handleReRent}>
-                <Ionicons name="repeat" size={18} color={colors.light.white} />
-                <Text style={styles.reRentBtnText}>{STRINGS.BOOKING_DETAIL.RENT_AGAIN}</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={styles.reviewActionBtn}
-                onPress={() => setReviewModalVisible(true)}
-              >
-                <Ionicons name="star" size={18} color={colors.light.white} />
-                <Text style={styles.reviewActionBtnText}>
-                  {STRINGS.BOOKING_DETAIL.REVIEW_QUALITY_BTN}
-                </Text>
-              </TouchableOpacity>
-            );
-          })()}
         </View>
       )}
 
@@ -826,9 +1128,16 @@ export function BookingDetailScreen({
       <ReviewModal
         visible={reviewModalVisible}
         booking={booking}
+        mode={isOwner ? 'owner_to_renter' : 'renter_to_owner'}
         onClose={() => setReviewModalVisible(false)}
         onSuccess={() => {
-          setBooking((prev) => (prev ? { ...prev, isReviewed: true } : prev));
+          setBooking((prev) =>
+            prev
+              ? isOwner
+                ? { ...prev, isRenterReviewed: true }
+                : { ...prev, isReviewed: true }
+              : prev
+          );
           fetchDetail();
         }}
       />
@@ -842,6 +1151,7 @@ export function BookingDetailScreen({
       <HandoverCameraModal
         visible={handoverCameraModalVisible}
         booking={booking}
+        mode={isOwner ? 'owner_after' : 'renter_before'}
         onClose={() => setHandoverCameraModalVisible(false)}
         onSuccess={fetchDetail}
       />
