@@ -163,7 +163,10 @@ export function HomeRoute({
           onBack={() => setActiveTab('home')}
         />
       ) : activeTab === 'map' ? (
-        <MapScreen onNavigateToDeviceDetail={(deviceId) => navigation?.navigate('DeviceDetail', { deviceId })} />
+        <MapScreen
+          onNavigateToDeviceDetail={(deviceId) => navigation?.navigate('DeviceDetail', { deviceId })}
+          onNavigateToOwnerProfile={(ownerId) => navigation?.navigate('OwnerProfile', { ownerId })}
+        />
       ) : activeTab === 'compare' ? (
         <AiCompareScreen />
       ) : (

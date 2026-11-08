@@ -78,8 +78,12 @@ const WishlistRoute = ({ navigation }: any) => (
 );
 
 const OwnerProfileRoute = ({ route, navigation }: any) => (
-  <OwnerProfileScreen ownerId={route?.params?.ownerId || ''} onBack={() => navigation.goBack()}
-    onMessage={() => navigation.navigate('OwnerMessages')} />
+  <OwnerProfileScreen
+    ownerId={route?.params?.ownerId || ''}
+    onBack={() => navigation.goBack()}
+    onMessage={() => navigation.navigate('OwnerMessages')}
+    onNavigateToDeviceDetail={(deviceId: string) => navigation.navigate('DeviceDetail', { deviceId })}
+  />
 );
 
 const DeviceDetailRoute = ({ route, navigation }: any) => (
