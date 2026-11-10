@@ -472,19 +472,20 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
     </View>
   );
 
-  const topPad = insets.top + (Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0);
+  const topInset = Math.max(
+    insets.top,
+    Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 20
+  );
 
   return (
-    <View style={[styles.container, { paddingTop: topPad }]}>
-
-      {/* HEADER */}
+    <View style={[styles.container, { paddingTop: topInset }]}>
+      {/* HEADER (Chuẩn theo Dashboard & Kiểm duyệt thiết bị) */}
       <View style={styles.header}>
         <TouchableOpacity
           onPress={handleOpenDrawer}
           style={styles.headerBtn}
           accessibilityRole="button"
           accessibilityLabel="Open navigation menu"
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           activeOpacity={0.7}
         >
           <Ionicons name="menu-outline" size={24} color={theme.colors.text.primary} />
@@ -497,13 +498,12 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
         </View>
         <TouchableOpacity
           onPress={handleRefresh}
-          style={styles.headerBtn}
+          style={[styles.headerBtn, styles.refreshBtn]}
           accessibilityRole="button"
           accessibilityLabel="Refresh"
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           activeOpacity={0.7}
         >
-          <Ionicons name="refresh-outline" size={22} color={theme.colors.brand[500]} />
+          <Ionicons name="refresh-outline" size={19} color={theme.colors.brand[500]} />
         </TouchableOpacity>
       </View>
 
@@ -531,7 +531,7 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
       {/* FILTER: ROLE */}
       <View style={styles.filtersRow}>
         <Ionicons name="people-circle-outline" size={16} color={theme.colors.text.muted} style={{ marginRight: 6 }} />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: theme.spacing.lg }}>
           {ROLE_TABS.map((tab) => (
             <TouchableOpacity
               key={tab.value}
@@ -550,7 +550,7 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
       {/* FILTER: STATUS */}
       <View style={styles.filtersRow}>
         <Ionicons name="shield-outline" size={16} color={theme.colors.text.muted} style={{ marginRight: 6 }} />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: theme.spacing.lg }}>
           {STATUS_TABS.map((tab) => (
             <TouchableOpacity
               key={tab.value}
@@ -796,29 +796,30 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
 // ─────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container       : { flex: 1, backgroundColor: '#F8FAFC' },
+  container       : { flex: 1, backgroundColor: theme.colors.background },
 
-  // Header
-  header          : { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0', gap: 10 },
-  headerBtn       : { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
-  headerCenter    : { flex: 1 },
-  headerTitle     : { fontSize: 17, fontWeight: '700', color: theme.colors.text.primary },
-  headerSub       : { fontSize: 12, color: theme.colors.text.muted, marginTop: 2 },
+  // Header (Đồng bộ chuẩn AdminDashboard & DeviceModeration)
+  header          : { flexDirection: 'row', alignItems: 'center', paddingHorizontal: theme.spacing.lg, paddingVertical: 12, backgroundColor: theme.colors.background },
+  headerBtn       : { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.colors.border.light, borderRadius: 12, backgroundColor: theme.colors.background },
+  refreshBtn      : { backgroundColor: theme.colors.surface },
+  headerCenter    : { flex: 1, paddingHorizontal: theme.spacing.md },
+  headerTitle     : { fontSize: 19, fontWeight: theme.typography.fontWeight.bold, color: theme.colors.text.primary },
+  headerSub       : { fontSize: 12.5, color: theme.colors.text.muted, marginTop: 2 },
 
   // Search
-  searchContainer : { paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  searchBar       : { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', borderRadius: 12, paddingHorizontal: 12, height: 42 },
-  searchInput     : { flex: 1, fontSize: 14, color: theme.colors.text.primary, height: '100%' },
+  searchContainer : { paddingHorizontal: theme.spacing.lg, marginBottom: theme.spacing.sm },
+  searchBar       : { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, borderWidth: 1, borderColor: theme.colors.border.light, paddingHorizontal: theme.spacing.md, height: 42, ...theme.shadows.card },
+  searchInput     : { flex: 1, fontSize: theme.typography.fontSize.sm, color: theme.colors.text.primary, paddingVertical: 0 },
 
   // Filter tabs
-  filtersRow      : { flexDirection: 'row', alignItems: 'center', paddingLeft: 16, paddingVertical: 8, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  filterTab       : { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: 'transparent' },
-  filterTabActive : { backgroundColor: '#EFF6FF', borderColor: theme.colors.brand[400] },
-  filterTabText   : { fontSize: 12, fontWeight: '600', color: theme.colors.text.muted },
-  filterTabTextActive: { color: theme.colors.brand[600] },
+  filtersRow      : { flexDirection: 'row', alignItems: 'center', paddingLeft: theme.spacing.lg, paddingVertical: theme.spacing.xs },
+  filterTab       : { paddingHorizontal: 14, paddingVertical: 7, borderRadius: theme.radii.full, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border.light },
+  filterTabActive : { backgroundColor: theme.colors.brand[100], borderColor: theme.colors.brand[500] },
+  filterTabText   : { fontSize: 12.5, fontWeight: theme.typography.fontWeight.medium, color: theme.colors.text.secondary },
+  filterTabTextActive: { color: theme.colors.brand[700], fontWeight: theme.typography.fontWeight.bold },
 
   // Error
-  errorBanner     : { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF2F2', marginHorizontal: 16, marginTop: 12, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, gap: 8, borderLeftWidth: 4, borderLeftColor: theme.colors.red },
+  errorBanner     : { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF2F2', marginHorizontal: theme.spacing.lg, marginTop: 12, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, gap: 8, borderLeftWidth: 4, borderLeftColor: theme.colors.red },
   errorText       : { flex: 1, fontSize: 13, color: theme.colors.red },
   errorRetry      : { fontSize: 13, fontWeight: '700', color: theme.colors.brand[600] },
 
@@ -827,7 +828,7 @@ const styles = StyleSheet.create({
   loadingText     : { fontSize: 14, color: theme.colors.text.muted },
 
   // List
-  listContent     : { paddingHorizontal: 16, paddingTop: 12 },
+  listContent     : { paddingHorizontal: theme.spacing.lg, paddingTop: 12 },
 
   // User card
   userCard        : { backgroundColor: '#FFFFFF', borderRadius: 16, paddingVertical: 14, paddingHorizontal: 14, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2, borderWidth: 1, borderColor: '#F1F5F9', gap: 10 },
