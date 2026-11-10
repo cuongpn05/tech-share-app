@@ -5,7 +5,7 @@ import {
   DeviceCategory,
   ManagedDeviceStatus,
 } from "../types";
-export const HOME_NEARBY_RADIUS_METERS = 10000;
+export const HOME_NEARBY_RADIUS_METERS = 50000;
 
 export type DeviceSort = "price_asc" | "price_desc" | "rating_desc" | "newest";
 
@@ -31,6 +31,7 @@ export interface DevicePage {
     totalPages: number;
     hasNextPage: boolean;
   };
+  isRadiusExpanded?: boolean;
 }
 
 // Kiểm tra dữ liệu trước khi Redux dùng để hiển thị và phân trang.
@@ -110,6 +111,41 @@ export const deviceService = {
     return response.data.data;
   },
 
+  async getRecommendedDevices(limit = 6): Promise<Device[]> {
+    try {
+      const response = await apiClient.get<{ success: boolean; data: Device[] }>("/devices", {
+        params: { limit: 100 },
+      });
+      if (response.data?.success && Array.isArray(response.data.data)) {
+        const sorted = [...response.data.data].sort((a, b) => {
+          const ratingA = a.stats?.ratingAvg ?? a.rating ?? 0;
+          const ratingB = b.stats?.ratingAvg ?? b.rating ?? 0;
+          return ratingB - ratingA;
+        });
+        return sorted.slice(0, limit);
+      }
+    } catch {
+      // Fallback empty array
+    }
+    return [];
+  },
+
+  /**
+   * ============================================================================
+   * getNearbyDevicesPage
+   *
+   * MỤC ĐÍCH:
+   * Lấy danh sách thiết bị gần tọa độ người dùng có phân trang (pagination) từ MongoDB.
+   *
+   * QUY TRÌNH HOẠT ĐỘNG:
+   * 1. Gửi kinh độ (lng), vĩ độ (lat) của người dùng lên server.
+   * 2. Bán kính mặc định: 50,000 mét (50 km).
+   * 3. Cơ chế Tự động mở rộng (Auto-Expand Radius):
+   *    Nếu trong 50 km tìm thấy < 5 thiết bị, app tự động gọi lại API mở rộng
+   *    bán kính lên 100 km (100,000m) để người dùng luôn có đủ thiết bị để khám phá.
+   * 4. Sắp xếp: Thiết bị gần nhất đứng đầu (MongoDB $geoNear distanceField).
+   * ============================================================================
+   */
   async getNearbyDevicesPage(params: GetDevicesParams): Promise<DevicePage> {
     if (
       !Number.isFinite(params.latitude) ||
@@ -138,7 +174,7 @@ export const deviceService = {
         "/devices/nearby",
         { params: requestParams },
       );
-      const responseBody = response.data;
+      let responseBody = response.data;
       if (debug) {
         console.log("[HOME NEARBY] HTTP:", response.status);
         console.log(
@@ -149,6 +185,28 @@ export const deviceService = {
         console.log("[HOME NEARBY] pagination:", responseBody?.pagination);
       }
       validateDevicePageResponse(responseBody, requestParams.page);
+
+      // Auto-expand radius: If fewer than 5 suitable devices found within 50km, expand to 100km
+      const foundCount = responseBody.pagination?.totalItems ?? responseBody.data.length;
+      if (foundCount < 5 && requestParams.radius <= 50000) {
+        try {
+          const expandedParams = { ...requestParams, radius: 100000 };
+          const expandedResponse = await apiClient.get<DevicePage & { success: boolean }>(
+            "/devices/nearby",
+            { params: expandedParams },
+          );
+          if (expandedResponse.data?.success && Array.isArray(expandedResponse.data.data)) {
+            validateDevicePageResponse(expandedResponse.data, requestParams.page);
+            responseBody = {
+              ...expandedResponse.data,
+              isRadiusExpanded: true,
+            };
+          }
+        } catch {
+          // If expanded request fails, keep the 50km response
+        }
+      }
+
       if (debug) {
         const invalidLocationCount = responseBody.data.filter((device) => {
           const coordinates = device.location?.coordinates;

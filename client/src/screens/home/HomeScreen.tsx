@@ -3,8 +3,6 @@ import {
   StyleSheet,
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   FlatList,
   RefreshControl,
   StatusBar,
@@ -13,12 +11,16 @@ import {
   Linking,
   Platform,
   Alert,
+  TouchableOpacity,
 } from 'react-native';
-import { useHomeLocation, homeDistanceMeters, HOME_LOCATION_MOVEMENT_METERS, HomeCoordinate } from '../../hooks/useHomeLocation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { HeaderActions } from '../../components/navigation/HeaderActions';
+
+// Hooks & Navigation
+import { useHomeLocation, homeDistanceMeters, HOME_LOCATION_MOVEMENT_METERS, HomeCoordinate } from '../../hooks/useHomeLocation';
 import { useAppDispatch, useAppSelector } from '../../store';
+
+// Redux Actions
 import {
   fetchDevices,
   refreshDevices,
@@ -27,24 +29,51 @@ import {
   resetDeviceDiscovery,
 } from '../../store/slices/deviceSlice';
 import { fetchWishlist, toggleFavoriteDevice } from '../../store/slices/wishlistSlice';
+
+// Components (Được module hóa rõ ràng, dễ bảo trì)
+import { HomeHeader } from '../../components/home/HomeHeader';
+import { HomeSearchBar } from '../../components/home/HomeSearchBar';
+import { OwnerSwitchBanner } from '../../components/home/OwnerSwitchBanner';
 import { CategoryBar } from '../../components/home/CategoryBar';
 import { PromoBanner } from '../../components/home/PromoBanner';
+import { FeaturedRecommendations } from '../../components/home/FeaturedRecommendations';
 import { SectionHeader } from '../../components/home/SectionHeader';
 import { DeviceCard } from '../../components/device/DeviceCard';
+
+// Services, Types & Constants
 import { deviceService, GetDevicesParams, HOME_NEARBY_RADIUS_METERS } from '../../services/deviceService';
 import { Device, DeviceCategory } from '../../types';
 import { colors } from '../../theme/colors';
 import { STRINGS } from '../../constants/strings';
 
+/**
+ * ============================================================================
+ * HomeScreen.tsx – Màn hình Khám phá Thiết bị Công nghệ (Device Discovery)
+ *
+ * TRÁCH NHIỆM (RESPONSIBILITY):
+ * 1. Màn hình trung tâm của ứng dụng TechShare, giúp người dùng tìm kiếm và thuê
+ *    các thiết bị công nghệ (Máy ảnh, Drone, Laptop, VR, v.v.) ở gần mình nhất.
+ * 2. Kết nối GPS thực tế của thiết bị với Backend MongoDB Geospatial ($geoNear).
+ * 3. Tổ chức giao diện thành các khối thành phần nhỏ, dễ hiểu và dễ tái sử dụng:
+ *    - HomeHeader (Logo, GPS Location, Nút thông báo/đăng nhập)
+ *    - HomeSearchBar (Tìm kiếm theo tên, thương hiệu)
+ *    - CategoryBar (Bộ lọc danh mục sản phẩm)
+ *    - PromoBanner (Banner khuyến mãi lướt tự động)
+ *    - FeaturedRecommendations (Danh sách ngang thiết bị đánh giá cao nhất)
+ *    - Danh sách lưới 2 cột các thiết bị lân cận (Nearby Devices Grid)
+ *    - Nút nổi Trợ lý AI (AIAssistant FAB)
+ * ============================================================================
+ */
+
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DEVICES_PER_PAGE = 10;
-const COLUMN_WIDTH = (SCREEN_WIDTH - 40) / 2; // 16px screen padding + 8px gap
-
+const COLUMN_WIDTH = (SCREEN_WIDTH - 40) / 2; // 16px lề 2 bên + 8px khoảng cách giữa 2 cột
 
 interface HomeScreenProps {
   navigation?: any;
   onNavigateToLogin?: () => void;
   onNavigateToDeviceDetail?: (deviceId: string) => void;
+  onNavigateToMap?: () => void;
   showOwnerDashboard?: boolean;
   onNavigateToWishlist?: () => void;
   onNavigateToSearch?: () => void;
@@ -52,9 +81,7 @@ interface HomeScreenProps {
   onNavigateToChat?: () => void;
   onNavigateToAiConsultant?: () => void;
   onNavigateToOwnerDashboard?: () => void;
-  /** Số tin nhắn chưa đọc — hiện badge nếu > 0 */
   unreadMessages?: number;
-  /** Số thông báo chưa đọc — hiện badge nếu > 0 */
   unreadNotifications?: number;
 }
 
@@ -62,6 +89,7 @@ export function HomeScreen({
   navigation,
   onNavigateToLogin,
   onNavigateToDeviceDetail,
+  onNavigateToMap,
   showOwnerDashboard = false,
   onNavigateToWishlist,
   onNavigateToNotifications,
@@ -76,7 +104,10 @@ export function HomeScreen({
     insets.top,
     Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 20
   );
+
   const dispatch = useAppDispatch();
+
+  // 1. DỮ LIỆU TỪ REDUX STORE (State Management)
   const {
     filteredDevices,
     selectedCategory,
@@ -90,75 +121,85 @@ export function HomeScreen({
     hasNextPage,
     isLoadingMore,
     hasLoaded,
-  } = useAppSelector(state => state.devices);
-  const { isAuthenticated } = useAppSelector(state => state.auth);
-  const favoriteIds = useAppSelector(state => state.wishlist?.favoriteIds || []);
+  } = useAppSelector((state) => state.devices);
 
+  const { isAuthenticated } = useAppSelector((state) => state.auth);
+  const favoriteIds = useAppSelector((state) => state.wishlist?.favoriteIds || []);
+
+  // 2. STATE NỘI BỘ MÀN HÌNH (Local State)
+  const [nearby, setNearby] = useState(true); // true = chế độ tìm gần GPS; false = xem tất cả
+  const [recommendedDevices, setRecommendedDevices] = useState<Device[]>([]);
+  const [categories, setCategories] = useState<DeviceCategory[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+  const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [categoryReload, setCategoryReload] = useState(0);
+  const [searchInput, setSearchInput] = useState('');
+
+  // Refs giữ tọa độ và cờ chống gọi lặp request
+  const currentLocationRef = useRef<HomeCoordinate | null>(null);
+  const isLoadingNextPageRef = useRef(false);
+  const latestFiltersRef = useRef({ category: selectedCategory, search: searchInput.trim() });
+  latestFiltersRef.current = { category: selectedCategory, search: searchInput.trim() };
+
+  // 3. TẢI DANH MỤC THIẾT BỊ TỪ BACKEND
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoadingCategories(true);
+    setCategoryError(null);
+
+    deviceService
+      .getCategories()
+      .then((data) => {
+        if (isMounted) setCategories(data);
+      })
+      .catch(() => {
+        if (isMounted) setCategoryError('Unable to load categories');
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingCategories(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [categoryReload]);
+
+  // 4. TẢI CÁC THIẾT BỊ NỔI BẬT (FEATURED RECOMMENDATIONS)
+  useEffect(() => {
+    let isMounted = true;
+    deviceService
+      .getRecommendedDevices(6)
+      .then((data) => {
+        if (isMounted) setRecommendedDevices(data);
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // 5. NẠP WISHLIST KHI ĐÃ ĐĂNG NHẬP
   useEffect(() => {
     if (isAuthenticated) {
       dispatch(fetchWishlist());
     }
   }, [isAuthenticated, dispatch]);
 
-  const handleToggleFavorite = (device: Device) => {
-    if (!isAuthenticated) {
-      Alert.alert(
-        STRINGS.DEVICE_CARD.LOGIN_REQUIRED_TITLE,
-        STRINGS.DEVICE_CARD.LOGIN_REQUIRED_MSG,
-        [
-          { text: 'Hủy', style: 'cancel' },
-          {
-            text: 'Đăng nhập',
-            onPress: () => onNavigateToLogin?.(),
-          },
-        ]
-      );
-      return;
-    }
-    dispatch(toggleFavoriteDevice(device));
-  };
-
-  const [nearby, setNearby] = useState(false);
-  const [categories, setCategories] = useState<DeviceCategory[]>([]);
-  const [categoryError, setCategoryError] = useState<string | null>(null);
-  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
-  const [categoryReload, setCategoryReload] = useState(0);
-  const [searchInput, setSearchInput] = useState('');
-  const normalizedSearch = searchInput.trim();
-  useEffect(() => {
-    let active = true;
-    setIsLoadingCategories(true);
-    setCategoryError(null);
-    deviceService.getCategories().then(data => { if (active) setCategories(data); })
-      .catch(() => { if (active) setCategoryError('Unable to load categories'); })
-      .finally(() => { if (active) setIsLoadingCategories(false); });
-    return () => { active = false; };
-  }, [categoryReload]);
-
-  const currentLocationRef = useRef<HomeCoordinate | null>(null);
-  const isLoadingNextPageRef = useRef(false);
-  const latestFiltersRef = useRef({ category: selectedCategory, search: normalizedSearch });
-  latestFiltersRef.current = { category: selectedCategory, search: normalizedSearch };
-
-  // Callback GPS luôn đọc bộ lọc mới nhất, kể cả khi vừa đổi danh mục.
+  // 6. ĐỊNH VỊ GPS ĐỘNG (Custom Hook useHomeLocation)
   const location = useHomeLocation(handleLocationChange, nearby);
 
-  function loadDevices(params: GetDevicesParams) {
-    if (nearby && !currentLocationRef.current) return;
-    return dispatch(fetchDevices({
-      ...params,
-      nearby,
-      ...(nearby ? currentLocationRef.current : {}),
-      radius: HOME_NEARBY_RADIUS_METERS,
-      page: params.page || 1,
-      limit: DEVICES_PER_PAGE,
-    }));
-  }
-
+  /**
+   * Hàm callback được gọi từ useHomeLocation khi:
+   * - Lấy được tọa độ GPS ban đầu.
+   * - Hoặc người dùng di chuyển lệch khỏi vị trí cũ từ 150 mét trở lên.
+   */
   function handleLocationChange(coordinate: HomeCoordinate, force: boolean) {
     if (!nearby) return;
+
     const previousLocation = currentLocationRef.current;
     currentLocationRef.current = coordinate;
+
     const requestParams = {
       ...latestFiltersRef.current,
       nearby: true,
@@ -167,262 +208,224 @@ export function HomeScreen({
       page: 1,
       limit: DEVICES_PER_PAGE,
     };
-    const isRefreshingSameArea = force && previousLocation &&
+
+    // Nếu chỉ refresh tại chỗ (di chuyển < 150m) thì giữ nguyên trang hiện tại
+    const isRefreshingSameArea =
+      force &&
+      previousLocation &&
       homeDistanceMeters(previousLocation, coordinate) < HOME_LOCATION_MOVEMENT_METERS;
+
     if (isRefreshingSameArea) {
       dispatch(refreshDevices(requestParams));
       return;
     }
-    // Đổi vùng: vô hiệu hóa request cũ trước khi tải danh sách mới.
+
+    // Nếu là vị trí mới: Xóa kết quả cũ và tải danh sách trang 1 từ đầu
     dispatch(resetDeviceDiscovery());
     dispatch(fetchDevices(requestParams));
   }
-  const { error: locationError, warning: locationWarning, isLocating, isRefreshingLocation } = location;
-  let locationLabel = nearby ? 'Location unavailable' : 'Browse all devices';
-  if (nearby && location.position) {
-    locationLabel = `${location.position.latitude.toFixed(4)}, ${location.position.longitude.toFixed(4)}${location.source === 'CURRENT' ? '' : ' (last known)'}`;
-  } else if (nearby && isLocating) {
-    locationLabel = 'Getting your location...';
+
+  /**
+   * Gọi action Redux để tải danh sách thiết bị
+   */
+  function loadDevices(params: GetDevicesParams) {
+    if (nearby && !currentLocationRef.current) return;
+
+    return dispatch(
+      fetchDevices({
+        ...params,
+        nearby,
+        ...(nearby && currentLocationRef.current ? currentLocationRef.current : {}),
+        radius: HOME_NEARBY_RADIUS_METERS,
+        page: params.page || 1,
+        limit: DEVICES_PER_PAGE,
+      })
+    );
   }
 
-  const handleSelectCategory = (category: DeviceCategory | 'all') => {
-    // Đổi danh mục phải tải trang 1 và xóa kết quả phân trang cũ.
-    latestFiltersRef.current = { ...latestFiltersRef.current, category };
-    dispatch(setSelectedCategory(category));
-  };
-
-  const handleRefresh = () => {
-    if (nearby) void location.refresh(true);
-    else dispatch(refreshDevices({ ...latestFiltersRef.current, nearby: false }));
-  };
-
-  const handleLoadMore = () => {
-    const isRequestInProgress = isLoading || isRefreshing || isLoadingNextPageRef.current;
-    const isLocationUnavailable = nearby && (!currentLocationRef.current || isLocating || !!locationError);
-    const hasSearchChanged = normalizedSearch !== searchQuery;
-    const isPaginationBlocked = !!error || page < 1 || !hasNextPage || hasSearchChanged;
-    if (isLocationUnavailable || isRequestInProgress || isPaginationBlocked) return;
-
-    // FlatList có thể báo cuối danh sách nhiều lần trước khi Redux render lại.
-    isLoadingNextPageRef.current = true;
-    const request = loadDevices({
-      category: selectedCategory,
-      search: searchQuery,
-      page: page + 1,
-    });
-    void request?.finally(() => {
-      isLoadingNextPageRef.current = false;
-    });
-  };
-
-  const handleRetry = () => {
-    loadDevices({ category: selectedCategory, search: normalizedSearch });
-  };
-
-  const handleRetryFailedPage = () => {
-    const pageToRetry = failedPage || 1;
-    loadDevices({
-      category: selectedCategory,
-      search: searchQuery,
-      page: pageToRetry,
-    });
-  };
-
-  const handleShowAllCategories = () => {
-    handleSelectCategory('all');
-  };
-
-  const handleResetFilters = () => {
-    latestFiltersRef.current = { category: 'all', search: '' };
-    handleSearchChange('');
-    dispatch(clearFilters());
-  };
-
+  // 7. XỬ LÝ TÌM KIẾM CÓ DEBOUNCE
   function handleSearchChange(value: string) {
-    if (value.trim() !== normalizedSearch) {
-      // Invalidate the old request before the debounce starts a new one.
+    if (value.trim() !== searchInput.trim()) {
       dispatch(resetDeviceDiscovery());
     }
     setSearchInput(value);
   }
 
   useEffect(() => {
-    currentLocationRef.current = null;
-  }, [nearby]);
-
-  useEffect(() => {
     dispatch(resetDeviceDiscovery());
     if (nearby && !currentLocationRef.current) return;
-    const timeout = setTimeout(() => {
-      loadDevices({ category: selectedCategory, search: normalizedSearch, page: 1 });
-    }, 400);
-    return () => clearTimeout(timeout);
-  }, [normalizedSearch, nearby, selectedCategory]);
 
-  useEffect(() => {
-    if (__DEV__) {
-      console.log('[HOME FILTER RENDER] ' + JSON.stringify({
+    // Chờ người dùng dừng gõ 400ms trước khi gửi request tìm kiếm
+    const timer = setTimeout(() => {
+      loadDevices({
         category: selectedCategory,
-        q: searchInput.trim(),
-        page,
-        count: filteredDevices.length,
-        ids: filteredDevices.map(device => device._id),
-        location: currentLocationRef.current,
-      }));
-      console.log('[HOME NEARBY] rendered count:', filteredDevices.length);
-      console.log('[HOME NEARBY] radius:', HOME_NEARBY_RADIUS_METERS, 'meters');
-      console.log('[HOME NEARBY] page:', page);
-      console.log('[HOME NEARBY] limit:', DEVICES_PER_PAGE);
-    }
-  }, [filteredDevices, page]);
+        search: searchInput.trim(),
+        page: 1,
+      });
+    }, 400);
 
+    return () => clearTimeout(timer);
+  }, [searchInput, nearby, selectedCategory]);
+
+  // 8. CÁC HÀM XỬ LÝ TƯƠNG TÁC NGƯỜI DÙNG (User Actions)
+  const handleSelectCategory = (category: DeviceCategory | 'all') => {
+    latestFiltersRef.current = { ...latestFiltersRef.current, category };
+    dispatch(setSelectedCategory(category));
+  };
+
+  const handleRefresh = () => {
+    if (nearby) {
+      void location.refresh(true);
+    } else {
+      dispatch(refreshDevices({ ...latestFiltersRef.current, nearby: false }));
+    }
+  };
+
+  const handleLoadMore = () => {
+    const isBusy = isLoading || isRefreshing || isLoadingNextPageRef.current;
+    const isLocationBlocked = nearby && (!currentLocationRef.current || location.isLocating || !!location.error);
+    const isPaginationBlocked = !!error || page < 1 || !hasNextPage;
+
+    if (isLocationBlocked || isBusy || isPaginationBlocked) return;
+
+    isLoadingNextPageRef.current = true;
+    const req = loadDevices({
+      category: selectedCategory,
+      search: searchInput.trim(),
+      page: page + 1,
+    });
+
+    void req?.finally(() => {
+      isLoadingNextPageRef.current = false;
+    });
+  };
+
+  const handleRetry = () => {
+    loadDevices({ category: selectedCategory, search: searchInput.trim() });
+  };
+
+  const handleResetFilters = () => {
+    latestFiltersRef.current = { category: 'all', search: '' };
+    setSearchInput('');
+    dispatch(clearFilters());
+  };
+
+  const handleToggleFavorite = (device: Device) => {
+    if (!isAuthenticated) {
+      Alert.alert(
+        STRINGS.DEVICE_CARD.LOGIN_REQUIRED_TITLE,
+        STRINGS.DEVICE_CARD.LOGIN_REQUIRED_MSG,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Login', onPress: () => onNavigateToLogin?.() },
+        ]
+      );
+      return;
+    }
+    dispatch(toggleFavoriteDevice(device));
+  };
+
+  // Xác định nhãn hiển thị địa chỉ trên Header
+  let locationLabel = nearby ? 'Locating...' : 'All Devices';
+  if (location.cityName) {
+    locationLabel = location.cityName;
+  } else if (location.position) {
+    locationLabel = `${location.position.latitude.toFixed(2)}, ${location.position.longitude.toFixed(2)}`;
+  } else if (nearby && location.error) {
+    locationLabel = 'Location unavailable';
+  }
+
+  // ============================================================================
+  // GIAO DIỆN HEADER CỦA DANH SÁCH (ListHeaderComponent)
+  // ============================================================================
   const listHeader = (
     <View style={styles.headerArea}>
-      {/* TOP BAR: Logo & notifications */}
-      <View style={[styles.topBar, { paddingTop: topInset + 8 }]}>
-        <View style={styles.brandContainer}>
-          <View style={styles.logoBadge}>
-            <Ionicons name="hardware-chip" size={18} color="#FFFFFF" />
-          </View>
-          <View>
-            <Text style={styles.brandTitle}>{STRINGS.HOME_SCREEN.BRAND_TITLE}</Text>
-            <View style={styles.locationRow}>
-              <Text style={styles.locationText}>{locationLabel}</Text>
-            </View>
-          </View>
-        </View>
+      {/* 1. Thanh tiêu đề trên cùng: Logo, Vị trí GPS & Nút chức năng */}
+      <HomeHeader
+        topInset={topInset}
+        locationLabel={locationLabel}
+        isLocating={location.isLocating}
+        isRefreshingLocation={location.isRefreshingLocation}
+        onRefreshLocation={() => void location.refresh(true)}
+        isAuthenticated={isAuthenticated}
+        unreadMessages={unreadMessages}
+        unreadNotifications={unreadNotifications}
+        onNavigateToWishlist={onNavigateToWishlist}
+        onNavigateToChat={onNavigateToChat}
+        onNavigateToNotifications={onNavigateToNotifications}
+        onNavigateToLogin={() => {
+          if (onNavigateToLogin) onNavigateToLogin();
+          else navigation?.navigate?.('Login');
+        }}
+      />
 
-        {/* Chat + Thông báo + Wishlist nếu đã đăng nhập, hoặc nút Login nếu chưa đăng nhập */}
-        {isAuthenticated ? (
-          <HeaderActions
-            unreadMessages={unreadMessages}
-            unreadNotifications={unreadNotifications}
-            onPressWishlist={onNavigateToWishlist}
-            onPressChat={onNavigateToChat}
-            onPressNotifications={onNavigateToNotifications}
-          />
-        ) : (
-          <TouchableOpacity
-            style={styles.headerLoginButton}
-            onPress={() => {
-              if (onNavigateToLogin) {
-                onNavigateToLogin();
-              } else if (navigation?.navigate) {
-                navigation.navigate('Login');
-              }
-            }}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Login"
-          >
-            <Ionicons name="log-in-outline" size={16} color="#FFFFFF" style={styles.headerLoginIcon} />
-            <Text style={styles.headerLoginText}>Login</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+      {/* 2. Banner chuyển sang chế độ Chủ máy (nếu có quyền) */}
+      <OwnerSwitchBanner
+        visible={showOwnerDashboard}
+        onPress={onNavigateToOwnerDashboard}
+      />
 
-      {/* BANNER CHUYỂN NHANH VỀ BẢNG ĐIỀU KHIỂN CHỦ MÁY */}
-      {showOwnerDashboard && (
-        <TouchableOpacity
-          style={styles.ownerSwitchBanner}
-          onPress={onNavigateToOwnerDashboard}
-          disabled={!onNavigateToOwnerDashboard}
-          activeOpacity={0.85}
-        >
-          <View style={styles.ownerSwitchLeft}>
-            <View style={styles.ownerSwitchIconBox}>
-              <Ionicons name="briefcase" size={14} color={colors.light.primary} />
-            </View>
-            <Text style={styles.ownerSwitchText}>
-              {STRINGS.HOME_SCREEN.OWNER_SWITCH_PREFIX}
-              <Text style={styles.ownerSwitchTextBold}>{STRINGS.HOME_SCREEN.OWNER_SWITCH_BOLD}</Text>
-            </Text>
-          </View>
-          <View style={styles.ownerSwitchCta}>
-            <Ionicons name="arrow-forward" size={13} color="#FFFFFF" />
-          </View>
-        </TouchableOpacity>
-      )}
+      {/* 3. Thanh tìm kiếm thiết bị */}
+      <HomeSearchBar
+        value={searchInput}
+        onChangeText={handleSearchChange}
+        onClear={() => handleSearchChange('')}
+      />
 
-      {/* SEARCH BAR */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchBar}>
-          <Ionicons name="search-outline" size={20} color="#94A3B8" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder={STRINGS.HOME_SCREEN.SEARCH_PLACEHOLDER}
-            placeholderTextColor={colors.light.textSecondary}
-            value={searchInput}
-            onChangeText={handleSearchChange}
-            accessibilityLabel="Search devices"
-            returnKeyType="search"
-          />
-          {searchInput.length > 0 ? (
-            <TouchableOpacity
-              onPress={() => handleSearchChange('')}
-              accessibilityRole="button"
-              accessibilityLabel="Clear search"
-              style={{ padding: 6 }}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="close-circle" size={20} color={colors.light.textMuted} />
-            </TouchableOpacity>
-          ) : null}
-        </View>
-      </View>
-
-      <View style={{ flexDirection: 'row', gap: 16, paddingHorizontal: 16 }}>
-        {([false, true] as const).map(value => (
-          <TouchableOpacity key={String(value)} onPress={() => setNearby(value)}
-            accessibilityRole="button" accessibilityState={{ selected: nearby === value }}>
-            <Text style={{ color: nearby === value ? colors.light.primary : colors.light.textSecondary }}>
-              {value ? 'Nearby (10 km)' : 'All devices'}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      {isLoadingCategories && <ActivityIndicator color={colors.light.primary} />}
+      {/* Thông báo tải danh mục nếu có */}
+      {isLoadingCategories && <ActivityIndicator color={colors.light.primary} style={{ marginVertical: 4 }} />}
       {categoryError && (
-        <TouchableOpacity onPress={() => setCategoryReload(value => value + 1)}>
+        <TouchableOpacity onPress={() => setCategoryReload((v) => v + 1)}>
           <Text style={styles.errorSubtitle}>{categoryError}. Tap to retry.</Text>
         </TouchableOpacity>
       )}
-      {/* DEVICE CATEGORIES */}
+
+      {/* 4. Thanh chọn danh mục thiết bị (Camera, Drone, Laptop, Audio, v.v.) */}
       <CategoryBar
         categories={categories}
         selectedCategory={selectedCategory}
         onSelectCategory={handleSelectCategory}
       />
 
-      {/* PROMO BANNER CAROUSEL */}
+      {/* 5. Banner quảng cáo lướt tự động */}
       <PromoBanner />
 
-      {nearby && locationWarning && (
-        <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
-          <Text style={{ color: colors.light.textSecondary }}>{locationWarning} Showing your last known area.</Text>
-        </View>
-      )}
-      {/* SECTION HEADER */}
+      {/* 6. Danh sách ngang các thiết bị đề xuất đánh giá cao */}
+      <FeaturedRecommendations
+        devices={recommendedDevices}
+        onSelectDevice={onNavigateToDeviceDetail}
+      />
+
+      {/* 7. Tiêu đề khu vực thiết bị chính kèm nút "View on Map" */}
       <SectionHeader
-        title={nearby ? 'Nearby devices (10 km)' : STRINGS.HOME_SCREEN.SECTION_DISCOVER_TITLE}
+        title={nearby ? 'Nearby Devices' : STRINGS.HOME_SCREEN.SECTION_DISCOVER_TITLE}
         subtitle={
           selectedCategory === 'all'
-            ? (nearby ? 'Nearest devices first within 10 km' : STRINGS.HOME_SCREEN.SECTION_DISCOVER_SUB_ALL)
+            ? nearby
+              ? location.cityName
+                ? `Devices near ${location.cityName}`
+                : 'Devices near your location'
+              : STRINGS.HOME_SCREEN.SECTION_DISCOVER_SUB_ALL
             : STRINGS.HOME_SCREEN.SECTION_DISCOVER_SUB_FILTER(selectedCategory.toUpperCase())
         }
-        badgeCount={hasLoaded && !(nearby && locationError) ? filteredDevices.length : undefined}
-        actionText={selectedCategory !== 'all' ? STRINGS.HOME_SCREEN.SEE_ALL : undefined}
+        badgeCount={hasLoaded && !(nearby && location.error) ? filteredDevices.length : undefined}
+        actionText={nearby ? 'View on Map' : selectedCategory !== 'all' ? STRINGS.HOME_SCREEN.SEE_ALL : undefined}
         onActionPress={
-          selectedCategory !== 'all'
-            ? handleShowAllCategories
+          nearby
+            ? onNavigateToMap
+            : selectedCategory !== 'all'
+            ? () => handleSelectCategory('all')
             : undefined
         }
       />
     </View>
   );
 
-  // Loading Skeleton State
+  // ============================================================================
+  // CÁC GIAO DIỆN TRẠNG THÁI: LOADING, EMPTY, ERROR
+  // ============================================================================
+
+  // Skeleton hiển thị khi đang tải lần đầu
   const renderLoadingSkeleton = () => (
     <View style={styles.skeletonContainer}>
       <View style={styles.skeletonCard}>
@@ -438,15 +441,74 @@ export function HomeScreen({
     </View>
   );
 
-  // Empty State
+  // Giao diện khi chưa cấp quyền vị trí
+  const renderLocationError = () => (
+    <View style={styles.errorContainer}>
+      <Ionicons name="location-outline" size={40} color={colors.light.primary} />
+      <Text style={styles.errorTitle}>Location Permission Required</Text>
+      <Text style={styles.errorSubtitle}>
+        {location.error || 'Please enable location services to discover nearby devices.'}
+      </Text>
+      <View style={styles.errorButtonRow}>
+        <TouchableOpacity style={styles.retryBtn} onPress={() => void location.refresh(true)}>
+          <Ionicons name="reload-outline" size={14} color="#FFFFFF" />
+          <Text style={styles.retryBtnText}>Retry GPS</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.retryBtn, { backgroundColor: colors.light.primary }]}
+          onPress={() => setNearby(false)}
+        >
+          <Ionicons name="grid-outline" size={14} color="#FFFFFF" />
+          <Text style={styles.retryBtnText}>Browse All</Text>
+        </TouchableOpacity>
+      </View>
+      <TouchableOpacity style={{ marginTop: 14 }} onPress={() => void Linking.openSettings()}>
+        <Text style={styles.settingsLinkText}>Open Location Settings</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  // Giao diện khi gặp lỗi mạng/API
+  const renderErrorState = () => (
+    <View style={styles.errorContainer}>
+      <Ionicons name="alert-circle-outline" size={40} color="#EF4444" />
+      <Text style={styles.errorTitle}>{STRINGS.HOME_SCREEN.ERROR_TITLE}</Text>
+      <Text style={styles.errorSubtitle}>{error}</Text>
+      <TouchableOpacity style={styles.retryBtn} onPress={handleRetry} activeOpacity={0.8}>
+        <Ionicons name="reload-outline" size={16} color="#FFFFFF" />
+        <Text style={styles.retryBtnText}>{STRINGS.HOME_SCREEN.TRY_AGAIN}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  // Giao diện danh sách trống
   const renderEmptyState = () => {
-    if (nearby && locationError) return renderLocationError();
+    if (nearby && location.error) return renderLocationError();
     if (error) return renderErrorState();
-    if (isInitialLoading || (nearby && isLocating) || !hasLoaded) {
+    if (isInitialLoading || (nearby && location.isLocating) || !hasLoaded) {
       return (
         <View>
-          {normalizedSearch ? <Text style={styles.emptySubtitle}>Searching devices...</Text> : null}
+          {searchInput.trim() ? <Text style={styles.emptySubtitle}>Searching for devices...</Text> : null}
           {renderLoadingSkeleton()}
+        </View>
+      );
+    }
+
+    if (nearby && filteredDevices.length === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <View style={styles.emptyIconCircle}>
+            <Ionicons name="location-outline" size={36} color="#64748B" />
+          </View>
+          <Text style={styles.emptyTitle}>No devices found nearby</Text>
+          <Text style={styles.emptySubtitle}>
+            There are no available devices near your current location.
+          </Text>
+          <TouchableOpacity style={styles.resetBtn} onPress={() => setNearby(false)} activeOpacity={0.8}>
+            <Ionicons name="globe-outline" size={16} color="#FFFFFF" />
+            <Text style={styles.resetBtnText}>Browse All Devices</Text>
+          </TouchableOpacity>
         </View>
       );
     }
@@ -464,11 +526,7 @@ export function HomeScreen({
         </Text>
 
         {(searchQuery || selectedCategory !== 'all') && (
-          <TouchableOpacity
-            style={styles.resetBtn}
-            onPress={handleResetFilters}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity style={styles.resetBtn} onPress={handleResetFilters} activeOpacity={0.8}>
             <Ionicons name="refresh-outline" size={16} color="#FFFFFF" />
             <Text style={styles.resetBtnText}>{STRINGS.HOME_SCREEN.SEE_ALL}</Text>
           </TouchableOpacity>
@@ -477,37 +535,7 @@ export function HomeScreen({
     );
   };
 
-  // Error State
-  const renderErrorState = () => (
-    <View style={styles.errorContainer}>
-      <Ionicons name="alert-circle-outline" size={40} color="#EF4444" />
-      <Text style={styles.errorTitle}>{STRINGS.HOME_SCREEN.ERROR_TITLE}</Text>
-      <Text style={styles.errorSubtitle}>{error}</Text>
-      <TouchableOpacity
-        style={styles.retryBtn}
-        onPress={handleRetry}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="reload-outline" size={16} color="#FFFFFF" />
-        <Text style={styles.retryBtnText}>{STRINGS.HOME_SCREEN.TRY_AGAIN}</Text>
-      </TouchableOpacity>
-    </View>
-  );
-
-  const renderLocationError = () => (
-    <View style={styles.errorContainer}>
-      <Ionicons name="location-outline" size={40} color={colors.light.primary} />
-      <Text style={styles.errorTitle}>Unable to determine your location</Text>
-      <Text style={styles.errorSubtitle}>{locationError}</Text>
-      <TouchableOpacity style={styles.retryBtn} onPress={() => void location.refresh()}>
-        <Text style={styles.retryBtnText}>Try Again</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={{ marginTop: 16 }} onPress={() => void Linking.openSettings()}>
-        <Text style={{ color: colors.light.primary }}>Open Settings</Text>
-      </TouchableOpacity>
-    </View>
-  );
-
+  // Render thẻ thiết bị 2 cột
   const renderDeviceCard = ({ item }: { item: Device }) => (
     <View style={styles.cardWrapper}>
       <DeviceCard
@@ -520,15 +548,16 @@ export function HomeScreen({
     </View>
   );
 
+  // Footer phân trang (Loading spinner hoặc hết dữ liệu)
   const renderListFooter = () => {
     if (filteredDevices.length === 0) return null;
 
     let footerContent;
-    if (isLoadingMore || isRefreshing || (nearby && isLocating)) {
+    if (isLoadingMore || isRefreshing || (nearby && location.isLocating)) {
       footerContent = <ActivityIndicator color={colors.light.primary} />;
     } else if (error) {
       footerContent = (
-        <TouchableOpacity onPress={handleRetryFailedPage}>
+        <TouchableOpacity onPress={() => loadDevices({ category: selectedCategory, search: searchInput.trim(), page: failedPage || 1 })}>
           <Text style={styles.errorSubtitle}>{error}</Text>
           <Text style={{ color: colors.light.primary, textAlign: 'center' }}>Retry loading devices</Text>
         </TouchableOpacity>
@@ -543,15 +572,16 @@ export function HomeScreen({
       footerContent = <Text style={{ color: colors.light.textSecondary }}>All devices loaded</Text>;
     }
 
-    return <View style={{ padding: 20, alignItems: 'center' }}>{footerContent}</View>;
+    return <View style={styles.footerContainer}>{footerContent}</View>;
   };
 
   return (
     <View style={styles.root}>
       <StatusBar barStyle="dark-content" />
 
+      {/* DANH SÁCH CUỘN CHÍNH (FlatList 2 Cột) */}
       <FlatList
-        data={nearby && locationError ? [] : filteredDevices}
+        data={nearby && location.error ? [] : filteredDevices}
         keyExtractor={(item: Device) => item._id}
         renderItem={renderDeviceCard}
         numColumns={2}
@@ -564,7 +594,7 @@ export function HomeScreen({
         ListFooterComponent={renderListFooter() ?? undefined}
         refreshControl={
           <RefreshControl
-            refreshing={isRefreshing || (nearby && isRefreshingLocation)}
+            refreshing={isRefreshing || (nearby && location.isRefreshingLocation)}
             onRefresh={handleRefresh}
             tintColor={colors.light.primary}
             colors={[colors.light.primary, colors.light.primaryHover]}
@@ -572,34 +602,61 @@ export function HomeScreen({
         }
       />
 
-      {(
-        <TouchableOpacity
-          style={[styles.aiConsultantButton, { bottom: insets.bottom + 16 }]}
-          onPress={onNavigateToAiConsultant}
-          disabled={!onNavigateToAiConsultant}
-          accessibilityState={{ disabled: !onNavigateToAiConsultant }}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel={STRINGS.HOME_SCREEN.AI_CONSULTANT_ACCESSIBILITY_LABEL}
-        >
-          <Ionicons name="sparkles" size={23} color={colors.light.white} />
-        </TouchableOpacity>
-      )}
+      {/* NÚT TRỢ LÝ AI NỔI GÓC DƯỚI (Floating Action Button) */}
+      <TouchableOpacity
+        style={[styles.aiConsultantButton, { bottom: insets.bottom + 16 }]}
+        onPress={onNavigateToAiConsultant}
+        disabled={!onNavigateToAiConsultant}
+        accessibilityState={{ disabled: !onNavigateToAiConsultant }}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel={STRINGS.HOME_SCREEN.AI_CONSULTANT_ACCESSIBILITY_LABEL}
+      >
+        <Ionicons name="sparkles" size={23} color={colors.light.white} />
+      </TouchableOpacity>
     </View>
   );
 }
 
+// ============================================================================
+// STYLESHEET
+// ============================================================================
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.light.background,
+    backgroundColor: '#F8FAFC',
+  },
+  headerArea: {
+    paddingBottom: 4,
+  },
+  listContent: {
+    paddingBottom: 24,
+  },
+  columnWrapper: {
+    paddingHorizontal: 16,
+    justifyContent: 'space-between',
+  },
+  cardWrapper: {
+    width: COLUMN_WIDTH,
+  },
+  warningContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  warningText: {
+    color: colors.light.textSecondary,
+    fontSize: 12,
+  },
+  footerContainer: {
+    padding: 20,
+    alignItems: 'center',
   },
   aiConsultantButton: {
     position: 'absolute',
     right: 18,
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: colors.light.primary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -609,169 +666,7 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 6,
   },
-  listContent: {
-    paddingBottom: 24,
-  },
-  headerArea: {
-    paddingBottom: 4,
-  },
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  headerLoginButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.light.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    shadowColor: colors.light.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  headerLoginIcon: {
-    marginRight: 4,
-  },
-  headerLoginText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-  ownerSwitchBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.light.primaryLight,
-    borderWidth: 1,
-    borderColor: colors.light.borderDefault,
-    borderRadius: 12,
-    marginHorizontal: 16,
-    marginTop: 4,
-    marginBottom: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  ownerSwitchLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  ownerSwitchIconBox: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: colors.light.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ownerSwitchText: {
-    fontSize: 12,
-    color: colors.light.primaryDark,
-  },
-  ownerSwitchTextBold: {
-    fontWeight: '700',
-    color: colors.light.primaryDark,
-  },
-  ownerSwitchCta: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: colors.light.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  brandContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  logoBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: colors.light.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.light.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  brandTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.light.textPrimary,
-    letterSpacing: 0.5,
-  },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    marginTop: 1,
-  },
-  locationText: {
-    fontSize: 11,
-    color: colors.light.textSecondary,
-  },
-  notificationBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: colors.light.surface,
-    borderWidth: 1,
-    borderColor: colors.light.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  notificationDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.light.error,
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    borderWidth: 1.5,
-    borderColor: colors.light.surface,
-  },
-  searchContainer: {
-    paddingHorizontal: 16,
-    marginVertical: 6,
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.light.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.light.border,
-    paddingHorizontal: 14,
-    height: 48,
-    gap: 10,
-  },
-  searchInput: {
-    flex: 1,
-    color: colors.light.textPrimary,
-    fontSize: 14,
-  },
-  columnWrapper: {
-    paddingHorizontal: 16,
-    justifyContent: 'space-between',
-  },
-  cardWrapper: {
-    width: COLUMN_WIDTH,
-  },
+  // Skeletons
   skeletonContainer: {
     flexDirection: 'row',
     paddingHorizontal: 16,
@@ -779,27 +674,26 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   skeletonCard: {
-    width: COLUMN_WIDTH,
-    height: 220,
+    flex: 1,
+    height: 180,
+    borderRadius: 14,
     backgroundColor: colors.light.surface,
-    borderRadius: 16,
     padding: 10,
-    borderWidth: 1,
-    borderColor: colors.light.border,
+    gap: 8,
   },
   skeletonImage: {
     width: '100%',
-    height: 120,
+    height: 100,
+    borderRadius: 10,
     backgroundColor: colors.light.border,
-    borderRadius: 12,
-    marginBottom: 12,
   },
   skeletonLine: {
+    width: '80%',
     height: 12,
-    backgroundColor: colors.light.border,
     borderRadius: 6,
-    marginBottom: 8,
+    backgroundColor: colors.light.border,
   },
+  // Empty & Error States
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -807,79 +701,91 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   emptyIconCircle: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: colors.light.primaryLight,
-    borderWidth: 1,
-    borderColor: colors.light.border,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.light.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.light.border,
   },
   emptyTitle: {
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: '700',
     color: colors.light.textPrimary,
-    marginBottom: 6,
+    marginBottom: 8,
     textAlign: 'center',
   },
   emptySubtitle: {
     fontSize: 13,
     color: colors.light.textSecondary,
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 19,
     marginBottom: 18,
+  },
+  errorContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+    backgroundColor: colors.light.dangerLight,
+    marginHorizontal: 16,
+    marginVertical: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  errorTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#EF4444',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  errorSubtitle: {
+    fontSize: 12.5,
+    color: '#64748B',
+    textAlign: 'center',
+    marginBottom: 14,
+  },
+  errorButtonRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 8,
+  },
+  retryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 10,
+  },
+  retryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
   },
   resetBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     backgroundColor: colors.light.primary,
+    paddingHorizontal: 18,
     paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 10,
+    borderRadius: 12,
   },
   resetBtnText: {
-    color: colors.light.white,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  errorContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 30,
-    backgroundColor: colors.light.dangerLight,
-    margin: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.light.error,
-  },
-  errorTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.light.error,
-    marginTop: 8,
-    marginBottom: 4,
-  },
-  errorSubtitle: {
-    fontSize: 13,
-    color: colors.light.textSecondary,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  retryBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.light.error,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-  },
-  retryBtnText: {
-    color: colors.light.white,
+    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '600',
+  },
+  settingsLinkText: {
+    color: colors.light.primary,
+    fontSize: 13,
+    textDecorationLine: 'underline',
   },
 });

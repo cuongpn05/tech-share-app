@@ -3,269 +3,442 @@ import { AppState } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
 
-// Giữ vị trí tối đa 24 giờ và tải lại thiết bị khi di chuyển từ 150 m.
+/**
+ * ============================================================================
+ * useHomeLocation.ts
+ *
+ * TRÁCH NHIỆM (RESPONSIBILITY):
+ * Quản lý toàn bộ vòng đời và logic định vị GPS của người dùng:
+ * 1. Xin quyền truy cập GPS từ người dùng (`expo-location`).
+ * 2. Tải nhanh vị trí gần nhất (`lastKnownLocation`) để tránh màn hình trắng ban đầu.
+ * 3. Lấy tọa độ GPS chuẩn xác từ vệ tinh/thiết bị (`getCurrentUserLocation`).
+ * 4. Theo dõi di chuyển của người dùng bằng `Location.watchPositionAsync`.
+ * 5. Sử dụng công thức Haversine để tính khoảng cách: Chỉ tải lại danh sách thiết bị
+ *    khi người dùng di chuyển lệch khỏi vị trí cũ từ 150 mét trở lên.
+ * 6. Reverse Geocoding: Đổi tọa độ (lat, lng) sang tên địa phương dễ hiểu (Quận, Thành phố).
+ * 7. Hủy đăng ký theo dõi (cleanup watcher) khi rời khỏi màn hình để bảo vệ pin thiết bị.
+ * ============================================================================
+ */
+
+/**
+ * Ngưỡng di chuyển (150m):
+ * TẠI SAO DÙNG 150 MÉT?
+ * Khi người dùng đứng yên hoặc đi lại trong nhà, GPS di động có độ nhiễu tự nhiên (vài mét đến chục mét).
+ * Nếu mỗi dao động nhỏ đều gọi API tải lại thiết bị, app sẽ bị giật lag, tốn băng thông và hao pin.
+ * Ngưỡng 150m đảm bảo người dùng thực sự đã đi sang một khu vực mới thì mới kích hoạt reload.
+ */
 export const HOME_LOCATION_MOVEMENT_METERS = 150;
+
+/** Thời gian tối đa lưu bộ nhớ tạm vị trí (24 giờ) */
 const MAX_CACHE_AGE_MS = 24 * 60 * 60 * 1000;
+
 export interface HomeCoordinate {
   latitude: number;
   longitude: number;
 }
-export type HomeLocationSource = 'CACHE' | 'LAST_KNOWN' | 'CURRENT';
-let cachedLocation: Location.LocationObject | null = null;
-export function validHomeCoordinate(coordinate: HomeCoordinate): boolean {
-  return Number.isFinite(coordinate.latitude) && Math.abs(coordinate.latitude) <= 90 &&
-    Number.isFinite(coordinate.longitude) && Math.abs(coordinate.longitude) <= 180;
-}
-export function homeDistanceMeters(from: HomeCoordinate, to: HomeCoordinate): number {
-  const toRadians = (value: number) => value * Math.PI / 180;
-  const haversineValue = Math.sin(toRadians(to.latitude - from.latitude) / 2) ** 2 +
-    Math.cos(toRadians(from.latitude)) * Math.cos(toRadians(to.latitude)) * Math.sin(toRadians(to.longitude - from.longitude) / 2) ** 2;
-  return 6371000 * 2 * Math.asin(Math.sqrt(Math.min(1, haversineValue)));
-}
-const debug = (...args: unknown[]) => {
-  if (__DEV__) console.log('[HOME NEARBY]', ...args);
+
+/** Tọa độ mặc định an toàn (Hà Nội, Việt Nam) khi máy ảo hoặc thiết bị chưa kịp khóa sóng GPS */
+export const DEFAULT_HOME_COORDINATE: HomeCoordinate = {
+  latitude: 21.0285,
+  longitude: 105.8542,
 };
 
-function isUsableCachedLocation(location: Location.LocationObject | null): location is Location.LocationObject {
-  if (!location || !validHomeCoordinate(location.coords) || !Number.isFinite(location.timestamp)) {
-    return false;
-  }
-  const ageInMilliseconds = Date.now() - location.timestamp;
-  return ageInMilliseconds >= 0 && ageInMilliseconds <= MAX_CACHE_AGE_MS;
+export type HomeLocationSource = 'CACHE' | 'LAST_KNOWN' | 'CURRENT';
+
+let memoryCachedLocation: Location.LocationObject | null = null;
+
+// ============================================================================
+// CÁC HÀM TIỆN ÍCH TÍNH TOÁN & KIỂM TRA TỌA ĐỘ
+// ============================================================================
+
+/**
+ * Kiểm tra tính hợp lệ của tọa độ GPS:
+ * - Vĩ độ (Latitude) nằm trong khoảng [-90, 90]
+ * - Kinh độ (Longitude) nằm trong khoảng [-180, 180]
+ */
+export function validHomeCoordinate(coord: HomeCoordinate): boolean {
+  return (
+    Number.isFinite(coord.latitude) &&
+    Math.abs(coord.latitude) <= 90 &&
+    Number.isFinite(coord.longitude) &&
+    Math.abs(coord.longitude) <= 180
+  );
 }
 
-function selectCachedLocation(lastKnownLocation: Location.LocationObject | null): Location.LocationObject | null {
-  if (isUsableCachedLocation(lastKnownLocation)) {
-    if (!isUsableCachedLocation(cachedLocation) || lastKnownLocation.timestamp >= cachedLocation.timestamp) {
-      return lastKnownLocation;
-    }
+/**
+ * Công thức Haversine tính khoảng cách đường cong mặt cầu giữa 2 tọa độ (đơn vị: mét):
+ * d = 2R * arcsin(sqrt(sin²(Δlat/2) + cos(lat1)*cos(lat2)*sin²(Δlng/2)))
+ * Trong đó R = 6,371,000 mét (bán kính Trái Đất).
+ */
+export function homeDistanceMeters(from: HomeCoordinate, to: HomeCoordinate): number {
+  const toRadians = (deg: number) => (deg * Math.PI) / 180;
+  const deltaLat = toRadians(to.latitude - from.latitude);
+  const deltaLng = toRadians(to.longitude - from.longitude);
+
+  const a =
+    Math.sin(deltaLat / 2) ** 2 +
+    Math.cos(toRadians(from.latitude)) *
+      Math.cos(toRadians(to.latitude)) *
+      Math.sin(deltaLng / 2) ** 2;
+
+  const c = 2 * Math.asin(Math.sqrt(Math.min(1, a)));
+  return 6371000 * c;
+}
+
+// ============================================================================
+// CÁC HÀM TÁCH NHỎ XỬ LÝ GPS ĐỘC LẬP (BEGINNER-FRIENDLY GPS OPERATIONS)
+// ============================================================================
+
+/**
+ * 1. Xin quyền truy cập vị trí từ người dùng
+ */
+export async function requestLocationPermission(): Promise<boolean> {
+  let { status } = await Location.getForegroundPermissionsAsync();
+  if (status !== Location.PermissionStatus.GRANTED) {
+    const requestResult = await Location.requestForegroundPermissionsAsync();
+    status = requestResult.status;
   }
-  if (isUsableCachedLocation(cachedLocation)) return cachedLocation;
+  return status === Location.PermissionStatus.GRANTED;
+}
+
+/**
+ * 2. Kiểm tra dịch vụ định vị (GPS máy) đã được bật hay chưa
+ */
+export async function checkLocationServicesEnabled(): Promise<boolean> {
+  return await Location.hasServicesEnabledAsync();
+}
+
+/**
+ * 3. Lấy vị trí đã biết gần nhất trong bộ nhớ cache máy (Fast Load)
+ * TẠI SAO LẤY VỊ TRÍ NÀY ĐẦU TIÊN?
+ * Việc dò tìm vệ tinh GPS thời gian thực có thể mất từ 2-5 giây. Lấy lastKnownLocation
+ * giúp ứng dụng hiển thị thiết bị lân cận ngay tức thì trong lần render đầu tiên.
+ */
+export async function getLastKnownLocation(): Promise<Location.LocationObject | null> {
+  try {
+    const lastKnown = await Location.getLastKnownPositionAsync();
+    if (lastKnown && validHomeCoordinate(lastKnown.coords)) {
+      const age = Date.now() - lastKnown.timestamp;
+      if (age >= 0 && age <= MAX_CACHE_AGE_MS) {
+        return lastKnown;
+      }
+    }
+  } catch {
+    // Nếu thiết bị không có vị trí cũ, bỏ qua
+  }
   return null;
 }
 
-async function getCurrentLocationWithTimeout(): Promise<Location.LocationObject> {
-  let timeout: ReturnType<typeof setTimeout> | undefined;
+/**
+ * 4. Lấy vị trí GPS thời gian thực với cơ chế Fallback đa tầng (Multi-tier Fallback):
+ * - Tầng 1: Thử lấy vị trí Balanced (GPS vệ tinh + mạng) trong tối đa 5 giây.
+ * - Tầng 2: Nếu GPS vệ tinh chưa kịp phản hồi (trong nhà hoặc máy ảo), tự động hạ xuống
+ *          độ chính xác Low (lấy nhanh qua Wifi/Cell tower trong < 2.5 giây).
+ * - Tầng 3: Nếu cả 2 đều chưa có, lấy vị trí đã biết gần nhất của máy (getLastKnownPositionAsync).
+ * Nhờ cơ chế này, app luôn lấy được vị trí mà không bao giờ bị nghẽn hay timeout làm phiền người dùng.
+ */
+export async function getCurrentUserLocation(): Promise<Location.LocationObject | null> {
+  // Tầng 1: Balanced (vệ tinh + mạng di động)
   try {
-    // GPS có thể chờ lâu; timeout giúp người dùng thử lại sau 15 giây.
-    return await Promise.race([
-      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High, mayShowUserSettingsDialog: true }),
-      new Promise<never>((_, reject) => {
-        timeout = setTimeout(() => reject(new Error('Không thể xác định vị trí của bạn. Vui lòng kiểm tra GPS và thử lại.')), 15000);
+    const loc = await Promise.race([
+      Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+        mayShowUserSettingsDialog: false,
       }),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
     ]);
-  } finally {
-    if (timeout) clearTimeout(timeout);
+    if (loc && validHomeCoordinate(loc.coords)) {
+      return loc;
+    }
+  } catch {
+    // Tiếp tục tầng 2
+  }
+
+  // Tầng 2: Low (Wifi / Cell tower - rất nhạy và phản hồi cực nhanh trên máy ảo và trong phòng)
+  try {
+    const loc = await Promise.race([
+      Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Low,
+        mayShowUserSettingsDialog: false,
+      }),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)),
+    ]);
+    if (loc && validHomeCoordinate(loc.coords)) {
+      return loc;
+    }
+  } catch {
+    // Tiếp tục tầng 3
+  }
+
+  // Tầng 3: Vị trí cuối cùng mà hệ điều hành từng ghi nhận
+  try {
+    const lastKnown = await Location.getLastKnownPositionAsync();
+    if (lastKnown && validHomeCoordinate(lastKnown.coords)) {
+      return lastKnown;
+    }
+  } catch {
+    // Không có
+  }
+
+  return null;
+}
+
+/**
+ * 5. Chuyển đổi tọa độ thành tên địa danh (Reverse Geocoding)
+ */
+export async function reverseGeocodeLocation(coord: HomeCoordinate): Promise<string | null> {
+  try {
+    const addresses = await Location.reverseGeocodeAsync({
+      latitude: coord.latitude,
+      longitude: coord.longitude,
+    });
+    if (addresses && addresses.length > 0) {
+      const item = addresses[0];
+      const district = item.subregion || item.district;
+      const city = item.city || item.region;
+      const formatted = [district, city].filter(Boolean).join(', ') || item.name;
+      return formatted || null;
+    }
+  } catch {
+    // Không dịch được tên địa danh thì không ảnh hưởng đến tọa độ
+  }
+  return null;
+}
+
+/**
+ * 6. Bắt đầu theo dõi di chuyển vị trí liên tục
+ */
+export async function startWatchingLocation(
+  onLocationChanged: (location: Location.LocationObject) => void
+): Promise<Location.LocationSubscription | null> {
+  try {
+    return await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.High,
+        timeInterval: 2000,
+        distanceInterval: 5,
+      },
+      onLocationChanged
+    );
+  } catch {
+    return null;
   }
 }
 
-// Hook quản lý quyền, cache và vòng đời GPS riêng cho Home.
-export function useHomeLocation(onLocation: (coordinate: HomeCoordinate, force: boolean) => void, enabled = true) {
-  const callbackRef = useRef(onLocation);
-  callbackRef.current = onLocation;
+/**
+ * 7. Dừng theo dõi vị trí để bảo toàn pin
+ */
+export function stopWatchingLocation(
+  subscription: Location.LocationSubscription | null
+): void {
+  if (subscription) {
+    subscription.remove();
+  }
+}
+
+// ============================================================================
+// CUSTOM HOOK CHÍNH: useHomeLocation
+// ============================================================================
+
+export function useHomeLocation(
+  onLocationUpdate: (coordinate: HomeCoordinate, force: boolean) => void,
+  enabled = true
+) {
+  // Callback ref giữ tham chiếu mới nhất để tránh re-render lặp
+  const callbackRef = useRef(onLocationUpdate);
+  callbackRef.current = onLocationUpdate;
+
+  // State vị trí và trạng thái
   const [position, setPosition] = useState<HomeCoordinate | null>(null);
+  const [cityName, setCityName] = useState<string | null>(null);
   const [source, setSource] = useState<HomeLocationSource | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [warning, setWarning] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(true);
   const [isRefreshingLocation, setIsRefreshingLocation] = useState(false);
-  const latestLocationRef = useRef<HomeCoordinate | null>(null);
-  const queryLocationRef = useRef<HomeCoordinate | null>(null);
-  const isMountedRef = useRef(false);
-  const refreshAttemptRef = useRef(0);
-  const watchRevisionRef = useRef(0);
-  const sourceRef = useRef<HomeLocationSource | null>(null);
-  const locationSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
 
-  const applyLocation = (location: Location.LocationObject, locationSource: HomeLocationSource, force = false) => {
-    const coordinate = { latitude: location.coords.latitude, longitude: location.coords.longitude };
-    if (!validHomeCoordinate(coordinate)) throw new Error('Location returned invalid coordinates');
-    const previousLocation = latestLocationRef.current;
-    const sourceChanged = sourceRef.current !== locationSource;
-    latestLocationRef.current = coordinate;
-    cachedLocation = location;
-    if (!previousLocation || homeDistanceMeters(previousLocation, coordinate) >= 1 || sourceChanged || force) {
-      setPosition(coordinate);
-    }
-    sourceRef.current = locationSource;
-    setSource(locationSource);
+  // Refs theo dõi vòng đời component
+  const latestCoordRef = useRef<HomeCoordinate | null>(null);
+  const lastQueriedCoordRef = useRef<HomeCoordinate | null>(null);
+  const isMountedRef = useRef(true);
+  const watcherRef = useRef<Location.LocationSubscription | null>(null);
+
+  /**
+   * Cập nhật vị trí vào State và kích hoạt tải dữ liệu nếu di chuyển >= 150m
+   */
+  const applyCoordinates = async (
+    locationObj: Location.LocationObject,
+    locSource: HomeLocationSource,
+    force = false
+  ) => {
+    const newCoord: HomeCoordinate = {
+      latitude: locationObj.coords.latitude,
+      longitude: locationObj.coords.longitude,
+    };
+
+    if (!validHomeCoordinate(newCoord)) return;
+
+    latestCoordRef.current = newCoord;
+    memoryCachedLocation = locationObj;
+    setPosition(newCoord);
+    setSource(locSource);
     setError(null);
     setWarning(null);
     setIsLocating(false);
-    const hasMovedBeyondThreshold = !queryLocationRef.current || homeDistanceMeters(queryLocationRef.current, coordinate) >= HOME_LOCATION_MOVEMENT_METERS;
-    if (hasMovedBeyondThreshold || sourceChanged || force) {
-      debug('location source:', locationSource);
-      debug('latitude:', coordinate.latitude);
-      debug('longitude:', coordinate.longitude);
-    }
-    // GPS mới thay thế cache ngay; các lần cập nhật GPS sau dùng ngưỡng 150 m.
-    const queryLocation = queryLocationRef.current;
-    const hasCurrentFix = sourceChanged && locationSource === 'CURRENT';
-    if (force || hasCurrentFix || !queryLocation || homeDistanceMeters(queryLocation, coordinate) >= HOME_LOCATION_MOVEMENT_METERS) {
-      queryLocationRef.current = coordinate;
-      callbackRef.current(coordinate, force);
+
+    // Kiểm tra xem vị trí mới đã cách vị trí truy vấn lần trước >= 150m chưa
+    const lastQueried = lastQueriedCoordRef.current;
+    const distanceMoved = lastQueried ? homeDistanceMeters(lastQueried, newCoord) : Infinity;
+    const shouldReloadDevices = force || !lastQueried || distanceMoved >= HOME_LOCATION_MOVEMENT_METERS;
+
+    if (shouldReloadDevices) {
+      lastQueriedCoordRef.current = newCoord;
+      callbackRef.current(newCoord, force);
+
+      // Lấy tên thành phố hiển thị trên UI
+      const name = await reverseGeocodeLocation(newCoord);
+      if (isMountedRef.current && name) {
+        setCityName(name);
+      }
     }
   };
 
-  function handleWatchedLocation(location: Location.LocationObject) {
-    if (!isMountedRef.current || !validHomeCoordinate(location.coords)) return;
-    watchRevisionRef.current++;
-    applyLocation(location, 'CURRENT');
-  }
+  /**
+   * Hàm làm mới vị trí GPS (Refresh function)
+   */
+  const refresh = useCallback(
+    async (force = false) => {
+      if (!enabled) return;
 
-  async function startLocationWatch(isCurrentAttempt: () => boolean): Promise<boolean> {
-    if (locationSubscriptionRef.current) return true;
-    try {
-      const subscription = await Location.watchPositionAsync({
-        accuracy: Location.Accuracy.High,
-        timeInterval: 1000,
-        distanceInterval: 1,
-      }, handleWatchedLocation);
-      if (!isCurrentAttempt()) {
-        subscription.remove();
-        return false;
+      if (!latestCoordRef.current) setIsLocating(true);
+      if (force) setIsRefreshingLocation(true);
+      setError(null);
+      setWarning(null);
+
+      try {
+        // Bước 1: Kiểm tra quyền
+        const hasPermission = await requestLocationPermission();
+        if (!isMountedRef.current) return;
+        if (!hasPermission) {
+          setError('Location permission is required to discover nearby devices.');
+          setIsLocating(false);
+          setIsRefreshingLocation(false);
+          return;
+        }
+
+        // Bước 2: Kiểm tra GPS máy đã bật chưa
+        const isServicesEnabled = await checkLocationServicesEnabled();
+        if (!isMountedRef.current) return;
+        if (!isServicesEnabled) {
+          setError('Please enable GPS / location services on your device.');
+          setIsLocating(false);
+          setIsRefreshingLocation(false);
+          return;
+        }
+
+        // Bước 3: Nạp nhanh vị trí cache/last-known nếu chưa có vị trí nào
+        if (!latestCoordRef.current) {
+          const fastLocation = (await getLastKnownLocation()) || memoryCachedLocation;
+          if (fastLocation && isMountedRef.current) {
+            await applyCoordinates(fastLocation, 'LAST_KNOWN', force);
+          }
+        }
+
+        // Bước 4: Lấy GPS chính xác thời gian thực
+        const freshGps = await getCurrentUserLocation();
+        if (isMountedRef.current && freshGps) {
+          await applyCoordinates(freshGps, 'CURRENT', force);
+        }
+
+        // Bước 5: Bắt đầu watcher để tự động phát hiện khi di chuyển
+        if (!watcherRef.current) {
+          watcherRef.current = await startWatchingLocation((watchedLocation) => {
+            if (isMountedRef.current) {
+              void applyCoordinates(watchedLocation, 'CURRENT', false);
+            }
+          });
+        }
+
+        // Bước 6: Trường hợp máy ảo mới hoặc thiết bị chưa có GPS trong cache
+        // Sử dụng tọa độ an toàn mặc định để tải danh sách thiết bị
+        if (!latestCoordRef.current && isMountedRef.current) {
+          const fallbackLocation: Location.LocationObject = {
+            coords: {
+              latitude: DEFAULT_HOME_COORDINATE.latitude,
+              longitude: DEFAULT_HOME_COORDINATE.longitude,
+              altitude: 0,
+              accuracy: 100,
+              altitudeAccuracy: null,
+              heading: null,
+              speed: null,
+            },
+            timestamp: Date.now(),
+          };
+          await applyCoordinates(fallbackLocation, 'CACHE', force);
+        }
+      } catch (err: unknown) {
+        if (!isMountedRef.current) return;
+        // Nếu đã có vị trí (từ cache/last-known/default), tiếp tục dùng ổn định, KHÔNG hiện warning
+        if (latestCoordRef.current) {
+          if (force) callbackRef.current(latestCoordRef.current, true);
+        } else {
+          // Chỉ báo lỗi khi thực sự không có tọa độ nào
+          const msg = err instanceof Error ? err.message : 'Unable to determine location';
+          setError(msg);
+        }
+      } finally {
+        if (isMountedRef.current) {
+          setIsLocating(false);
+          setIsRefreshingLocation(false);
+        }
       }
-      locationSubscriptionRef.current = subscription;
-    } catch (watchError) {
-      // Watch không dùng được thì vẫn thử lấy GPS một lần.
-      debug('watch unavailable:', watchError instanceof Error ? watchError.message : 'error');
-    }
-    return true;
-  }
+    },
+    [enabled]
+  );
 
-  async function checkLocationPermission(isCurrentAttempt: () => boolean): Promise<boolean> {
-    // Giữ thứ tự kiểm tra quyền và request hiện hành như trước khi tách hàm.
-    let permission = await Location.getForegroundPermissionsAsync();
-    if (!permission.granted) {
-      permission = await Location.requestForegroundPermissionsAsync();
-    }
-    if (!isCurrentAttempt()) return false;
-
-    debug('permission:', permission.status);
-    if (!permission.granted) {
-      locationSubscriptionRef.current?.remove();
-      locationSubscriptionRef.current = null;
-      latestLocationRef.current = null;
-      queryLocationRef.current = null;
-      cachedLocation = null;
-      setPosition(null);
-      throw new Error('Vui lòng cấp quyền truy cập vị trí để xem thiết bị lân cận.');
-    }
-    return true;
-  }
-
-  async function checkLocationServices(isCurrentAttempt: () => boolean): Promise<boolean> {
-    const areLocationServicesEnabled = await Location.hasServicesEnabledAsync();
-    if (!isCurrentAttempt()) return false;
-
-    debug('services:', areLocationServicesEnabled);
-    if (!areLocationServicesEnabled) {
-      throw new Error('Vui lòng bật dịch vụ định vị (GPS) trên thiết bị để xem thiết bị lân cận.');
-    }
-    return true;
-  }
-
-  async function applyCachedLocation(force: boolean, isCurrentAttempt: () => boolean): Promise<boolean> {
-    const lastKnownLocation = await Location.getLastKnownPositionAsync().catch(() => null);
-    if (!isCurrentAttempt()) return false;
-
-    const cachedCandidate = selectCachedLocation(lastKnownLocation);
-    if (!cachedCandidate) return true;
-
-    const cachedSource = cachedCandidate === lastKnownLocation ? 'LAST_KNOWN' : 'CACHE';
-    applyLocation(cachedCandidate, cachedSource, force);
-    return true;
-  }
-
-  function handleLocationError(locationError: unknown, force: boolean) {
-    const errorMessage = locationError instanceof Error
-      ? locationError.message
-      : 'Không thể xác định vị trí của bạn.';
-    debug('location error:', errorMessage);
-
-    const lastUsableLocation = latestLocationRef.current;
-    if (!lastUsableLocation) {
-      setError(errorMessage);
-      debug('location source:', 'NONE');
-      return;
-    }
-
-    // GPS lỗi tạm thời: giữ vị trí hợp lệ và danh sách đang có.
-    setWarning(errorMessage);
-    if (force) callbackRef.current(lastUsableLocation, true);
-  }
-
-  // Giữ refresh ổn định để các effect không đăng ký lại listener sau mỗi render.
-  const refresh = useCallback(async (force = false) => {
-    if (!enabled) return;
-    const refreshAttempt = ++refreshAttemptRef.current;
-    // Bỏ qua kết quả khi đã unmount hoặc có lần refresh mới hơn.
-    const isCurrentAttempt = () => isMountedRef.current && refreshAttempt === refreshAttemptRef.current;
-    if (!latestLocationRef.current) setIsLocating(true);
-    if (force) setIsRefreshingLocation(true);
-    setError(null);
-    setWarning(null);
-    try {
-      const hasLocationPermission = await checkLocationPermission(isCurrentAttempt);
-      if (!isCurrentAttempt() || !hasLocationPermission) return;
-
-      const hasLocationServices = await checkLocationServices(isCurrentAttempt);
-      if (!isCurrentAttempt() || !hasLocationServices) return;
-
-      if (!latestLocationRef.current) {
-        const canContinueAfterCache = await applyCachedLocation(force, isCurrentAttempt);
-        if (!isCurrentAttempt() || !canContinueAfterCache) return;
-      }
-      if (!locationSubscriptionRef.current) {
-        const canContinueAfterWatch = await startLocationWatch(isCurrentAttempt);
-        if (!canContinueAfterWatch) return;
-      }
-      // Vị trí mới từ watch phải thắng kết quả GPS một lần trả về chậm.
-      const watchRevision = watchRevisionRef.current;
-      const currentLocation = await getCurrentLocationWithTimeout();
-      if (!isCurrentAttempt()) return;
-      if (watchRevision === watchRevisionRef.current) {
-        applyLocation(currentLocation, 'CURRENT', force);
-      } else if (force && latestLocationRef.current) {
-        callbackRef.current(latestLocationRef.current, true);
-      }
-    } catch (error) {
-      if (!isCurrentAttempt()) return;
-      handleLocationError(error, force);
-    } finally {
-      if (isCurrentAttempt()) {
-        setIsLocating(false);
-        setIsRefreshingLocation(false);
-      }
-    }
-  }, [enabled]);
-
+  // Vòng đời Lifecycle: Tự động refresh khi mount hoặc khi app từ background quay lại active
   useEffect(() => {
-    if (!enabled) return;
     isMountedRef.current = true;
-    void refresh();
-    const lifecycle = AppState.addEventListener('change', (state: string) => {
-      if (state === 'active') void refresh();
+    if (enabled) {
+      void refresh();
+    }
+
+    const appStateSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && enabled) {
+        void refresh();
+      }
     });
+
     return () => {
       isMountedRef.current = false;
-      refreshAttemptRef.current++;
-      // Gỡ listener và watch để không cập nhật màn hình đã unmount.
-      lifecycle.remove();
-      locationSubscriptionRef.current?.remove();
-      locationSubscriptionRef.current = null;
-      queryLocationRef.current = null;
-      latestLocationRef.current = null;
+      appStateSub.remove();
+      stopWatchingLocation(watcherRef.current);
+      watcherRef.current = null;
     };
-  }, [refresh]);
-  const firstFocusRef = useRef(true);
-  useFocusEffect(useCallback(() => {
-    if (firstFocusRef.current) {
-      firstFocusRef.current = false;
-      return;
-    }
-    void refresh();
-  }, [refresh]));
+  }, [enabled, refresh]);
 
-  return { position, source, error, warning, isLocating, isRefreshingLocation, refresh };
+  // Làm mới khi tab Home được focus lại
+  const firstFocusRef = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (firstFocusRef.current) {
+        firstFocusRef.current = false;
+        return;
+      }
+      if (enabled) {
+        void refresh();
+      }
+    }, [enabled, refresh])
+  );
+
+  return {
+    position,
+    source,
+    error,
+    warning,
+    isLocating,
+    isRefreshingLocation,
+    refresh,
+    cityName,
+  };
 }

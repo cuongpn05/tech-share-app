@@ -179,7 +179,7 @@ export interface Device {
   ownerId?: User | string | null;
   name?: string;
   pricePerDay?: number;
-  stats?: { ratingAvg?: number; ratingCount?: number };
+  stats?: { ratingAvg?: number; ratingCount?: number; rentalCount?: number; revenueTotal?: number };
   distanceMeters?: number;
   _id: string;
   addressText?: string;
@@ -196,6 +196,7 @@ export interface Device {
   status: DeviceStatus;
   rating: number;
   reviewCount: number;
+  rentalCount?: number;
   aiAnalysis?: DeviceAiAnalysis;
   viewsCount?: number;
   createdAt?: string;

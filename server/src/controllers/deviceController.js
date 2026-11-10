@@ -1,5 +1,7 @@
+const mongoose = require("mongoose");
 const Device = require("../models/Device");
 const Booking = require("../models/Booking");
+const Review = require("../models/Review");
 require("../models/User");
 const { asyncHandler } = require("../middlewares/asyncHandler");
 const { uploadToCloudinary } = require("../utils/cloudinary");
@@ -43,6 +45,80 @@ const getDeviceCategories = asyncHandler(async (req, res) => {
   res.json({ success: true, data });
 });
 
+// Gán số lượt thuê thực tế (từ booking completed) và đánh giá sao thực tế (từ reviews)
+async function attachCompletedBookingCounts(deviceObjects) {
+  if (!Array.isArray(deviceObjects) || deviceObjects.length === 0) return deviceObjects;
+  
+  const idSet = new Set();
+  const searchIds = [];
+  for (const d of deviceObjects) {
+    const raw = d._id || d.id;
+    if (raw) {
+      const str = raw.toString();
+      if (!idSet.has(str)) {
+        idSet.add(str);
+        if (mongoose.Types.ObjectId.isValid(str)) {
+          searchIds.push(new mongoose.Types.ObjectId(str));
+        }
+        searchIds.push(str);
+      }
+    }
+  }
+  if (searchIds.length === 0) return deviceObjects;
+
+  try {
+    const [counts, reviewStats] = await Promise.all([
+      Booking.aggregate([
+        { $match: { deviceId: { $in: searchIds }, status: 'completed' } },
+        { $group: { _id: '$deviceId', count: { $sum: 1 } } },
+      ]),
+      Review.aggregate([
+        { $match: { deviceId: { $in: searchIds }, targetType: { $ne: 'renter' } } },
+        { $group: {
+          _id: '$deviceId',
+          count: { $sum: 1 },
+          avgRating: { $avg: '$rating' },
+        } },
+      ]),
+    ]);
+
+    const countMap = new Map(counts.map(c => [c._id.toString(), c.count]));
+    const reviewMap = new Map(reviewStats.map(r => [r._id.toString(), {
+      count: r.count,
+      avg: Number(r.avgRating.toFixed(1)),
+    }]));
+
+    return deviceObjects.map(d => {
+      const doc = typeof d.toJSON === 'function' ? d.toJSON() : { ...d };
+      const idStr = (doc._id || doc.id)?.toString();
+      const completedCount = countMap.get(idStr) !== undefined ? countMap.get(idStr) : (doc.stats?.rentalCount || 0);
+      const revData = reviewMap.get(idStr);
+
+      const ratingCount = revData !== undefined ? revData.count : (doc.stats?.ratingCount || doc.reviewCount || 0);
+      const ratingAvg = revData !== undefined ? revData.avg : (ratingCount > 0 ? (doc.stats?.ratingAvg || doc.rating || 0) : 0);
+
+      const stats = {
+        ...(doc.stats || {}),
+        rentalCount: completedCount,
+        ratingCount,
+        ratingAvg,
+      };
+
+      return {
+        ...doc,
+        rentalCount: completedCount,
+        ratingCount,
+        ratingAvg,
+        rating: ratingAvg,
+        reviewCount: ratingCount,
+        stats,
+      };
+    });
+  } catch (err) {
+    return deviceObjects;
+  }
+}
+
 const getAvailableDevices = asyncHandler(async (req, res) => {
   const rawLimit = req.query.limit;
   const requestedLimit = rawLimit === undefined ? 100 : Number(rawLimit);
@@ -59,7 +135,8 @@ const getAvailableDevices = asyncHandler(async (req, res) => {
   const page = Number.isSafeInteger((requestedPage - 1) * limit) ? requestedPage : 1;
   const devices = await Device.find(filter).sort({ createdAt: -1, _id: 1 })
     .skip(req.query.page === undefined ? 0 : (page - 1) * limit).limit(limit);
-  const body = { success: true, count: devices.length, data: devices };
+  const enrichedDevices = await attachCompletedBookingCounts(devices);
+  const body = { success: true, count: enrichedDevices.length, data: enrichedDevices };
   if (req.query.page !== undefined) {
     const totalItems = await Device.countDocuments(filter);
     const totalPages = Math.ceil(totalItems / limit);
@@ -101,7 +178,8 @@ const getNearbyDevices = asyncHandler(async (req, res) => {
     const devices = records.map(record => ({
       ...Device.hydrate(record).toJSON(), distanceMeters: record.distanceMeters,
     }));
-    return res.status(200).json({ success: true, count: devices.length, data: devices });
+    const enrichedDevices = await attachCompletedBookingCounts(devices);
+    return res.status(200).json({ success: true, count: enrichedDevices.length, data: enrichedDevices });
   }
   const limit = Math.min(positiveInteger(req.query.limit, 10), 10);
   const requestedPage = positiveInteger(req.query.page, 1);
@@ -120,9 +198,10 @@ const getNearbyDevices = asyncHandler(async (req, res) => {
   const documents = result.data.map(record => Device.hydrate(record));
   await Device.populate(documents, { path: "ownerId", select: "name avatar rating isVerified phone email address" });
   const data = documents.map((doc, index) => ({ ...doc.toJSON(), distanceMeters: result.data[index].distanceMeters }));
+  const enrichedData = await attachCompletedBookingCounts(data);
   const totalItems = result.total[0]?.count || 0;
   const totalPages = Math.ceil(totalItems / limit);
-  return res.status(200).json({ success: true, count: data.length, data,
+  return res.status(200).json({ success: true, count: enrichedData.length, data: enrichedData,
     pagination: { page, limit, totalItems, totalPages, hasNextPage: page < totalPages },
   });
 });
@@ -336,9 +415,11 @@ const getDeviceById = asyncHandler(async (req, res) => {
     });
   }
 
+  const [enriched] = await attachCompletedBookingCounts([device]);
+
   res.status(200).json({
     success: true,
-    data: device,
+    data: enriched,
   });
 });
 

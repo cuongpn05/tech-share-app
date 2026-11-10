@@ -646,7 +646,10 @@ exports.updateBookingStatus = async (req, res) => {
     } else if (status === 'completed') {
       booking.paymentStatus = 'refunded';
       if (devId) {
-        await Device.findByIdAndUpdate(devId, { status: 'available' }).catch(() => {});
+        await Device.findByIdAndUpdate(devId, {
+          status: 'available',
+          $inc: { 'stats.rentalCount': 1 },
+        }).catch(() => {});
       }
     }
 
