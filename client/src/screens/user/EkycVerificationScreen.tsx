@@ -53,7 +53,8 @@ import {
   EkycProfileReadOnlyCard,
   EkycStatusBanner,
   EkycSubmitButton,
-  promptEkycImagePicker,
+  EkycImagePickerModal,
+  PickEkycImageOptions,
 } from '../../components/ekyc/EkycSharedSections';
 
 export interface EkycVerificationScreenProps {
@@ -104,6 +105,7 @@ export function EkycVerificationScreen({
   const [addressError, setAddressError] = useState('');
   const [savingAddress, setSavingAddress] = useState(false);
 
+  const [pickerOptions, setPickerOptions] = useState<PickEkycImageOptions | null>(null);
   const [confirmSubmitVisible, setConfirmSubmitVisible] = useState(false);
   const [resultModal, setResultModal] = useState<{
     visible: boolean;
@@ -190,7 +192,7 @@ export function EkycVerificationScreen({
   };
 
   const handlePickImage = (type: 'front' | 'back') => {
-    promptEkycImagePicker({
+    setPickerOptions({
       title: STRINGS.EKYC.PICK_IMAGE_TITLE,
       description:
         type === 'front' ? STRINGS.EKYC.PICK_IMAGE_FRONT_DESC : STRINGS.EKYC.PICK_IMAGE_BACK_DESC,
@@ -565,6 +567,19 @@ export function EkycVerificationScreen({
           setShowAddressModal(false);
         }}
         onSave={handleSaveAddress}
+      />
+
+      <EkycImagePickerModal
+        options={pickerOptions}
+        onClose={() => setPickerOptions(null)}
+        onError={(title, message) =>
+          setResultModal({
+            visible: true,
+            type: 'error',
+            title,
+            message,
+          })
+        }
       />
 
       <EkycConfirmModal

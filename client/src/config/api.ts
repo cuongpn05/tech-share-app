@@ -59,7 +59,13 @@ export const setAccountLockedHandler = (handler: AccountLockedHandler | null) =>
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error?.response?.status === 403 && error?.response?.data?.code === 'ACCOUNT_LOCKED') {
+    const requestUrl = String(error?.config?.url || '');
+    const isLoginRequest = /\/login(?:\?|$)/i.test(requestUrl);
+    if (
+      !isLoginRequest &&
+      error?.response?.status === 403 &&
+      error?.response?.data?.code === 'ACCOUNT_LOCKED'
+    ) {
       const reason = error.response.data.lockReason || error.response.data.message || '';
       if (accountLockedHandler) {
         accountLockedHandler(reason);

@@ -44,7 +44,8 @@ import {
   EkycProfileReadOnlyCard,
   EkycStatusBanner,
   EkycSubmitButton,
-  promptEkycImagePicker,
+  EkycImagePickerModal,
+  PickEkycImageOptions,
 } from '../../components/ekyc/EkycSharedSections';
 import {
   EkycConfirmModal,
@@ -106,6 +107,7 @@ export function OwnerEkycVerificationScreen({
   const [addressError, setAddressError] = useState('');
   const [savingAddress, setSavingAddress] = useState(false);
 
+  const [pickerOptions, setPickerOptions] = useState<PickEkycImageOptions | null>(null);
   const [confirmSubmitVisible, setConfirmSubmitVisible] = useState(false);
   const [resultModal, setResultModal] = useState<{
     visible: boolean;
@@ -206,7 +208,7 @@ export function OwnerEkycVerificationScreen({
 
   const handlePickPhoto = (slot: PhotoSlot) => {
     if (slot === 'selfie') {
-      promptEkycImagePicker({
+      setPickerOptions({
         title: STRINGS.OWNER_EKYC.PICK_SELFIE_TITLE,
         description: STRINGS.OWNER_EKYC.PICK_SELFIE_DESC,
         aspect: [3, 4],
@@ -216,7 +218,7 @@ export function OwnerEkycVerificationScreen({
       return;
     }
 
-    promptEkycImagePicker({
+    setPickerOptions({
       title: STRINGS.EKYC.PICK_IMAGE_TITLE,
       description:
         slot === 'front' ? STRINGS.EKYC.PICK_IMAGE_FRONT_DESC : STRINGS.EKYC.PICK_IMAGE_BACK_DESC,
@@ -595,6 +597,19 @@ export function OwnerEkycVerificationScreen({
           setShowAddressModal(false);
         }}
         onSave={handleSaveAddress}
+      />
+
+      <EkycImagePickerModal
+        options={pickerOptions}
+        onClose={() => setPickerOptions(null)}
+        onError={(title, message) =>
+          setResultModal({
+            visible: true,
+            type: 'error',
+            title,
+            message,
+          })
+        }
       />
 
       <EkycConfirmModal

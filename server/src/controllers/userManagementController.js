@@ -346,7 +346,7 @@ const toggleUserStatus = async (req, res) => {
       try {
         await createAndSendNotification({
           userId: user._id,
-          title: 'Account Locked / Suspended ⚠️',
+          title: 'Account Locked / Suspended',
           body: `Your TechShare account has been suspended by an administrator. Reason: ${reason}`,
           type: 'system',
           data: {
