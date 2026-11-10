@@ -85,20 +85,24 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
   }, [authUser]);
 
   const [ekycStatusVerified, setEkycStatusVerified] = useState<boolean | null>(null);
+  const [ownerEkycStatus, setOwnerEkycStatus] = useState<'none' | 'pending' | 'approved' | 'rejected'>('none');
 
   // Tải lại hồ sơ mới nhất từ API
   const fetchFreshProfile = useCallback(async () => {
     try {
       const data = await userService.getProfile();
       if (data?.user) {
+        const resolvedRole = (data.account?.role || data.user.role) as User['role'];
         setProfile((prev) => ({
           ...prev,
           ...data.user,
+          role: resolvedRole || prev.role,
           email: data.account?.email || data.user.email || prev.email,
         }));
         dispatch(
           updateUser({
             ...data.user,
+            ...(resolvedRole ? { role: resolvedRole } : {}),
             email: data.account?.email || data.user.email,
           })
         );
@@ -111,6 +115,7 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
       const ekycRes = await getEkycStatus();
       if (ekycRes.success && ekycRes.data) {
         setEkycStatusVerified(Boolean(ekycRes.data.isVerified));
+        setOwnerEkycStatus(ekycRes.data.ownerEkycRequest?.status || 'none');
       }
     } catch {
       // Bỏ qua lỗi kết nối eKYC
@@ -233,7 +238,7 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
         );
 
   // Navigate to eKYC verification
-  const handleNavigateToEkyc = () => {
+  const navigateWithAddressCheck = (routeName: 'EkycVerification' | 'OwnerEkycVerification') => {
     const rawAddress = (displayAddress || '').trim();
 
     if (!rawAddress) {
@@ -249,9 +254,21 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
     }
 
     if (navigation?.navigate) {
-      navigation.navigate('EkycVerification');
+      navigation.navigate(routeName);
     }
   };
+
+  const handleNavigateToEkyc = () => navigateWithAddressCheck('EkycVerification');
+  const handleNavigateToOwnerEkyc = () => navigateWithAddressCheck('OwnerEkycVerification');
+
+  const currentRole = profile?.role || authUser?.role || 'renter';
+  const showOwnerEkycRow = Boolean(
+    isUserVerified &&
+      currentRole !== 'admin' &&
+      (currentRole === 'renter' || ownerEkycStatus !== 'none' || currentRole === 'owner')
+  );
+  const effectiveOwnerStatus: 'none' | 'pending' | 'approved' | 'rejected' =
+    currentRole === 'owner' ? 'approved' : ownerEkycStatus;
 
   return (
     <View style={styles.container}>
@@ -447,6 +464,87 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
               </TouchableOpacity>
+
+              {showOwnerEkycRow && (
+                <TouchableOpacity
+                  style={[styles.ekycRow, styles.ownerEkycRowDivider]}
+                  onPress={handleNavigateToOwnerEkyc}
+                  activeOpacity={0.7}
+                >
+                  <View
+                    style={[
+                      styles.infoIconCircle,
+                      {
+                        backgroundColor:
+                          effectiveOwnerStatus === 'approved'
+                            ? '#ECFDF5'
+                            : effectiveOwnerStatus === 'rejected'
+                            ? '#FEF2F2'
+                            : '#F0FDFA',
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name={
+                        effectiveOwnerStatus === 'approved'
+                          ? 'ribbon'
+                          : effectiveOwnerStatus === 'rejected'
+                          ? 'alert-circle-outline'
+                          : 'ribbon-outline'
+                      }
+                      size={20}
+                      color={
+                        effectiveOwnerStatus === 'approved'
+                          ? '#10B981'
+                          : effectiveOwnerStatus === 'rejected'
+                          ? '#DC2626'
+                          : theme.primary
+                      }
+                    />
+                  </View>
+                  <View style={styles.infoTextContainer}>
+                    <View style={styles.ekycTitleRow}>
+                      <Text style={styles.ekycTitle}>{STRINGS.PROFILE_SCREEN.OWNER_EKYC_ROW_TITLE}</Text>
+                      {effectiveOwnerStatus === 'approved' ? (
+                        <View style={styles.verifiedBadge}>
+                          <Ionicons name="checkmark-circle" size={12} color="#10B981" />
+                          <Text style={styles.verifiedBadgeText}>
+                            {STRINGS.PROFILE_SCREEN.OWNER_EKYC_BADGE_VERIFIED}
+                          </Text>
+                        </View>
+                      ) : effectiveOwnerStatus === 'pending' ? (
+                        <View style={styles.pendingOwnerBadge}>
+                          <Text style={styles.pendingOwnerBadgeText}>
+                            {STRINGS.PROFILE_SCREEN.OWNER_EKYC_BADGE_PENDING}
+                          </Text>
+                        </View>
+                      ) : effectiveOwnerStatus === 'rejected' ? (
+                        <View style={styles.rejectedOwnerBadge}>
+                          <Text style={styles.rejectedOwnerBadgeText}>
+                            {STRINGS.PROFILE_SCREEN.OWNER_EKYC_BADGE_REJECTED}
+                          </Text>
+                        </View>
+                      ) : (
+                        <View style={styles.availableOwnerBadge}>
+                          <Text style={styles.availableOwnerBadgeText}>
+                            {STRINGS.PROFILE_SCREEN.OWNER_EKYC_BADGE_AVAILABLE}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.ekycDescText}>
+                      {effectiveOwnerStatus === 'approved'
+                        ? STRINGS.PROFILE_SCREEN.OWNER_EKYC_DESC_APPROVED
+                        : effectiveOwnerStatus === 'pending'
+                        ? STRINGS.PROFILE_SCREEN.OWNER_EKYC_DESC_PENDING
+                        : effectiveOwnerStatus === 'rejected'
+                        ? STRINGS.PROFILE_SCREEN.OWNER_EKYC_DESC_REJECTED
+                        : STRINGS.PROFILE_SCREEN.OWNER_EKYC_DESC_AVAILABLE}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* ─── 4. REFERRAL CODE ─── */}
@@ -959,6 +1057,51 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#92400E',
+  },
+  ownerEkycRowDivider: {
+    marginTop: 12,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: theme.border,
+  },
+  availableOwnerBadge: {
+    backgroundColor: '#E6F7F7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+  },
+  availableOwnerBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#0F766E',
+  },
+  pendingOwnerBadge: {
+    backgroundColor: '#EBF5FF',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  pendingOwnerBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#1D4ED8',
+  },
+  rejectedOwnerBadge: {
+    backgroundColor: '#FEF2F2',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
+  rejectedOwnerBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#B91C1C',
   },
   wishlistButton: {
     flexDirection: 'row',

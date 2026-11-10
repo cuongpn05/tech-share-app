@@ -8,8 +8,11 @@ const {
 } = require('../controllers/adminController');
 const {
   getAdminEkycSubmissions,
+  getAdminOwnerEkycSubmissions,
   approveEkycSubmission,
   rejectEkycSubmission,
+  approveOwnerEkycSubmission,
+  rejectOwnerEkycSubmission,
 } = require('../controllers/ekycController');
 
 const userManagementRoutes = require('./userManagementRoutes');
@@ -18,10 +21,15 @@ const { adminMiddleware } = require('../middlewares/adminMiddleware');
 
 const router = express.Router();
 
-// Endpoint lấy danh sách đơn xác thực eKYC (UC eKYC Reviews List)
+// Endpoint lấy danh sách & duyệt đơn xác thực eKYC Renter
 router.get('/ekyc', requireAuth, adminMiddleware, getAdminEkycSubmissions);
 router.patch('/ekyc/:id/approve', requireAuth, adminMiddleware, approveEkycSubmission);
 router.patch('/ekyc/:id/reject', requireAuth, adminMiddleware, rejectEkycSubmission);
+
+// Endpoint lấy danh sách & duyệt đơn eKYC nâng cấp Renter lên Owner (collection owner_ekyc_requests)
+router.get('/owner-ekyc', requireAuth, adminMiddleware, getAdminOwnerEkycSubmissions);
+router.patch('/owner-ekyc/:id/approve', requireAuth, adminMiddleware, approveOwnerEkycSubmission);
+router.patch('/owner-ekyc/:id/reject', requireAuth, adminMiddleware, rejectOwnerEkycSubmission);
 
 // Endpoint lấy số liệu Dashboard & Analytics từ MongoDB
 router.get('/dashboard', getDashboardStats);

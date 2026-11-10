@@ -4,6 +4,7 @@ const Device = require('../models/Device');
 const Booking = require('../models/Booking');
 const Dispute = require('../models/Dispute');
 const EkycRequest = require('../models/EkycRequest');
+const OwnerEkycRequest = require('../models/OwnerEkycRequest');
 const Role = require('../models/Role');
 
 /**
@@ -28,6 +29,7 @@ const getDashboardStats = async (req, res) => {
       categoryGroupResult,
       pendingDisputesCount,
       pendingEkycCount,
+      pendingOwnerEkycCount,
     ] = await Promise.all([
       Account.countDocuments(),
       User.countDocuments({
@@ -67,6 +69,7 @@ const getDashboardStats = async (req, res) => {
 
       Dispute.countDocuments({ status: 'pending' }),
       EkycRequest.countDocuments({ status: 'pending' }),
+      OwnerEkycRequest.countDocuments({ status: 'pending' }),
     ]);
 
     // 2. Tính toán Gross Rental Volume thực tế từ DB
@@ -150,11 +153,12 @@ const getDashboardStats = async (req, res) => {
         actionItems: {
           pendingDisputes: pendingDisputesCount,
           pendingEkyc: pendingEkycCount,
-          isSmooth: pendingDisputesCount === 0 && pendingEkycCount === 0,
+          pendingOwnerEkyc: pendingOwnerEkycCount,
+          isSmooth: pendingDisputesCount === 0 && pendingEkycCount === 0 && pendingOwnerEkycCount === 0,
           message:
-            pendingDisputesCount === 0 && pendingEkycCount === 0
+            pendingDisputesCount === 0 && pendingEkycCount === 0 && pendingOwnerEkycCount === 0
               ? 'Hệ thống vận hành ổn định • Không có tranh chấp hoặc yêu cầu xác minh chờ xử lý'
-              : `Cần chú ý: ${pendingDisputesCount} tranh chấp chờ xử lý • ${pendingEkycCount} yêu cầu eKYC`,
+              : `Cần chú ý: ${pendingDisputesCount} tranh chấp chờ xử lý • ${pendingEkycCount} eKYC Renter • ${pendingOwnerEkycCount} eKYC nâng cấp Owner`,
         },
         categoryBreakdown,
         lastUpdated: new Date().toISOString(),

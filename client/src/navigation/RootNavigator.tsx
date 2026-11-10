@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, ActivityIndicator, StyleSheet, Alert } from 'react-native';
-import { clearAuth } from '../store/slices/authSlice';
+import { clearAuth, updateUser } from '../store/slices/authSlice';
 import { clearLocalSession } from '../services/logoutService';
 import { STRINGS } from '../constants/strings';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -27,6 +27,7 @@ import { MyBookingsScreen } from '../screens/booking/MyBookingsScreen';
 import { BookingDetailScreen } from '../screens/booking/BookingDetailScreen';
 import { ProfileScreen } from '../screens/user/ProfileScreen';
 import { EkycVerificationScreen } from '../screens/user/EkycVerificationScreen';
+import { OwnerEkycVerificationScreen } from '../screens/user/OwnerEkycVerificationScreen';
 import { AiChatConsultant } from '../screens/ai/AiChatConsultant';
 import { socketService } from '../services/socketService';
 import { firebaseMessagingService } from '../services/firebaseMessagingService';
@@ -54,6 +55,7 @@ export type RootStackParamList = {
   Profile: undefined;
   OwnerPendingBookings: undefined;
   EkycVerification: undefined;
+  OwnerEkycVerification: undefined;
   OwnerMessages: undefined;
   ChatDetail: { bookingId?: string; otherBookings?: any[] } | undefined;
   Notification: undefined;
@@ -184,6 +186,19 @@ export function RootNavigator() {
         );
       });
 
+      // Lắng nghe sự kiện Admin duyệt nâng cấp role (Renter -> Owner)
+      const unsubRole = socketService.onRoleUpdated((data) => {
+        if (data?.role && data.role !== user?.role) {
+          dispatch(updateUser({ role: data.role }));
+          if (data.role === 'owner') {
+            Alert.alert(
+              STRINGS.OWNER_EKYC.APPROVED_BANNER_TITLE,
+              STRINGS.OWNER_EKYC.APPROVED_BANNER_SUB
+            );
+          }
+        }
+      });
+
       // Khởi tạo thông báo đẩy Firebase Cloud Messaging (FCM)
       firebaseMessagingService.init(uid);
 
@@ -195,6 +210,7 @@ export function RootNavigator() {
 
       return () => {
         unsubLock();
+        unsubRole();
       };
     }
   }, [isAuthenticated, user, token, dispatch]);
@@ -313,6 +329,7 @@ export function RootNavigator() {
             {({ navigation }) => <ProfileScreen navigation={navigation} onBack={() => navigation.goBack()} />}
           </Stack.Screen>
           <Stack.Screen name="EkycVerification" component={EkycVerificationScreen} />
+          <Stack.Screen name="OwnerEkycVerification" component={OwnerEkycVerificationScreen} />
           <Stack.Screen name="BookingCreate" component={BookingCreateRoute} />
           <Stack.Screen name="MyBookings" component={MyBookingsRoute} />
           <Stack.Screen name="BookingDetail" component={BookingDetailRoute} />
@@ -391,6 +408,7 @@ export function RootNavigator() {
             {({ navigation }) => <ProfileScreen navigation={navigation} onBack={() => navigation.goBack()} />}
           </Stack.Screen>
           <Stack.Screen name="EkycVerification" component={EkycVerificationScreen} />
+          <Stack.Screen name="OwnerEkycVerification" component={OwnerEkycVerificationScreen} />
           <Stack.Screen name="BookingCreate" component={BookingCreateRoute} />
           <Stack.Screen name="MyBookings" component={MyBookingsRoute} />
           <Stack.Screen name="BookingDetail" component={BookingDetailRoute} />

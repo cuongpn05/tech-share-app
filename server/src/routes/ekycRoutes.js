@@ -18,9 +18,14 @@ const {
   getMyEkycStatus,
   uploadEkycImage,
   submitEkycRequest,
+  getMyOwnerEkycStatus,
+  submitOwnerEkycRequest,
   getAdminEkycSubmissions,
+  getAdminOwnerEkycSubmissions,
   approveEkycSubmission,
   rejectEkycSubmission,
+  approveOwnerEkycSubmission,
+  rejectOwnerEkycSubmission,
 } = require('../controllers/ekycController');
 const { requireAuth } = require('../middlewares/authMiddleware');
 const { adminMiddleware } = require('../middlewares/adminMiddleware');
@@ -34,15 +39,23 @@ router.use(requireAuth);
 // 1. Kiểm tra trạng thái xác thực eKYC và dữ liệu hồ sơ
 router.get('/status', getMyEkycStatus);
 
-// 2. Tải ảnh CCCD (mặt trước / mặt sau) lên Cloudinary
+// 2. Tải ảnh CCCD / chân dung lên Cloudinary
 router.post('/upload-image', uploadFlexibleImage, uploadEkycImage);
 
-// 3. Nộp đơn yêu cầu xác thực eKYC
+// 3. Nộp đơn yêu cầu xác thực eKYC Renter
 router.post('/submit', submitEkycRequest);
 
-// 4. Lấy danh sách đơn xác thực eKYC (Admin)
+// 4. Quy trình eKYC nâng cấp Renter đã xác thực lên Owner
+router.get('/owner/status', getMyOwnerEkycStatus);
+router.post('/owner/submit', submitOwnerEkycRequest);
+
+// 5. Lấy danh sách & duyệt đơn xác thực eKYC (Admin)
 router.get('/admin/submissions', adminMiddleware, getAdminEkycSubmissions);
 router.patch('/admin/submissions/:id/approve', adminMiddleware, approveEkycSubmission);
 router.patch('/admin/submissions/:id/reject', adminMiddleware, rejectEkycSubmission);
+
+router.get('/admin/owner-submissions', adminMiddleware, getAdminOwnerEkycSubmissions);
+router.patch('/admin/owner-submissions/:id/approve', adminMiddleware, approveOwnerEkycSubmission);
+router.patch('/admin/owner-submissions/:id/reject', adminMiddleware, rejectOwnerEkycSubmission);
 
 module.exports = router;

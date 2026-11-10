@@ -40,6 +40,7 @@ import {
   submitEkycRequest,
   EkycProfile,
   EkycRequestData,
+  OwnerEkycRequestData,
 } from '../../services/ekycService';
 import { userService } from '../../services/userService';
 import { STRINGS } from '../../constants/strings';
@@ -77,6 +78,7 @@ export function EkycVerificationScreen({
 
   const [isVerified, setIsVerified] = useState(false);
   const [ekycRequest, setEkycRequest] = useState<EkycRequestData | null>(null);
+  const [ownerEkycRequest, setOwnerEkycRequest] = useState<OwnerEkycRequestData | null>(null);
 
   // 3 trường renter cần hoàn thành
   const [idCardNumber, setIdCardNumber] = useState('');
@@ -105,6 +107,7 @@ export function EkycVerificationScreen({
         setIsVerified(res.data.isVerified);
         setProfile(res.data.profile);
         setAddressInput(res.data.profile.address || '');
+        setOwnerEkycRequest(res.data.ownerEkycRequest || null);
 
         if (res.data.ekycRequest) {
           setEkycRequest(res.data.ekycRequest);
@@ -418,15 +421,53 @@ export function EkycVerificationScreen({
       >
         {/* ─── BANNER TRẠNG THÁI HIỆN TẠI ─── */}
         {isApproved ? (
-          <View style={styles.verifiedBanner}>
-            <Ionicons name="checkmark-circle" size={32} color="#10B981" />
-            <View style={styles.bannerTextContainer}>
-              <Text style={styles.verifiedBannerTitle}>{STRINGS.EKYC.VERIFIED_BANNER_TITLE}</Text>
-              <Text style={styles.verifiedBannerSubtitle}>
-                {STRINGS.EKYC.VERIFIED_BANNER_SUB}
-              </Text>
+          <>
+            <View style={styles.verifiedBanner}>
+              <Ionicons name="checkmark-circle" size={32} color="#10B981" />
+              <View style={styles.bannerTextContainer}>
+                <Text style={styles.verifiedBannerTitle}>{STRINGS.EKYC.VERIFIED_BANNER_TITLE}</Text>
+                <Text style={styles.verifiedBannerSubtitle}>
+                  {STRINGS.EKYC.VERIFIED_BANNER_SUB}
+                </Text>
+              </View>
             </View>
-          </View>
+
+            {(profile.role || authUser?.role) === 'renter' && (
+              <View style={styles.ownerUpgradeCard}>
+                <View style={styles.ownerUpgradeHeader}>
+                  <View style={styles.ownerUpgradeIconWrap}>
+                    <Ionicons name="ribbon-outline" size={22} color={theme.colors.brand[500]} />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={styles.ownerUpgradeTitle}>
+                      {STRINGS.EKYC.OWNER_UPGRADE_CARD_TITLE}
+                    </Text>
+                    <Text style={styles.ownerUpgradeDesc}>
+                      {ownerEkycRequest?.status === 'pending'
+                        ? STRINGS.EKYC.OWNER_UPGRADE_CARD_DESC_PENDING
+                        : ownerEkycRequest?.status === 'rejected'
+                        ? STRINGS.EKYC.OWNER_UPGRADE_CARD_DESC_REJECTED
+                        : STRINGS.EKYC.OWNER_UPGRADE_CARD_DESC_NEW}
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  style={styles.ownerUpgradeBtn}
+                  onPress={() => navigation?.navigate?.('OwnerEkycVerification')}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="arrow-up-circle-outline" size={18} color="#FFFFFF" />
+                  <Text style={styles.ownerUpgradeBtnText}>
+                    {ownerEkycRequest?.status === 'pending'
+                      ? STRINGS.EKYC.OWNER_UPGRADE_CTA_PENDING
+                      : ownerEkycRequest?.status === 'rejected'
+                      ? STRINGS.EKYC.OWNER_UPGRADE_CTA_REJECTED
+                      : STRINGS.EKYC.OWNER_UPGRADE_CTA_NEW}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </>
         ) : isPending ? (
           <View style={styles.pendingBanner}>
             <Ionicons name="time-outline" size={30} color="#3B82F6" />
@@ -816,6 +857,52 @@ const styles = StyleSheet.create({
     color: '#047857',
     marginTop: 3,
     lineHeight: 18,
+  },
+  ownerUpgradeCard: {
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+  },
+  ownerUpgradeHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  ownerUpgradeIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#E6F7F7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  ownerUpgradeTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  ownerUpgradeDesc: {
+    fontSize: 13,
+    color: '#475569',
+    marginTop: 3,
+    lineHeight: 18,
+  },
+  ownerUpgradeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.brand[500],
+    borderRadius: 10,
+    paddingVertical: 11,
+    marginTop: 12,
+    gap: 6,
+  },
+  ownerUpgradeBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
   pendingBanner: {
     flexDirection: 'row',

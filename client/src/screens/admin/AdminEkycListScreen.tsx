@@ -35,22 +35,28 @@ import {
   Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { DrawerActions } from '@react-navigation/native';
+import { DrawerActions, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../theme/tokens';
 import { STRINGS } from '../../constants/strings';
 import {
   getAdminEkycList,
+  getAdminOwnerEkycList,
   approveAdminEkyc,
+  approveAdminOwnerEkyc,
   rejectAdminEkyc,
+  rejectAdminOwnerEkyc,
   AdminEkycItem,
   AdminEkycCounts,
 } from '../../services/ekycService';
 
 const S = STRINGS.ADMIN_EKYC;
 
+export type AdminEkycCategory = 'renter' | 'owner';
+
 export interface AdminEkycListScreenProps {
   navigation?: any;
+  initialCategory?: AdminEkycCategory;
 }
 
 type EkycFilterStatus = 'all' | 'pending' | 'approved' | 'rejected';
@@ -73,8 +79,15 @@ const PAGE_LIMIT = 15;
 
 const DEFAULT_EKYC_REJECT_REASONS = S.REJECT_MODAL.DEFAULT_REASONS;
 
-export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
+export function AdminEkycListScreen({
+  navigation,
+  initialCategory = 'renter',
+}: AdminEkycListScreenProps) {
   const insets = useSafeAreaInsets();
+
+  const [activeCategory, setActiveCategory] = useState<AdminEkycCategory>(initialCategory);
+  const [renterPendingCount, setRenterPendingCount] = useState(0);
+  const [ownerPendingCount, setOwnerPendingCount] = useState(0);
 
   // State: list & pagination
   const [submissions, setSubmissions] = useState<AdminEkycItem[]>([]);
@@ -123,6 +136,7 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
   // ── 1. Fetch Submissions from Backend ───────────────────────
   const fetchSubmissions = useCallback(
     async (
+      targetCategory: AdminEkycCategory,
       targetStatus: EkycFilterStatus,
       targetSearch: string,
       targetPage: number,
@@ -138,12 +152,20 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
       setErrorMessage(null);
 
       try {
-        const response = await getAdminEkycList({
-          status: targetStatus,
-          search: targetSearch,
-          page: targetPage,
-          limit: PAGE_LIMIT,
-        });
+        const listFn = targetCategory === 'owner' ? getAdminOwnerEkycList : getAdminEkycList;
+        const otherListFn = targetCategory === 'owner' ? getAdminEkycList : getAdminOwnerEkycList;
+
+        const [response, otherCountsRes] = await Promise.all([
+          listFn({
+            status: targetStatus,
+            search: targetSearch,
+            page: targetPage,
+            limit: PAGE_LIMIT,
+          }),
+          targetPage === 1
+            ? otherListFn({ limit: 1 }).catch(() => null)
+            : Promise.resolve(null),
+        ]);
 
         if (response.success) {
           if (targetPage === 1) {
@@ -153,6 +175,18 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
           }
           if (response.counts) {
             setCounts(response.counts);
+            if (targetCategory === 'owner') {
+              setOwnerPendingCount(response.counts.totalPending || 0);
+            } else {
+              setRenterPendingCount(response.counts.totalPending || 0);
+            }
+          }
+          if (otherCountsRes?.success && otherCountsRes.counts) {
+            if (targetCategory === 'owner') {
+              setRenterPendingCount(otherCountsRes.counts.totalPending || 0);
+            } else {
+              setOwnerPendingCount(otherCountsRes.counts.totalPending || 0);
+            }
           }
           setHasNextPage(response.pagination?.hasNextPage ?? false);
           setPage(targetPage);
@@ -173,22 +207,36 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
     []
   );
 
-  // Reload when tab or search changes
+  // Reload when category, tab or search changes
   useEffect(() => {
-    fetchSubmissions(activeTab, debouncedSearch, 1, false);
-  }, [activeTab, debouncedSearch, fetchSubmissions]);
+    fetchSubmissions(activeCategory, activeTab, debouncedSearch, 1, false);
+  }, [activeCategory, activeTab, debouncedSearch, fetchSubmissions]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchSubmissions(activeCategory, activeTab, debouncedSearch, 1, true);
+    }, [activeCategory, activeTab, debouncedSearch, fetchSubmissions])
+  );
+
+  // Switch category tab (Renter eKYC vs Owner Upgrade)
+  const handleSelectCategory = (cat: AdminEkycCategory) => {
+    if (cat === activeCategory) return;
+    setActiveCategory(cat);
+    setPage(1);
+    setSubmissions([]);
+  };
 
   // Pull to refresh
   const handleRefresh = useCallback(() => {
-    fetchSubmissions(activeTab, debouncedSearch, 1, true);
-  }, [activeTab, debouncedSearch, fetchSubmissions]);
+    fetchSubmissions(activeCategory, activeTab, debouncedSearch, 1, true);
+  }, [activeCategory, activeTab, debouncedSearch, fetchSubmissions]);
 
   // Load more on end reached
   const handleLoadMore = useCallback(() => {
     if (!isLoadingMore && hasNextPage) {
-      fetchSubmissions(activeTab, debouncedSearch, page + 1, false);
+      fetchSubmissions(activeCategory, activeTab, debouncedSearch, page + 1, false);
     }
-  }, [isLoadingMore, hasNextPage, activeTab, debouncedSearch, page, fetchSubmissions]);
+  }, [isLoadingMore, hasNextPage, activeCategory, activeTab, debouncedSearch, page, fetchSubmissions]);
 
   // View enlarged image
   const handleViewImage = (url: string, title: string) => {
@@ -199,20 +247,23 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
 
   // ── Handle Approve Submission ───────────────────────────────
   const handleApprovePress = useCallback((item: AdminEkycItem) => {
+    const isOwnerCategory = activeCategory === 'owner';
     Alert.alert(
-      S.ALERTS.CONFIRM_APPROVE_TITLE,
-      S.ALERTS.CONFIRM_APPROVE_MSG(
+      isOwnerCategory ? S.ALERTS.CONFIRM_APPROVE_OWNER_TITLE : S.ALERTS.CONFIRM_APPROVE_TITLE,
+      (isOwnerCategory ? S.ALERTS.CONFIRM_APPROVE_OWNER_MSG : S.ALERTS.CONFIRM_APPROVE_MSG)(
         item.user.name,
         item.idCardNumber || S.CARD.ID_NUMBER_EMPTY
       ),
       [
         { text: S.ALERTS.CANCEL, style: 'cancel' },
         {
-          text: S.ACTIONS.APPROVE,
+          text: isOwnerCategory ? S.ACTIONS.APPROVE_OWNER : S.ACTIONS.APPROVE,
           onPress: async () => {
             try {
               setActionLoadingId(item._id);
-              const res = await approveAdminEkyc(item._id);
+              const res = isOwnerCategory
+                ? await approveAdminOwnerEkyc(item._id)
+                : await approveAdminEkyc(item._id);
               if (res.success) {
                 // Update local list
                 if (activeTab === 'pending') {
@@ -234,8 +285,18 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
                   totalApproved: item.status !== 'approved' ? prev.totalApproved + 1 : prev.totalApproved,
                   totalRejected: item.status === 'rejected' ? Math.max(0, prev.totalRejected - 1) : prev.totalRejected,
                 }));
+                if (item.status === 'pending') {
+                  if (isOwnerCategory) {
+                    setOwnerPendingCount((c) => Math.max(0, c - 1));
+                  } else {
+                    setRenterPendingCount((c) => Math.max(0, c - 1));
+                  }
+                }
 
-                Alert.alert(S.ALERTS.APPROVE_SUCCESS_TITLE, S.ALERTS.APPROVE_SUCCESS_MSG);
+                Alert.alert(
+                  S.ALERTS.APPROVE_SUCCESS_TITLE,
+                  isOwnerCategory ? S.ALERTS.APPROVE_OWNER_SUCCESS_MSG : S.ALERTS.APPROVE_SUCCESS_MSG
+                );
               } else {
                 Alert.alert(S.ALERTS.ERROR_TITLE, res.message || S.ALERTS.APPROVE_ERROR_DEFAULT);
               }
@@ -249,7 +310,7 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
         },
       ]
     );
-  }, [activeTab]);
+  }, [activeCategory, activeTab]);
 
   // ── Open Reject Modal ───────────────────────────────────────
   const handleOpenRejectModal = useCallback((item: AdminEkycItem) => {
@@ -276,9 +337,13 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
       return;
     }
 
+    const isOwnerCategory = activeCategory === 'owner';
+
     try {
       setIsSubmittingReject(true);
-      const res = await rejectAdminEkyc(submissionToReject._id, finalReason);
+      const res = isOwnerCategory
+        ? await rejectAdminOwnerEkyc(submissionToReject._id, finalReason)
+        : await rejectAdminEkyc(submissionToReject._id, finalReason);
       if (res.success) {
         if (activeTab === 'pending') {
           setSubmissions((prev) => prev.filter((s) => s._id !== submissionToReject._id));
@@ -298,11 +363,21 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
           totalApproved: submissionToReject.status === 'approved' ? Math.max(0, prev.totalApproved - 1) : prev.totalApproved,
           totalRejected: submissionToReject.status !== 'rejected' ? prev.totalRejected + 1 : prev.totalRejected,
         }));
+        if (submissionToReject.status === 'pending') {
+          if (isOwnerCategory) {
+            setOwnerPendingCount((c) => Math.max(0, c - 1));
+          } else {
+            setRenterPendingCount((c) => Math.max(0, c - 1));
+          }
+        }
 
         setRejectModalVisible(false);
         setSubmissionToReject(null);
         setCustomRejectReason('');
-        Alert.alert(S.ALERTS.REJECT_SUCCESS_TITLE, S.ALERTS.REJECT_SUCCESS_MSG);
+        Alert.alert(
+          S.ALERTS.REJECT_SUCCESS_TITLE,
+          isOwnerCategory ? S.ALERTS.REJECT_OWNER_SUCCESS_MSG : S.ALERTS.REJECT_SUCCESS_MSG
+        );
       } else {
         Alert.alert(S.ALERTS.ERROR_TITLE, res.message || S.ALERTS.REJECT_ERROR_DEFAULT);
       }
@@ -312,7 +387,7 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
     } finally {
       setIsSubmittingReject(false);
     }
-  }, [submissionToReject, customRejectReason, selectedRejectReason, activeTab]);
+  }, [submissionToReject, customRejectReason, selectedRejectReason, activeCategory, activeTab]);
 
   // Format date helper
   const formatDate = (dateString?: string) => {
@@ -369,6 +444,8 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
   const renderItem = ({ item }: { item: AdminEkycItem }) => {
     const badge = getStatusBadge(item.status);
     const u = item.user;
+    const isOwnerCategory = activeCategory === 'owner';
+    const selfieUrl = item.selfieWithIdUrl || item.selfieUrl || '';
 
     return (
       <View style={styles.card}>
@@ -389,8 +466,10 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
               <Text style={styles.userNameText} numberOfLines={1}>
                 {u.name}
               </Text>
-              <View style={styles.roleTag}>
-                <Text style={styles.roleTagText}>{S.CARD.ROLE_RENTER}</Text>
+              <View style={[styles.roleTag, isOwnerCategory && styles.roleTagOwnerUpgrade]}>
+                <Text style={[styles.roleTagText, isOwnerCategory && styles.roleTagOwnerUpgradeText]}>
+                  {isOwnerCategory ? S.CARD.ROLE_UPGRADE_OWNER : S.CARD.ROLE_RENTER}
+                </Text>
               </View>
             </View>
             <Text style={styles.timeText}>
@@ -433,9 +512,11 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
           </Text>
         </View>
 
-        {/* Row 4: ID Card Photos (Front & Back) */}
+        {/* Row 4: ID Card Photos (Front & Back + Portrait Holding CCCD for Owner Upgrade) */}
         <View style={styles.photosSection}>
-          <Text style={styles.photosSectionTitle}>{S.CARD.PHOTOS_TITLE}</Text>
+          <Text style={styles.photosSectionTitle}>
+            {isOwnerCategory ? S.CARD.OWNER_PHOTOS_TITLE : S.CARD.PHOTOS_TITLE}
+          </Text>
           <View style={styles.photosRow}>
             {/* Front Photo */}
             <TouchableOpacity
@@ -479,6 +560,28 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
               </View>
             </TouchableOpacity>
           </View>
+
+          {isOwnerCategory && selfieUrl ? (
+            <TouchableOpacity
+              style={styles.selfiePhotoBox}
+              activeOpacity={0.8}
+              onPress={() =>
+                handleViewImage(
+                  selfieUrl,
+                  S.CARD.IMAGE_TITLE(S.CARD.SELFIE_WITH_ID_PHOTO, u.name)
+                )
+              }
+            >
+              <Image source={{ uri: selfieUrl }} style={styles.idCardImage} resizeMode="cover" />
+              <View style={styles.photoLabelBar}>
+                <Ionicons name="person-circle-outline" size={14} color="#FFFFFF" />
+                <Text style={styles.photoLabelText}>{S.CARD.SELFIE_WITH_ID_PHOTO}</Text>
+              </View>
+              <View style={styles.zoomHintIcon}>
+                <Ionicons name="expand-outline" size={14} color="#FFFFFF" />
+              </View>
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         {/* Rejection reason box if rejected */}
@@ -529,7 +632,7 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
               onPress={() => handleApprovePress(item)}
               disabled={actionLoadingId === item._id}
               accessibilityRole="button"
-              accessibilityLabel={S.ACTIONS.APPROVE}
+              accessibilityLabel={isOwnerCategory ? S.ACTIONS.APPROVE_OWNER : S.ACTIONS.APPROVE}
             >
               {actionLoadingId === item._id ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
@@ -542,7 +645,13 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
                     style={{ marginRight: 6 }}
                   />
                   <Text style={styles.approveButtonText}>
-                    {item.status === 'rejected' ? S.ACTIONS.RE_APPROVE : S.ACTIONS.APPROVE}
+                    {isOwnerCategory
+                      ? item.status === 'rejected'
+                        ? S.ACTIONS.RE_APPROVE_OWNER
+                        : S.ACTIONS.APPROVE_OWNER
+                      : item.status === 'rejected'
+                      ? S.ACTIONS.RE_APPROVE
+                      : S.ACTIONS.APPROVE}
                   </Text>
                 </>
               )}
@@ -553,7 +662,9 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
           {item.status === 'approved' && (
             <View style={styles.approvedNoticeBadge}>
               <Ionicons name="checkmark-circle" size={15} color="#047857" style={{ marginRight: 5 }} />
-              <Text style={styles.approvedNoticeText}>{S.ACTIONS.VERIFIED_NOTICE}</Text>
+              <Text style={styles.approvedNoticeText}>
+                {isOwnerCategory ? S.ACTIONS.OWNER_UPGRADED_NOTICE : S.ACTIONS.VERIFIED_NOTICE}
+              </Text>
             </View>
           )}
         </View>
@@ -564,6 +675,7 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
   // ── 3. Empty State ──────────────────────────────────────────
   const renderEmptyComponent = () => {
     if (isLoading) return null;
+    const isOwnerCategory = activeCategory === 'owner';
     return (
       <View style={styles.emptyContainer}>
         <Ionicons name="finger-print-outline" size={64} color="#CBD5E1" />
@@ -572,7 +684,11 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
           {searchQuery
             ? S.EMPTY_STATES.SEARCH_EMPTY(searchQuery)
             : activeTab === 'pending'
-            ? S.EMPTY_STATES.PENDING_EMPTY
+            ? isOwnerCategory
+              ? S.EMPTY_STATES.OWNER_PENDING_EMPTY
+              : S.EMPTY_STATES.PENDING_EMPTY
+            : isOwnerCategory
+            ? S.EMPTY_STATES.OWNER_ALL_EMPTY
             : S.EMPTY_STATES.ALL_EMPTY}
         </Text>
       </View>
@@ -594,7 +710,9 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
         </TouchableOpacity>
 
         <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerTitle}>{S.HEADER.TITLE}</Text>
+          <Text style={styles.headerTitle}>
+            {activeCategory === 'owner' ? S.HEADER.OWNER_TITLE : S.HEADER.TITLE}
+          </Text>
           <Text style={styles.headerSubtitle}>
             {counts.totalPending > 0
               ? S.HEADER.SUBTITLE_PENDING(counts.totalPending)
@@ -608,6 +726,89 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <Ionicons name="refresh-outline" size={22} color={theme.colors.brand[500]} />
+        </TouchableOpacity>
+      </View>
+
+      {/* ─── CATEGORY TABS (RENTER EKYC vs OWNER UPGRADE) ─── */}
+      <View style={styles.categorySwitcherWrap}>
+        <TouchableOpacity
+          style={[
+            styles.categoryTabBtn,
+            activeCategory === 'renter' && styles.categoryTabBtnActive,
+          ]}
+          onPress={() => handleSelectCategory('renter')}
+          activeOpacity={0.8}
+        >
+          <Ionicons
+            name="shield-checkmark-outline"
+            size={15}
+            color={activeCategory === 'renter' ? theme.colors.brand[600] : '#64748B'}
+          />
+          <Text
+            style={[
+              styles.categoryTabText,
+              activeCategory === 'renter' && styles.categoryTabTextActive,
+            ]}
+          >
+            {S.CATEGORY_TABS.RENTER}
+          </Text>
+          {renterPendingCount > 0 && (
+            <View
+              style={[
+                styles.categoryBadge,
+                activeCategory === 'renter' && styles.categoryBadgeActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.categoryBadgeText,
+                  activeCategory === 'renter' && styles.categoryBadgeTextActive,
+                ]}
+              >
+                {renterPendingCount}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.categoryTabBtn,
+            activeCategory === 'owner' && styles.categoryTabBtnActive,
+          ]}
+          onPress={() => handleSelectCategory('owner')}
+          activeOpacity={0.8}
+        >
+          <Ionicons
+            name="ribbon-outline"
+            size={15}
+            color={activeCategory === 'owner' ? theme.colors.brand[600] : '#64748B'}
+          />
+          <Text
+            style={[
+              styles.categoryTabText,
+              activeCategory === 'owner' && styles.categoryTabTextActive,
+            ]}
+          >
+            {S.CATEGORY_TABS.OWNER}
+          </Text>
+          {ownerPendingCount > 0 && (
+            <View
+              style={[
+                styles.categoryBadge,
+                activeCategory === 'owner' && styles.categoryBadgeActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.categoryBadgeText,
+                  activeCategory === 'owner' && styles.categoryBadgeTextActive,
+                ]}
+              >
+                {ownerPendingCount}
+              </Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -760,7 +961,9 @@ export function AdminEkycListScreen({ navigation }: AdminEkycListScreenProps) {
                 <Ionicons name="close-circle" size={24} color="#DC2626" />
               </View>
               <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={styles.rejectModalTitle}>{S.REJECT_MODAL.TITLE}</Text>
+                <Text style={styles.rejectModalTitle}>
+                  {activeCategory === 'owner' ? S.REJECT_MODAL.OWNER_TITLE : S.REJECT_MODAL.TITLE}
+                </Text>
                 <Text style={styles.rejectModalSubTitle} numberOfLines={1}>
                   {S.REJECT_MODAL.USER_PREFIX(submissionToReject?.user?.name || S.CARD.DATE_UNKNOWN)}
                 </Text>
@@ -910,6 +1113,56 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+
+  // Category Switcher (Renter eKYC vs Owner Upgrade)
+  categorySwitcherWrap: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 4,
+    backgroundColor: '#FFFFFF',
+    gap: 8,
+  },
+  categoryTabBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    borderRadius: 9999,
+    backgroundColor: '#F1F5F9',
+    gap: 6,
+  },
+  categoryTabBtnActive: {
+    backgroundColor: theme.colors.brand[100],
+  },
+  categoryTabText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  categoryTabTextActive: {
+    color: theme.colors.brand[600],
+    fontWeight: '700',
+  },
+  categoryBadge: {
+    backgroundColor: '#CBD5E1',
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  categoryBadgeActive: {
+    backgroundColor: theme.colors.brand[500],
+  },
+  categoryBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  categoryBadgeTextActive: {
+    color: '#FFFFFF',
   },
 
   // Search
@@ -1083,10 +1336,16 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 4,
   },
+  roleTagOwnerUpgrade: {
+    backgroundColor: '#E6F7F7',
+  },
   roleTagText: {
     fontSize: 10,
     fontWeight: '700',
     color: '#4F46E5',
+  },
+  roleTagOwnerUpgradeText: {
+    color: '#0F766E',
   },
   timeText: {
     fontSize: 12,
@@ -1172,6 +1431,17 @@ const styles = StyleSheet.create({
   photoBox: {
     flex: 1,
     height: 110,
+    borderRadius: 10,
+    overflow: 'hidden',
+    backgroundColor: '#F1F5F9',
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  selfiePhotoBox: {
+    marginTop: 10,
+    width: '100%',
+    height: 170,
     borderRadius: 10,
     overflow: 'hidden',
     backgroundColor: '#F1F5F9',

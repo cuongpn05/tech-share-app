@@ -72,7 +72,12 @@ export const AdminDrawerNavigator: React.FC = () => {
       <Drawer.Screen name="DepositDisputes">
         {() => <PlaceholderScreen title="Deposit Disputes" />}
       </Drawer.Screen>
-      <Drawer.Screen name="EkycReviews" component={AdminEkycListScreen} />
+      <Drawer.Screen name="EkycReviews">
+        {({ navigation }) => <AdminEkycListScreen navigation={navigation} initialCategory="renter" />}
+      </Drawer.Screen>
+      <Drawer.Screen name="OwnerEkycReviews">
+        {({ navigation }) => <AdminEkycListScreen navigation={navigation} initialCategory="owner" />}
+      </Drawer.Screen>
       <Drawer.Screen name="VouchersPromotions">
         {() => <PlaceholderScreen title="Vouchers & Promotions" />}
       </Drawer.Screen>

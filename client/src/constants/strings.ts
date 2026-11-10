@@ -1943,6 +1943,19 @@ export const STRINGS = {
       'Your account has verified ID credentials and is eligible to rent devices.',
     EKYC_DESC_UNVERIFIED:
       'Verify your ID card to unlock device rentals on TechShare.',
+    OWNER_EKYC_ROW_TITLE: 'Upgrade to Owner (eKYC)',
+    OWNER_EKYC_BADGE_AVAILABLE: 'Available',
+    OWNER_EKYC_BADGE_PENDING: 'Pending',
+    OWNER_EKYC_BADGE_REJECTED: 'Rejected',
+    OWNER_EKYC_BADGE_VERIFIED: 'Owner Verified',
+    OWNER_EKYC_DESC_AVAILABLE:
+      'Submit your ID card photos and portrait holding ID card to become an Owner and list devices.',
+    OWNER_EKYC_DESC_PENDING:
+      'Your Owner upgrade eKYC request is currently under admin review.',
+    OWNER_EKYC_DESC_REJECTED:
+      'Your Owner upgrade request was rejected. Tap to view reason and resubmit.',
+    OWNER_EKYC_DESC_APPROVED:
+      'Your account has been verified and upgraded to Device Owner.',
 
     // Referral Code
     REFERRAL_SECTION_TITLE: 'Referral Code',
@@ -2098,13 +2111,72 @@ export const STRINGS = {
     DEFAULT_ERROR: 'Please try again later.',
     VERIFICATION_ERROR_TITLE: 'Verification Error',
     NETWORK_ERROR: 'Network error occurred while submitting eKYC request.',
+    OWNER_UPGRADE_CARD_TITLE: 'Become a Device Owner (eKYC)',
+    OWNER_UPGRADE_CARD_DESC_NEW:
+      'Since your Renter identity is verified, you can submit an Owner upgrade eKYC request (both sides of ID card + portrait holding ID card) to list and rent out devices.',
+    OWNER_UPGRADE_CARD_DESC_PENDING:
+      'Your Owner upgrade eKYC request is currently under review by administrators.',
+    OWNER_UPGRADE_CARD_DESC_REJECTED:
+      'Your previous Owner upgrade request was rejected. Tap below to review and resubmit.',
+    OWNER_UPGRADE_CTA_NEW: 'Apply to Become an Owner',
+    OWNER_UPGRADE_CTA_PENDING: 'View Owner eKYC Status',
+    OWNER_UPGRADE_CTA_REJECTED: 'Resubmit Owner eKYC',
+  },
+  OWNER_EKYC: {
+    HEADER_TITLE: 'Owner Upgrade (eKYC)',
+    LOADING_TEXT: 'Loading Owner verification details...',
+    RENTER_REQUIRED_TITLE: 'Renter Verification Required',
+    RENTER_REQUIRED_SUB:
+      'You must complete Renter eKYC verification first before submitting an Owner upgrade eKYC request.',
+    GO_TO_RENTER_EKYC: 'Go to Renter eKYC',
+    APPROVED_BANNER_TITLE: 'Owner Account Approved',
+    APPROVED_BANNER_SUB:
+      'Your Owner upgrade eKYC request has been approved. You can now switch to Owner mode and list devices on TechShare.',
+    PENDING_BANNER_TITLE: 'Owner Upgrade Under Review',
+    PENDING_BANNER_SUB:
+      'Your Owner eKYC request (CCCD & portrait holding CCCD) has been submitted and is pending administrator review.',
+    REJECTED_BANNER_TITLE: 'Owner Upgrade Rejected',
+    REJECTED_REASON_PREFIX: 'Reason: ',
+    REJECTED_DEFAULT_REASON:
+      'Documents or portrait holding ID card were unclear. Please review and resubmit.',
+    INTRO_TITLE: 'Upgrade from Verified Renter to Owner',
+    INTRO_SUB:
+      'Submit your National ID card number, front & back photos of your CCCD, and a clear portrait photo of you holding your CCCD for Owner verification.',
+    SECTION_FORM_TITLE: 'Owner Identity & Portrait Verification',
+    SECTION_FORM_SUB:
+      'Please verify your CCCD number and upload clear photos of both sides of your CCCD plus a portrait photo holding your CCCD.',
+    SELFIE_WITH_ID_LABEL: '4. Portrait Photo Holding CCCD *',
+    UPLOAD_SELFIE_TITLE: 'Upload portrait holding CCCD',
+    UPLOAD_SELFIE_DESC:
+      'Hold your CCCD next to your face, clearly showing both your face and the front of the card',
+    PICK_SELFIE_TITLE: 'Select Portrait Holding CCCD',
+    PICK_SELFIE_DESC:
+      'Take a clear portrait photo holding your National ID card next to your face',
+    SELFIE_PHOTO_REQUIRED:
+      'Please take or upload a portrait photo of yourself holding your CCCD.',
+    UPLOAD_SELFIE_ERROR:
+      'Unable to upload the portrait photo holding CCCD. Please check your internet connection and try again.',
+    SUBMIT_BUTTON_NEW: 'Submit Owner Upgrade eKYC',
+    SUBMIT_BUTTON_RESUBMIT: 'Resubmit Owner Upgrade eKYC',
+    SUBMIT_SUCCESS_TITLE: 'Owner eKYC Submitted! 🎉',
+    SUBMIT_SUCCESS_MSG:
+      'Your Owner upgrade eKYC request has been saved and sent to administrators for review. You will be notified once your account is upgraded to Owner.',
+    SUBMIT_SUCCESS_ACK: 'Got it',
+    SUBMIT_FAIL_TITLE: 'Submission Failed',
+    VERIFICATION_ERROR_TITLE: 'Verification Error',
+    NETWORK_ERROR: 'Network error occurred while submitting Owner eKYC request.',
   },
   ADMIN_EKYC: {
     HEADER: {
       TITLE: 'eKYC Reviews',
+      OWNER_TITLE: 'Owner Upgrade eKYC',
       SUBTITLE_PENDING: (count: number) =>
         `${count} request${count === 1 ? '' : 's'} pending review`,
       SUBTITLE_ALL_CLEAR: 'All requests have been processed',
+    },
+    CATEGORY_TABS: {
+      RENTER: 'Renter eKYC',
+      OWNER: 'Owner Upgrade',
     },
     TABS: {
       ALL: 'All',
@@ -2122,31 +2194,43 @@ export const STRINGS = {
     },
     CARD: {
       ROLE_RENTER: 'Renter',
+      ROLE_UPGRADE_OWNER: 'Renter → Owner',
       SUBMITTED_AT: (time: string) => `Submitted: ${time}`,
       DATE_UNKNOWN: 'Unknown',
       ID_NUMBER_LABEL: 'National ID Card No:',
       ID_NUMBER_EMPTY: 'Not provided',
       PHOTOS_TITLE: 'Uploaded National ID Photos:',
+      OWNER_PHOTOS_TITLE: 'ID Card (2 Sides) & Portrait Holding CCCD:',
       FRONT_PHOTO: 'Front Side',
       BACK_PHOTO: 'Back Side',
+      SELFIE_WITH_ID_PHOTO: 'Portrait Holding CCCD',
       REJECT_REASON_PREFIX: (reason: string) => `Rejection reason: ${reason}`,
-      IMAGE_TITLE: (side: string, name: string) => `ID Card ${side} - ${name}`,
+      IMAGE_TITLE: (side: string, name: string) => `${side} - ${name}`,
     },
     ACTIONS: {
       APPROVE: 'Approve',
+      APPROVE_OWNER: 'Approve to Owner',
       RE_APPROVE: 'Re-approve',
+      RE_APPROVE_OWNER: 'Re-approve to Owner',
       REJECT: 'Reject',
       REVOKE_APPROVAL: 'Revoke Approval',
       VERIFIED_NOTICE: 'Identity Verified',
+      OWNER_UPGRADED_NOTICE: 'Upgraded to Owner',
     },
     ALERTS: {
       CONFIRM_APPROVE_TITLE: 'Confirm Approval',
       CONFIRM_APPROVE_MSG: (name: string, idNum: string) =>
         `Are you sure you want to approve the eKYC verification for "${name}" (ID: ${idNum})?`,
+      CONFIRM_APPROVE_OWNER_TITLE: 'Approve Upgrade to Owner',
+      CONFIRM_APPROVE_OWNER_MSG: (name: string, idNum: string) =>
+        `Are you sure you want to approve Owner eKYC for "${name}" (ID: ${idNum}) and upgrade their account role from Renter to Owner?`,
       APPROVE_SUCCESS_TITLE: 'Approved 🎉',
       APPROVE_SUCCESS_MSG: 'eKYC verification has been approved successfully.',
+      APPROVE_OWNER_SUCCESS_MSG:
+        'Owner eKYC approved! The renter has been upgraded to Owner.',
       REJECT_SUCCESS_TITLE: 'Rejected',
       REJECT_SUCCESS_MSG: 'eKYC verification request has been rejected.',
+      REJECT_OWNER_SUCCESS_MSG: 'Owner upgrade eKYC request has been rejected.',
       CANCEL: 'Cancel',
       REASON_REQUIRED_TITLE: 'Notice',
       REASON_REQUIRED_MSG: 'Please select or enter a rejection reason.',
@@ -2158,6 +2242,7 @@ export const STRINGS = {
     },
     REJECT_MODAL: {
       TITLE: 'Reject eKYC Request',
+      OWNER_TITLE: 'Reject Owner Upgrade eKYC',
       USER_PREFIX: (name: string) => `User: ${name}`,
       GUIDE: 'Select a rejection reason to notify the user:',
       CUSTOM_REASON_LABEL: 'Or provide specific details:',
@@ -2167,7 +2252,7 @@ export const STRINGS = {
       DEFAULT_REASONS: [
         'ID card photo is blurry, glaring, or cropped',
         'ID card number does not match document photo',
-        'Portrait selfie does not match ID document',
+        'Portrait selfie holding ID card does not match or ID is unreadable',
         'Identification document is expired or invalid',
         'Name or date of birth does not match account profile',
         'Suspected fraudulent or digitally altered document',
@@ -2177,7 +2262,9 @@ export const STRINGS = {
       TITLE: 'No Verification Requests',
       SEARCH_EMPTY: (query: string) => `No results found matching "${query}".`,
       PENDING_EMPTY: 'There are currently no eKYC requests pending review.',
+      OWNER_PENDING_EMPTY: 'There are currently no Owner upgrade eKYC requests pending review.',
       ALL_EMPTY: 'No eKYC verification records available.',
+      OWNER_ALL_EMPTY: 'No Owner upgrade eKYC records available.',
       LOADING: 'Loading eKYC verification requests...',
       LOADING_MORE: 'Loading more...',
     },

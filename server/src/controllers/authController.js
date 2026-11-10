@@ -192,16 +192,21 @@ const getMe = async (req, res) => {
       }
     }
 
+    const serializedUser = req.user && typeof req.user.toJSON === 'function'
+      ? req.user.toJSON()
+      : { ...(req.user || {}) };
+    serializedUser.role = req.userRole || serializedUser.role || 'renter';
+
     return res.status(200).json({
       success: true,
-      user: req.user,
-      account: {
+      user: serializedUser,
+      account: req.account ? {
         _id: req.account._id,
         username: req.account.username,
         email: req.account.email,
         role: req.userRole,
         lastLogin: req.account.lastLogin,
-      },
+      } : undefined,
     });
   } catch (error) {
     return res.status(500).json({

@@ -69,6 +69,12 @@ const MENU_ITEMS: MenuItem[] = [
     routeName: 'EkycReviews',
   },
   {
+    id: 'owner_ekyc',
+    title: ADMIN_STRINGS.SIDEBAR.MENU.OWNER_EKYC,
+    icon: 'ribbon-outline',
+    routeName: 'OwnerEkycReviews',
+  },
+  {
     id: 'vouchers',
     title: ADMIN_STRINGS.SIDEBAR.MENU.VOUCHERS,
     icon: 'pricetag-outline',

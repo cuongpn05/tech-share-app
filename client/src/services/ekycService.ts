@@ -4,10 +4,10 @@
  *  client/src/services/ekycService.ts
  * ============================================================
  *  Mục đích:
- *   - Quản lý các cuộc gọi API liên quan đến Định danh điện tử (eKYC).
- *   - Lấy trạng thái xác thực eKYC của người dùng hiện tại.
- *   - Tải ảnh CCCD (mặt trước / mặt sau) lên Cloudinary qua Server.
- *   - Gửi đơn yêu cầu xác thực eKYC lên cơ sở dữ liệu.
+ *   - Quản lý các cuộc gọi API liên quan đến Định danh điện tử (eKYC) Renter
+ *     và eKYC nâng cấp Renter đã xác thực lên Owner (`owner_ekyc_requests`).
+ *   - Tải ảnh CCCD / chân dung cầm CCCD lên Cloudinary.
+ *   - Phục vụ Admin duyệt/từ chối đơn eKYC Renter và Owner Upgrade eKYC.
  * ============================================================
  */
 
@@ -20,6 +20,7 @@ export interface EkycProfile {
   phone  : string;
   address: string;
   avatar : string | null;
+  role?  : 'renter' | 'owner' | 'admin';
 }
 
 export interface EkycRequestData {
@@ -33,14 +34,45 @@ export interface EkycRequestData {
   createdAt     : string;
 }
 
+export interface OwnerEkycRequestData {
+  _id            : string;
+  idCardNumber   : string;
+  idCardFrontUrl : string;
+  idCardBackUrl  : string;
+  selfieWithIdUrl: string;
+  status         : 'pending' | 'approved' | 'rejected';
+  rejectReason   : string;
+  reviewedAt?    : string | null;
+  createdAt      : string;
+}
+
 export interface EkycStatusResponse {
   success: boolean;
   message?: string;
   data: {
-    isVerified : boolean;
-    hasAddress : boolean;
-    profile    : EkycProfile;
-    ekycRequest: EkycRequestData | null;
+    isVerified       : boolean;
+    hasAddress       : boolean;
+    profile          : EkycProfile;
+    ekycRequest      : EkycRequestData | null;
+    ownerEkycRequest?: OwnerEkycRequestData | null;
+  };
+}
+
+export interface OwnerEkycStatusResponse {
+  success: boolean;
+  message?: string;
+  data: {
+    role            : 'renter' | 'owner' | 'admin';
+    isRenterVerified: boolean;
+    isOwner         : boolean;
+    hasAddress      : boolean;
+    profile         : EkycProfile;
+    renterEkyc      : {
+      _id         : string;
+      idCardNumber: string;
+      status      : 'pending' | 'approved' | 'rejected';
+    } | null;
+    ownerEkycRequest: OwnerEkycRequestData | null;
   };
 }
 
@@ -51,10 +83,24 @@ export interface SubmitEkycPayload {
   selfieUrl?    : string;
 }
 
+export interface SubmitOwnerEkycPayload {
+  idCardNumber   : string;
+  idCardFrontUrl : string;
+  idCardBackUrl  : string;
+  selfieWithIdUrl: string;
+}
+
 export interface SubmitEkycResponse {
   success: boolean;
   message: string;
   data?  : EkycRequestData;
+  code?  : string;
+}
+
+export interface SubmitOwnerEkycResponse {
+  success: boolean;
+  message: string;
+  data?  : OwnerEkycRequestData;
   code?  : string;
 }
 
@@ -66,13 +112,19 @@ export async function getEkycStatus(): Promise<EkycStatusResponse> {
   return response.data;
 }
 
+/**
+ * 1b. Lấy trạng thái eKYC nâng cấp Owner của người dùng
+ */
+export async function getOwnerEkycStatus(): Promise<OwnerEkycStatusResponse> {
+  const response = await apiClient.get<OwnerEkycStatusResponse>('/ekyc/owner/status');
+  return response.data;
+}
+
 const CLOUDINARY_CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME || 'oigtlazh';
 const CLOUDINARY_UPLOAD_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'techshare_avatar';
 
 /**
- * 2. Tải ảnh CCCD lên Cloudinary với tốc độ cao
- * - Chiến lược: Thử tải trực tiếp lên Cloudinary CDN (nhanh gấp 3-5 lần, không phụ thuộc server)
- * - Dự phòng (Fallback): Nếu Direct Upload không thành công, tải qua server với timeout 60s
+ * 2. Tải ảnh CCCD / chân dung lên Cloudinary với tốc độ cao
  */
 export async function uploadEkycPhoto(uri: string, prefix = 'cccd'): Promise<string> {
   if (!uri || typeof uri !== 'string') {
@@ -95,7 +147,7 @@ export async function uploadEkycPhoto(uri: string, prefix = 'cccd'): Promise<str
 
   const filename = `${prefix}-${Date.now()}.${extension}`;
 
-  // ── Thử nghiệm 1: Upload trực tiếp lên Cloudinary (Siêu nhanh, giảm tải server) ──
+  // ── Thử nghiệm 1: Upload trực tiếp lên Cloudinary ──
   try {
     const directForm = new FormData();
     directForm.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
@@ -107,7 +159,7 @@ export async function uploadEkycPhoto(uri: string, prefix = 'cccd'): Promise<str
     } as unknown as Blob);
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 20000); // 20s timeout
+    const timer = setTimeout(() => controller.abort(), 20000);
 
     const directRes = await fetch(
       `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
@@ -141,7 +193,7 @@ export async function uploadEkycPhoto(uri: string, prefix = 'cccd'): Promise<str
     '/ekyc/upload-image',
     serverForm,
     {
-      timeout: 60000, // Cho phép tối đa 60 giây để không bao giờ bị Network Error
+      timeout: 60000,
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -157,15 +209,25 @@ export async function uploadEkycPhoto(uri: string, prefix = 'cccd'): Promise<str
 }
 
 /**
- * 3. Gửi đơn xác thực danh tính eKYC
+ * 3. Gửi đơn xác thực danh tính eKYC (Renter)
  */
 export async function submitEkycRequest(payload: SubmitEkycPayload): Promise<SubmitEkycResponse> {
   const response = await apiClient.post<SubmitEkycResponse>('/ekyc/submit', payload);
   return response.data;
 }
 
+/**
+ * 3b. Gửi đơn eKYC nâng cấp Renter đã xác thực lên Owner
+ */
+export async function submitOwnerEkycRequest(
+  payload: SubmitOwnerEkycPayload
+): Promise<SubmitOwnerEkycResponse> {
+  const response = await apiClient.post<SubmitOwnerEkycResponse>('/ekyc/owner/submit', payload);
+  return response.data;
+}
+
 // ─────────────────────────────────────────────────────────
-//  Phân hệ Admin: Quản lý duyệt eKYC (View eKYC Submissions)
+//  Phân hệ Admin: Quản lý duyệt eKYC (Renter & Owner Upgrade)
 // ─────────────────────────────────────────────────────────
 
 export interface AdminEkycUser {
@@ -175,20 +237,22 @@ export interface AdminEkycUser {
   phone   : string;
   address : string;
   avatar  : string | null;
+  role?   : string;
   joinedAt: string | null;
 }
 
 export interface AdminEkycItem {
-  _id           : string;
-  idCardNumber  : string;
-  idCardFrontUrl: string;
-  idCardBackUrl : string;
-  selfieUrl     : string;
-  status        : 'pending' | 'approved' | 'rejected';
-  rejectReason  : string;
-  reviewedAt    : string | null;
-  createdAt     : string;
-  user          : AdminEkycUser;
+  _id            : string;
+  idCardNumber   : string;
+  idCardFrontUrl : string;
+  idCardBackUrl  : string;
+  selfieUrl      : string;
+  selfieWithIdUrl?: string;
+  status         : 'pending' | 'approved' | 'rejected';
+  rejectReason   : string;
+  reviewedAt     : string | null;
+  createdAt      : string;
+  user           : AdminEkycUser;
 }
 
 export interface AdminEkycCounts {
@@ -224,26 +288,44 @@ export interface AdminEkycListResponse {
   };
 }
 
-/**
- * 4. Lấy danh sách đơn eKYC dành cho Admin (View eKYC Submissions List)
- */
-export async function getAdminEkycList(params: AdminEkycListParams = {}): Promise<AdminEkycListResponse> {
+async function fetchAdminEkycEndpoint(
+  basePath: string,
+  params: AdminEkycListParams = {}
+): Promise<AdminEkycListResponse> {
   const queryRecord: Record<string, string> = {};
 
-  if (params.page)                     queryRecord.page   = String(params.page);
-  if (params.limit)                    queryRecord.limit  = String(params.limit);
+  if (params.page) queryRecord.page = String(params.page);
+  if (params.limit) queryRecord.limit = String(params.limit);
   if (params.status && params.status !== 'all') queryRecord.status = params.status;
   if (params.search && params.search.trim()) queryRecord.search = params.search.trim();
 
   const queryString = new URLSearchParams(queryRecord).toString();
-  const url = queryString ? `/admin/ekyc?${queryString}` : '/admin/ekyc';
+  const url = queryString ? `${basePath}?${queryString}` : basePath;
 
   const response = await apiClient.get<AdminEkycListResponse>(url);
   return response.data;
 }
 
 /**
- * 5. Phê duyệt đơn xác thực eKYC (Admin)
+ * 4. Lấy danh sách đơn eKYC Renter dành cho Admin
+ */
+export async function getAdminEkycList(
+  params: AdminEkycListParams = {}
+): Promise<AdminEkycListResponse> {
+  return fetchAdminEkycEndpoint('/admin/ekyc', params);
+}
+
+/**
+ * 4b. Lấy danh sách đơn eKYC nâng cấp Owner dành cho Admin
+ */
+export async function getAdminOwnerEkycList(
+  params: AdminEkycListParams = {}
+): Promise<AdminEkycListResponse> {
+  return fetchAdminEkycEndpoint('/admin/owner-ekyc', params);
+}
+
+/**
+ * 5. Phê duyệt đơn xác thực eKYC Renter (Admin)
  */
 export async function approveAdminEkyc(
   submissionId: string
@@ -255,7 +337,7 @@ export async function approveAdminEkyc(
 }
 
 /**
- * 6. Từ chối đơn xác thực eKYC kèm lý do (Admin)
+ * 6. Từ chối đơn xác thực eKYC Renter kèm lý do (Admin)
  */
 export async function rejectAdminEkyc(
   submissionId: string,
@@ -268,12 +350,42 @@ export async function rejectAdminEkyc(
   return response.data;
 }
 
+/**
+ * 7. Phê duyệt đơn eKYC nâng cấp Renter lên Owner (Admin)
+ */
+export async function approveAdminOwnerEkyc(
+  submissionId: string
+): Promise<{ success: boolean; message: string; data?: any }> {
+  const response = await apiClient.patch<{ success: boolean; message: string; data?: any }>(
+    `/admin/owner-ekyc/${submissionId}/approve`
+  );
+  return response.data;
+}
+
+/**
+ * 8. Từ chối đơn eKYC nâng cấp Owner kèm lý do (Admin)
+ */
+export async function rejectAdminOwnerEkyc(
+  submissionId: string,
+  reason: string
+): Promise<{ success: boolean; message: string; data?: any }> {
+  const response = await apiClient.patch<{ success: boolean; message: string; data?: any }>(
+    `/admin/owner-ekyc/${submissionId}/reject`,
+    { reason }
+  );
+  return response.data;
+}
+
 export default {
   getEkycStatus,
+  getOwnerEkycStatus,
   uploadEkycPhoto,
   submitEkycRequest,
+  submitOwnerEkycRequest,
   getAdminEkycList,
+  getAdminOwnerEkycList,
   approveAdminEkyc,
   rejectAdminEkyc,
+  approveAdminOwnerEkyc,
+  rejectAdminOwnerEkyc,
 };
-
