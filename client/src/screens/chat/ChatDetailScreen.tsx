@@ -85,15 +85,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
         // Kiểm tra chặn nếu đối tác là chính mình
         const otherId = String(data.otherUser?._id || '');
         const myId = String(currentUserId || '');
-        const checkIsSelf =
-          (otherId && myId && otherId === myId) ||
-          Boolean(
-            data.otherUser?.name &&
-              currentUser?.name &&
-              data.otherUser.name.trim().toLowerCase() === currentUser.name.trim().toLowerCase()
-          );
-
-        if (checkIsSelf) {
+        if (otherId && myId && otherId === myId) {
           setLoadError(OWNER_STRINGS.MESSAGES.CANNOT_CHAT_WITH_SELF);
         }
       }
@@ -109,7 +101,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [effectiveBookingId, currentUserId, currentUser?.name]);
+  }, [effectiveBookingId, currentUserId]);
 
   // 2. Kết nối Socket & Lắng nghe tin nhắn mới + Read Receipts CHỈ KHI màn hình đang được FOCUS
   useFocusEffect(
@@ -117,7 +109,6 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
       if (!effectiveBookingId) return;
 
       loadChatHistory();
-      chatService.markChatAsRead(effectiveBookingId);
 
       // Kết nối socket cá nhân nếu chưa kết nối
       if (currentUserId) {
@@ -205,12 +196,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
   );
 
   // Kiểm tra xem đối tác có phải là chính mình không
-  const isSelf = Boolean(
-    (otherUser?._id && String(otherUser._id) === String(currentUserId)) ||
-    (otherUser?.name &&
-      currentUser?.name &&
-      otherUser.name.trim().toLowerCase() === currentUser.name.trim().toLowerCase())
-  );
+  const isSelf = Boolean(otherUser?._id && String(otherUser._id) === String(currentUserId));
 
   // 3. Cơ chế gửi tin với Optimistic UI
   const dispatchMessage = async (

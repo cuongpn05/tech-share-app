@@ -9,6 +9,7 @@ const Review = require('../models/Review');
 const jwt = require('jsonwebtoken');
 
 const { createAndSendNotification } = require('../services/notificationService');
+const { getCompletionError } = require('../utils/returnInspection');
 
 async function findUserByIdOrAccount(id) {
   if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
@@ -599,10 +600,10 @@ exports.updateBookingStatus = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Chưa xác thực thông tin chủ thiết bị' });
     }
 
-    if (!['approved', 'rejected', 'cancelled', 'active', 'completed'].includes(status)) {
+    if (!['approved', 'rejected', 'cancelled', 'completed'].includes(status)) {
       return res.status(400).json({
         success: false,
-        message: 'Trạng thái xử lý không hợp lệ (approved/rejected/cancelled/active/completed)',
+        message: 'Trạng thái xử lý không hợp lệ (approved/rejected/cancelled/completed)',
       });
     }
 
@@ -629,14 +630,15 @@ exports.updateBookingStatus = async (req, res) => {
       return res.status(400).json({ success: false, message: `Không thể duyệt đơn đang ở trạng thái "${booking.status}"` });
     }
 
+    if (status === 'completed') {
+      const message = getCompletionError(booking);
+      if (message) return res.status(409).json({ success: false, message });
+    }
+
     booking.status = status;
     const devId = booking.deviceId?._id || booking.deviceId;
 
-    if (status === 'approved') {
-      if (!booking.qrToken) {
-        booking.qrToken = `TSQR-${booking.bookingCode}-${booking._id.toString().slice(-4).toUpperCase()}`;
-      }
-    } else if (status === 'rejected' || status === 'cancelled') {
+    if (status === 'rejected' || status === 'cancelled') {
       booking.statusReason = reason || 'Chủ máy từ chối yêu cầu thuê';
       booking.rejectReason = reason || 'Chủ máy từ chối yêu cầu thuê';
     } else if (status === 'active') {
@@ -645,9 +647,6 @@ exports.updateBookingStatus = async (req, res) => {
       }
     } else if (status === 'completed') {
       booking.paymentStatus = 'refunded';
-      if (devId) {
-        await Device.findByIdAndUpdate(devId, { status: 'available' }).catch(() => {});
-      }
     }
 
     let actionText = 'Chủ máy cập nhật trạng thái đơn thuê';
@@ -669,6 +668,10 @@ exports.updateBookingStatus = async (req, res) => {
     });
 
     await booking.save();
+
+    if (status === 'completed' && devId) {
+      await Device.findByIdAndUpdate(devId, { status: 'available' }).catch(() => {});
+    }
 
     // Bắn thông báo tự động cho người thuê
     if (booking.renterId) {

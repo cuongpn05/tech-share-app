@@ -102,6 +102,8 @@ export function MyBookingsScreen({
     }, [activeTab, fetchBookings, isAuthenticated])
   );
 
+  useEffect(() => bookingService.onBookingsUpdated(() => fetchBookings(activeTab)), [activeTab, fetchBookings]);
+
   const onRefresh = async () => {
     if (!isAuthenticated) return;
     setRefreshing(true);

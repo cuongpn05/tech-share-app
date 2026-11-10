@@ -971,6 +971,7 @@ export const STRINGS = {
     RETURN_CONDITION_NOTES: 'Return condition notes:',
     UPDATE_RETAKE_RETURN_PHOTOS: 'Update / Retake return photos',
     NO_RETURN_PHOTOS_TITLE: 'No return inspection photos yet',
+    RETURN_PHOTOS_REQUIRED: 'Take and upload all 4 return photos to enable completion.',
     NO_RETURN_PHOTOS_ACTIVE_DESC: 'Capture 4 angles of the returned device to cross-check condition before completing the rental.',
     NO_RETURN_PHOTOS_COMPLETED_DESC: 'No return inspection photos were recorded for this order.',
     TAKE_RETURN_PHOTOS_CTA: 'Take Return Photos (4 angles)',
