@@ -5,8 +5,8 @@
  * ============================================================
  *  Mục đích:
  *   - Dành cho Renter ĐÃ XÁC THỰC gửi thêm đơn eKYC nâng cấp lên Owner.
- *   - Bao gồm toàn bộ thông tin giống eKYC Renter (Hồ sơ read-only, Số CCCD,
- *     Ảnh CCCD 2 mặt) và bổ sung Ảnh chân dung cầm CCCD.
+ *   - Sử dụng cùng bộ thẻ UI đồng bộ với Renter eKYC và bổ sung thêm
+ *     Ảnh chân dung cầm CCCD.
  *   - Lưu đơn vào collection `owner_ekyc_requests`.
  * ============================================================
  */
@@ -18,9 +18,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   ActivityIndicator,
-  Alert,
   StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -40,10 +38,19 @@ import { STRINGS } from '../../constants/strings';
 import {
   EkycAddressModal,
   EkycAddressWarningCard,
+  EkycFormSectionCard,
+  EkycIdNumberField,
   EkycPhotoUploadField,
   EkycProfileReadOnlyCard,
+  EkycStatusBanner,
+  EkycSubmitButton,
   promptEkycImagePicker,
 } from '../../components/ekyc/EkycSharedSections';
+import {
+  EkycConfirmModal,
+  EkycModalSummaryItem,
+  EkycResultModal,
+} from '../../components/ekyc/EkycFeedbackModals';
 
 export interface OwnerEkycVerificationScreenProps {
   navigation?: any;
@@ -81,7 +88,6 @@ export function OwnerEkycVerificationScreen({
   const [isOwner, setIsOwner] = useState(authUser?.role === 'owner');
   const [ownerEkycRequest, setOwnerEkycRequest] = useState<OwnerEkycRequestData | null>(null);
 
-  // 4 trường dữ liệu cho đơn Owner eKYC: Số CCCD + CCCD 2 mặt + Ảnh chân dung cầm CCCD
   const [idCardNumber, setIdCardNumber] = useState('');
   const [frontImageUri, setFrontImageUri] = useState<string | null>(null);
   const [backImageUri, setBackImageUri] = useState<string | null>(null);
@@ -97,7 +103,23 @@ export function OwnerEkycVerificationScreen({
 
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [addressInput, setAddressInput] = useState('');
+  const [addressError, setAddressError] = useState('');
   const [savingAddress, setSavingAddress] = useState(false);
+
+  const [confirmSubmitVisible, setConfirmSubmitVisible] = useState(false);
+  const [resultModal, setResultModal] = useState<{
+    visible: boolean;
+    type: 'success' | 'error' | 'warning' | 'info';
+    title: string;
+    message: string;
+    summaryItems?: EkycModalSummaryItem[];
+    shouldNavigateBack?: boolean;
+  }>({
+    visible: false,
+    type: 'success',
+    title: '',
+    message: '',
+  });
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -205,69 +227,105 @@ export function OwnerEkycVerificationScreen({
 
   const handleSaveAddress = async () => {
     if (!addressInput.trim()) {
-      Alert.alert(STRINGS.EKYC.ADDRESS_WARNING_TITLE, STRINGS.EKYC.ADDRESS_EMPTY_ALERT);
+      setAddressError(STRINGS.EKYC.ADDRESS_EMPTY_ALERT);
       return;
     }
 
     try {
+      setAddressError('');
       setSavingAddress(true);
       await userService.updateProfile({ address: addressInput.trim() });
       setProfile((prev) => ({ ...prev, address: addressInput.trim() }));
       setShowAddressModal(false);
-      Alert.alert(STRINGS.COMMON.SUCCESS, STRINGS.EKYC.ADDRESS_SAVE_SUCCESS);
+      setResultModal({
+        visible: true,
+        type: 'success',
+        title: STRINGS.COMMON.SUCCESS,
+        message: STRINGS.EKYC.ADDRESS_SAVE_SUCCESS,
+      });
     } catch (err: any) {
-      Alert.alert(
-        STRINGS.COMMON.ERROR,
-        err.response?.data?.message || STRINGS.EKYC.ADDRESS_SAVE_ERROR
-      );
+      setShowAddressModal(false);
+      setResultModal({
+        visible: true,
+        type: 'error',
+        title: STRINGS.COMMON.ERROR,
+        message: err.response?.data?.message || STRINGS.EKYC.ADDRESS_SAVE_ERROR,
+      });
     } finally {
       setSavingAddress(false);
     }
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!isRenterVerified) {
-      Alert.alert(
-        STRINGS.OWNER_EKYC.RENTER_REQUIRED_TITLE,
-        STRINGS.OWNER_EKYC.RENTER_REQUIRED_SUB
-      );
+      setResultModal({
+        visible: true,
+        type: 'warning',
+        title: STRINGS.OWNER_EKYC.RENTER_REQUIRED_TITLE,
+        message: STRINGS.OWNER_EKYC.RENTER_REQUIRED_SUB,
+      });
       return;
     }
 
     if (!hasAddress) {
-      Alert.alert(
-        STRINGS.EKYC.ADDRESS_REQUIRED_ALERT_TITLE,
-        STRINGS.EKYC.ADDRESS_REQUIRED_ALERT_MSG,
-        [
-          { text: STRINGS.COMMON.CANCEL, style: 'cancel' },
-          { text: STRINGS.EKYC.UPDATE_ADDRESS_NOW, onPress: () => setShowAddressModal(true) },
-        ]
-      );
+      setShowAddressModal(true);
       return;
     }
 
     const cleanId = idCardNumber.trim();
     if (!cleanId) {
-      Alert.alert(STRINGS.EKYC.MISSING_INFO_TITLE, STRINGS.EKYC.ID_NUMBER_REQUIRED);
+      setResultModal({
+        visible: true,
+        type: 'error',
+        title: STRINGS.EKYC.MISSING_INFO_TITLE,
+        message: STRINGS.EKYC.ID_NUMBER_REQUIRED,
+      });
       return;
     }
     if (!/^\d{9,12}$/.test(cleanId)) {
-      Alert.alert(STRINGS.EKYC.INVALID_ID_NUMBER_TITLE, STRINGS.EKYC.INVALID_ID_NUMBER_MSG);
+      setResultModal({
+        visible: true,
+        type: 'error',
+        title: STRINGS.EKYC.INVALID_ID_NUMBER_TITLE,
+        message: STRINGS.EKYC.INVALID_ID_NUMBER_MSG,
+      });
       return;
     }
 
     if (!frontImageUri) {
-      Alert.alert(STRINGS.EKYC.MISSING_PHOTO_TITLE, STRINGS.EKYC.FRONT_PHOTO_REQUIRED);
+      setResultModal({
+        visible: true,
+        type: 'error',
+        title: STRINGS.EKYC.MISSING_PHOTO_TITLE,
+        message: STRINGS.EKYC.FRONT_PHOTO_REQUIRED,
+      });
       return;
     }
     if (!backImageUri) {
-      Alert.alert(STRINGS.EKYC.MISSING_PHOTO_TITLE, STRINGS.EKYC.BACK_PHOTO_REQUIRED);
+      setResultModal({
+        visible: true,
+        type: 'error',
+        title: STRINGS.EKYC.MISSING_PHOTO_TITLE,
+        message: STRINGS.EKYC.BACK_PHOTO_REQUIRED,
+      });
       return;
     }
     if (!selfieImageUri) {
-      Alert.alert(STRINGS.EKYC.MISSING_PHOTO_TITLE, STRINGS.OWNER_EKYC.SELFIE_PHOTO_REQUIRED);
+      setResultModal({
+        visible: true,
+        type: 'error',
+        title: STRINGS.EKYC.MISSING_PHOTO_TITLE,
+        message: STRINGS.OWNER_EKYC.SELFIE_PHOTO_REQUIRED,
+      });
       return;
     }
+
+    setConfirmSubmitVisible(true);
+  };
+
+  const handleConfirmSubmit = async () => {
+    const cleanId = idCardNumber.trim();
+    if (!frontImageUri || !backImageUri || !selfieImageUri) return;
 
     try {
       setSubmitting(true);
@@ -279,15 +337,33 @@ export function OwnerEkycVerificationScreen({
       ]);
 
       if (!uploadedFrontUrl) {
-        Alert.alert(STRINGS.EKYC.UPLOAD_ERROR_TITLE, STRINGS.EKYC.UPLOAD_FRONT_ERROR);
+        setConfirmSubmitVisible(false);
+        setResultModal({
+          visible: true,
+          type: 'error',
+          title: STRINGS.EKYC.UPLOAD_ERROR_TITLE,
+          message: STRINGS.EKYC.UPLOAD_FRONT_ERROR,
+        });
         return;
       }
       if (!uploadedBackUrl) {
-        Alert.alert(STRINGS.EKYC.UPLOAD_ERROR_TITLE, STRINGS.EKYC.UPLOAD_BACK_ERROR);
+        setConfirmSubmitVisible(false);
+        setResultModal({
+          visible: true,
+          type: 'error',
+          title: STRINGS.EKYC.UPLOAD_ERROR_TITLE,
+          message: STRINGS.EKYC.UPLOAD_BACK_ERROR,
+        });
         return;
       }
       if (!uploadedSelfieUrl) {
-        Alert.alert(STRINGS.EKYC.UPLOAD_ERROR_TITLE, STRINGS.OWNER_EKYC.UPLOAD_SELFIE_ERROR);
+        setConfirmSubmitVisible(false);
+        setResultModal({
+          visible: true,
+          type: 'error',
+          title: STRINGS.EKYC.UPLOAD_ERROR_TITLE,
+          message: STRINGS.OWNER_EKYC.UPLOAD_SELFIE_ERROR,
+        });
         return;
       }
 
@@ -298,33 +374,63 @@ export function OwnerEkycVerificationScreen({
         selfieWithIdUrl: uploadedSelfieUrl,
       });
 
+      setConfirmSubmitVisible(false);
+
       if (response.success) {
-        Alert.alert(
-          STRINGS.OWNER_EKYC.SUBMIT_SUCCESS_TITLE,
-          STRINGS.OWNER_EKYC.SUBMIT_SUCCESS_MSG,
-          [
-            {
-              text: STRINGS.OWNER_EKYC.SUBMIT_SUCCESS_ACK,
-              onPress: () => {
-                if (onSuccess) onSuccess();
-                else if (navigation?.goBack) navigation.goBack();
-                else if (onBack) onBack();
-              },
-            },
-          ]
-        );
         fetchStatus();
+        setResultModal({
+          visible: true,
+          type: 'success',
+          title: STRINGS.OWNER_EKYC.SUBMIT_SUCCESS_TITLE,
+          message: STRINGS.OWNER_EKYC.SUBMIT_SUCCESS_MSG,
+          shouldNavigateBack: true,
+          summaryItems: [
+            {
+              icon: 'ribbon-outline',
+              label: STRINGS.EKYC.SUMMARY_TYPE_LABEL,
+              value: STRINGS.OWNER_EKYC.SUMMARY_TYPE_OWNER,
+            },
+            {
+              icon: 'barcode-outline',
+              label: STRINGS.EKYC.SUMMARY_ID_NUMBER_LABEL,
+              value: cleanId,
+            },
+            {
+              icon: 'time-outline',
+              label: STRINGS.EKYC.SUMMARY_STATUS_LABEL,
+              value: STRINGS.EKYC.SUMMARY_STATUS_PENDING,
+            },
+          ],
+        });
       } else {
-        Alert.alert(
-          STRINGS.OWNER_EKYC.SUBMIT_FAIL_TITLE,
-          response.message || STRINGS.EKYC.DEFAULT_ERROR
-        );
+        setResultModal({
+          visible: true,
+          type: 'error',
+          title: STRINGS.OWNER_EKYC.SUBMIT_FAIL_TITLE,
+          message: response.message || STRINGS.EKYC.DEFAULT_ERROR,
+        });
       }
     } catch (err: any) {
+      setConfirmSubmitVisible(false);
       const msg = err.response?.data?.message || err.message || STRINGS.OWNER_EKYC.NETWORK_ERROR;
-      Alert.alert(STRINGS.OWNER_EKYC.VERIFICATION_ERROR_TITLE, msg);
+      setResultModal({
+        visible: true,
+        type: 'error',
+        title: STRINGS.OWNER_EKYC.VERIFICATION_ERROR_TITLE,
+        message: msg,
+      });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleCloseResultModal = () => {
+    const shouldNavigateBack = resultModal.shouldNavigateBack;
+    setResultModal((prev) => ({ ...prev, visible: false, shouldNavigateBack: false }));
+    if (shouldNavigateBack) {
+      if (onSuccess) onSuccess();
+      else if (navigation?.goBack) navigation.goBack();
+      else if (onBack) onBack();
     }
   };
 
@@ -359,105 +465,64 @@ export function OwnerEkycVerificationScreen({
         showsVerticalScrollIndicator={false}
       >
         {!isRenterVerified ? (
-          <View style={styles.lockedCard}>
-            <Ionicons name="lock-closed-outline" size={30} color={theme.colors.amber} />
-            <View style={styles.bannerTextContainer}>
-              <Text style={styles.lockedTitle}>{STRINGS.OWNER_EKYC.RENTER_REQUIRED_TITLE}</Text>
-              <Text style={styles.lockedSubtitle}>{STRINGS.OWNER_EKYC.RENTER_REQUIRED_SUB}</Text>
-              <TouchableOpacity
-                style={styles.goRenterBtn}
-                onPress={() => navigation?.navigate?.('EkycVerification')}
-              >
-                <Text style={styles.goRenterBtnText}>{STRINGS.OWNER_EKYC.GO_TO_RENTER_EKYC}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          <EkycStatusBanner
+            variant="locked"
+            title={STRINGS.OWNER_EKYC.RENTER_REQUIRED_TITLE}
+            subtitle={STRINGS.OWNER_EKYC.RENTER_REQUIRED_SUB}
+            actionText={STRINGS.OWNER_EKYC.GO_TO_RENTER_EKYC}
+            onActionPress={() => navigation?.navigate?.('EkycVerification')}
+          />
         ) : isApproved ? (
-          <View style={styles.verifiedBanner}>
-            <Ionicons name="checkmark-circle" size={32} color={theme.colors.green} />
-            <View style={styles.bannerTextContainer}>
-              <Text style={styles.verifiedBannerTitle}>
-                {STRINGS.OWNER_EKYC.APPROVED_BANNER_TITLE}
-              </Text>
-              <Text style={styles.verifiedBannerSubtitle}>
-                {STRINGS.OWNER_EKYC.APPROVED_BANNER_SUB}
-              </Text>
-            </View>
-          </View>
+          <EkycStatusBanner
+            variant="approved"
+            title={STRINGS.OWNER_EKYC.APPROVED_BANNER_TITLE}
+            subtitle={STRINGS.OWNER_EKYC.APPROVED_BANNER_SUB}
+          />
         ) : isPending ? (
-          <View style={styles.pendingBanner}>
-            <Ionicons name="time-outline" size={30} color={theme.colors.blue} />
-            <View style={styles.bannerTextContainer}>
-              <Text style={styles.pendingBannerTitle}>
-                {STRINGS.OWNER_EKYC.PENDING_BANNER_TITLE}
-              </Text>
-              <Text style={styles.pendingBannerSubtitle}>
-                {STRINGS.OWNER_EKYC.PENDING_BANNER_SUB}
-              </Text>
-            </View>
-          </View>
+          <EkycStatusBanner
+            variant="pending"
+            title={STRINGS.OWNER_EKYC.PENDING_BANNER_TITLE}
+            subtitle={STRINGS.OWNER_EKYC.PENDING_BANNER_SUB}
+          />
         ) : isRejected ? (
-          <View style={styles.rejectedBanner}>
-            <Ionicons name="alert-circle-outline" size={30} color={theme.colors.red} />
-            <View style={styles.bannerTextContainer}>
-              <Text style={styles.rejectedBannerTitle}>
-                {STRINGS.OWNER_EKYC.REJECTED_BANNER_TITLE}
-              </Text>
-              <Text style={styles.rejectedBannerSubtitle}>
-                {ownerEkycRequest?.rejectReason
-                  ? `${STRINGS.OWNER_EKYC.REJECTED_REASON_PREFIX}${ownerEkycRequest.rejectReason}`
-                  : STRINGS.OWNER_EKYC.REJECTED_DEFAULT_REASON}
-              </Text>
-            </View>
-          </View>
+          <EkycStatusBanner
+            variant="rejected"
+            title={STRINGS.OWNER_EKYC.REJECTED_BANNER_TITLE}
+            subtitle={
+              ownerEkycRequest?.rejectReason
+                ? `${STRINGS.OWNER_EKYC.REJECTED_REASON_PREFIX}${ownerEkycRequest.rejectReason}`
+                : STRINGS.OWNER_EKYC.REJECTED_DEFAULT_REASON
+            }
+          />
         ) : (
-          <View style={styles.introCard}>
-            <Ionicons name="ribbon-outline" size={28} color={theme.colors.brand[500]} />
-            <View style={styles.bannerTextContainer}>
-              <Text style={styles.introTitle}>{STRINGS.OWNER_EKYC.INTRO_TITLE}</Text>
-              <Text style={styles.introSubtitle}>{STRINGS.OWNER_EKYC.INTRO_SUB}</Text>
-            </View>
-          </View>
+          <EkycStatusBanner
+            variant="intro"
+            icon="ribbon-outline"
+            title={STRINGS.OWNER_EKYC.INTRO_TITLE}
+            subtitle={STRINGS.OWNER_EKYC.INTRO_SUB}
+          />
         )}
 
         {isRenterVerified && !hasAddress && (
           <EkycAddressWarningCard onUpdatePress={() => setShowAddressModal(true)} />
         )}
 
-        {/* Phần 1: Thông tin cá nhân (giống eKYC Renter, read-only) */}
         <EkycProfileReadOnlyCard
           profile={profile}
           hasAddress={hasAddress}
           onAddAddressPress={() => setShowAddressModal(true)}
         />
 
-        {/* Phần 2: Số CCCD + Ảnh CCCD 2 mặt + Ảnh chân dung cầm CCCD */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeaderRow}>
-            <Ionicons name="card-outline" size={20} color={theme.colors.brand[500]} />
-            <Text style={styles.sectionTitle}>{STRINGS.OWNER_EKYC.SECTION_FORM_TITLE}</Text>
-          </View>
-          <Text style={styles.sectionSubtitle}>{STRINGS.OWNER_EKYC.SECTION_FORM_SUB}</Text>
+        <EkycFormSectionCard
+          title={STRINGS.OWNER_EKYC.SECTION_FORM_TITLE}
+          subtitle={STRINGS.OWNER_EKYC.SECTION_FORM_SUB}
+        >
+          <EkycIdNumberField
+            value={idCardNumber}
+            editable={isEditable}
+            onChangeText={setIdCardNumber}
+          />
 
-          {/* 1. Số CCCD */}
-          <View style={styles.fieldItem}>
-            <Text style={styles.fieldLabel}>{STRINGS.EKYC.ID_NUMBER_LABEL}</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="barcode-outline" size={20} color={theme.colors.brand[500]} />
-              <TextInput
-                style={styles.textInput}
-                placeholder={STRINGS.EKYC.ID_NUMBER_PLACEHOLDER}
-                placeholderTextColor={theme.colors.text.subtle}
-                value={idCardNumber}
-                onChangeText={setIdCardNumber}
-                keyboardType="number-pad"
-                maxLength={12}
-                editable={isEditable}
-              />
-            </View>
-          </View>
-
-          {/* 2. Ảnh CCCD mặt trước */}
           <EkycPhotoUploadField
             label={STRINGS.EKYC.FRONT_PHOTO_LABEL}
             uploadTitle={STRINGS.EKYC.UPLOAD_FRONT_TITLE}
@@ -470,7 +535,6 @@ export function OwnerEkycVerificationScreen({
             onPress={() => handlePickPhoto('front')}
           />
 
-          {/* 3. Ảnh CCCD mặt sau */}
           <EkycPhotoUploadField
             label={STRINGS.EKYC.BACK_PHOTO_LABEL}
             uploadTitle={STRINGS.EKYC.UPLOAD_BACK_TITLE}
@@ -483,7 +547,6 @@ export function OwnerEkycVerificationScreen({
             onPress={() => handlePickPhoto('back')}
           />
 
-          {/* 4. Ảnh chân dung cầm CCCD */}
           <EkycPhotoUploadField
             label={STRINGS.OWNER_EKYC.SELFIE_WITH_ID_LABEL}
             uploadTitle={STRINGS.OWNER_EKYC.UPLOAD_SELFIE_TITLE}
@@ -494,41 +557,27 @@ export function OwnerEkycVerificationScreen({
             disabled={!hasAddress || !isEditable}
             editable={isEditable}
             iconName="person-circle-outline"
-            previewHeight={230}
+            isLast={true}
             onPress={() => handlePickPhoto('selfie')}
           />
-        </View>
+        </EkycFormSectionCard>
 
         {isEditable && (
-          <TouchableOpacity
-            style={[
-              styles.submitButton,
-              (!hasAddress || submitting) && styles.submitButtonDisabled,
-            ]}
-            onPress={handleSubmit}
+          <EkycSubmitButton
+            label={
+              isRejected
+                ? STRINGS.OWNER_EKYC.SUBMIT_BUTTON_RESUBMIT
+                : STRINGS.OWNER_EKYC.SUBMIT_BUTTON_NEW
+            }
+            loadingLabel={
+              uploadingFront || uploadingBack || uploadingSelfie
+                ? STRINGS.EKYC.SUBMITTING_UPLOADING
+                : STRINGS.EKYC.SUBMITTING_REQUEST
+            }
+            loading={submitting}
             disabled={!hasAddress || submitting}
-            activeOpacity={0.85}
-          >
-            {submitting ? (
-              <View style={styles.submittingRow}>
-                <ActivityIndicator size="small" color={theme.colors.white} />
-                <Text style={styles.submitButtonText}>
-                  {uploadingFront || uploadingBack || uploadingSelfie
-                    ? STRINGS.EKYC.SUBMITTING_UPLOADING
-                    : STRINGS.EKYC.SUBMITTING_REQUEST}
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.submittingRow}>
-                <Ionicons name="shield-checkmark-outline" size={20} color={theme.colors.white} />
-                <Text style={styles.submitButtonText}>
-                  {isRejected
-                    ? STRINGS.OWNER_EKYC.SUBMIT_BUTTON_RESUBMIT
-                    : STRINGS.OWNER_EKYC.SUBMIT_BUTTON_NEW}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
+            onPress={handleSubmit}
+          />
         )}
       </ScrollView>
 
@@ -536,9 +585,58 @@ export function OwnerEkycVerificationScreen({
         visible={showAddressModal}
         value={addressInput}
         saving={savingAddress}
-        onChangeText={setAddressInput}
-        onCancel={() => setShowAddressModal(false)}
+        errorText={addressError}
+        onChangeText={(text) => {
+          setAddressInput(text);
+          if (addressError) setAddressError('');
+        }}
+        onCancel={() => {
+          setAddressError('');
+          setShowAddressModal(false);
+        }}
         onSave={handleSaveAddress}
+      />
+
+      <EkycConfirmModal
+        visible={confirmSubmitVisible}
+        title={STRINGS.OWNER_EKYC.CONFIRM_SUBMIT_TITLE}
+        message={STRINGS.OWNER_EKYC.CONFIRM_SUBMIT_MSG}
+        icon="ribbon-outline"
+        tone="brand"
+        summaryItems={[
+          {
+            icon: 'person-outline',
+            label: STRINGS.EKYC.SUMMARY_APPLICANT_LABEL,
+            value: profile.name || STRINGS.EKYC.NOT_UPDATED,
+          },
+          {
+            icon: 'barcode-outline',
+            label: STRINGS.EKYC.SUMMARY_ID_NUMBER_LABEL,
+            value: idCardNumber.trim(),
+          },
+          {
+            icon: 'ribbon-outline',
+            label: STRINGS.OWNER_EKYC.SUMMARY_UPGRADE_LABEL,
+            value: STRINGS.OWNER_EKYC.SUMMARY_UPGRADE_VALUE,
+          },
+        ]}
+        noticeText={STRINGS.OWNER_EKYC.CONFIRM_SUBMIT_NOTICE}
+        confirmText={STRINGS.OWNER_EKYC.CONFIRM_SUBMIT_BTN}
+        cancelText={STRINGS.COMMON.CANCEL}
+        loading={submitting}
+        onCancel={() => {
+          if (!submitting) setConfirmSubmitVisible(false);
+        }}
+        onConfirm={handleConfirmSubmit}
+      />
+
+      <EkycResultModal
+        visible={resultModal.visible}
+        type={resultModal.type}
+        title={resultModal.title}
+        message={resultModal.message}
+        summaryItems={resultModal.summaryItems}
+        onClose={handleCloseResultModal}
       />
     </View>
   );
@@ -583,206 +681,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
   },
-  bannerTextContainer: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  lockedCard: {
-    flexDirection: 'row',
-    backgroundColor: theme.colors.amberLight,
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    borderRadius: theme.radii.md,
-    padding: 14,
-    marginBottom: 16,
-    alignItems: 'flex-start',
-  },
-  lockedTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#92400E',
-  },
-  lockedSubtitle: {
-    fontSize: 13,
-    color: '#B45309',
-    marginTop: 3,
-    lineHeight: 18,
-  },
-  goRenterBtn: {
-    marginTop: 10,
-    alignSelf: 'flex-start',
-    backgroundColor: theme.colors.amber,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: theme.radii.sm,
-  },
-  goRenterBtnText: {
-    color: theme.colors.white,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  verifiedBanner: {
-    flexDirection: 'row',
-    backgroundColor: theme.colors.greenLight,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-    borderRadius: theme.radii.md,
-    padding: 14,
-    marginBottom: 16,
-    alignItems: 'center',
-  },
-  verifiedBannerTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#065F46',
-  },
-  verifiedBannerSubtitle: {
-    fontSize: 13,
-    color: '#047857',
-    marginTop: 3,
-    lineHeight: 18,
-  },
-  pendingBanner: {
-    flexDirection: 'row',
-    backgroundColor: theme.colors.blueLight,
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-    borderRadius: theme.radii.md,
-    padding: 14,
-    marginBottom: 16,
-    alignItems: 'center',
-  },
-  pendingBannerTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1E40AF',
-  },
-  pendingBannerSubtitle: {
-    fontSize: 13,
-    color: '#1D4ED8',
-    marginTop: 3,
-    lineHeight: 18,
-  },
-  rejectedBanner: {
-    flexDirection: 'row',
-    backgroundColor: theme.colors.redLight,
-    borderWidth: 1,
-    borderColor: theme.colors.redBorder,
-    borderRadius: theme.radii.md,
-    padding: 14,
-    marginBottom: 16,
-    alignItems: 'center',
-  },
-  rejectedBannerTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#991B1B',
-  },
-  rejectedBannerSubtitle: {
-    fontSize: 13,
-    color: '#B91C1C',
-    marginTop: 3,
-    lineHeight: 18,
-  },
-  introCard: {
-    flexDirection: 'row',
-    backgroundColor: theme.colors.brand[50],
-    borderWidth: 1,
-    borderColor: theme.colors.brand[200],
-    borderRadius: theme.radii.md,
-    padding: 14,
-    marginBottom: 16,
-    alignItems: 'center',
-  },
-  introTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: theme.colors.text.primary,
-  },
-  introSubtitle: {
-    fontSize: 13,
-    color: theme.colors.text.secondary,
-    marginTop: 3,
-    lineHeight: 18,
-  },
-  sectionCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radii.lg,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border.light,
-    ...theme.shadows.card,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: theme.colors.text.primary,
-    marginLeft: 8,
-    flex: 1,
-  },
-  sectionSubtitle: {
-    fontSize: 12,
-    color: theme.colors.text.muted,
-    marginTop: 4,
-    marginBottom: 14,
-    lineHeight: 17,
-  },
-  fieldItem: {
-    marginBottom: 12,
-  },
-  fieldLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: theme.colors.text.secondary,
-    marginBottom: 6,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1.5,
-    borderColor: theme.colors.border.default,
-    borderRadius: theme.radii.md,
-    paddingHorizontal: 12,
-  },
-  textInput: {
-    flex: 1,
-    fontSize: 15,
-    color: theme.colors.text.primary,
-    paddingVertical: 10,
-    marginLeft: 8,
-    fontWeight: '600',
-  },
-  submitButton: {
-    backgroundColor: theme.colors.brand[500],
-    borderRadius: theme.radii.md,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-    ...theme.shadows.cardHover,
-  },
-  submitButtonDisabled: {
-    backgroundColor: theme.colors.text.subtle,
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  submittingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  submitButtonText: {
-    color: theme.colors.white,
-    fontSize: 16,
-    fontWeight: '700',
-    marginLeft: 8,
-  },
 });
 
 export default OwnerEkycVerificationScreen;
-

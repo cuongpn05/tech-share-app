@@ -94,6 +94,100 @@ export function promptEkycImagePicker({
   ]);
 }
 
+export type EkycStatusBannerVariant = 'approved' | 'pending' | 'rejected' | 'intro' | 'locked';
+
+const BANNER_CONFIG: Record<
+  EkycStatusBannerVariant,
+  {
+    bg: string;
+    border: string;
+    iconColor: string;
+    titleColor: string;
+    subtitleColor: string;
+    defaultIcon: keyof typeof Ionicons.glyphMap;
+  }
+> = {
+  approved: {
+    bg: theme.colors.greenLight,
+    border: '#A7F3D0',
+    iconColor: theme.colors.green,
+    titleColor: '#065F46',
+    subtitleColor: '#047857',
+    defaultIcon: 'checkmark-circle',
+  },
+  pending: {
+    bg: theme.colors.blueLight,
+    border: '#BFDBFE',
+    iconColor: theme.colors.blue,
+    titleColor: '#1E40AF',
+    subtitleColor: '#1D4ED8',
+    defaultIcon: 'time-outline',
+  },
+  rejected: {
+    bg: theme.colors.redLight,
+    border: theme.colors.redBorder,
+    iconColor: theme.colors.red,
+    titleColor: '#991B1B',
+    subtitleColor: '#B91C1C',
+    defaultIcon: 'alert-circle-outline',
+  },
+  intro: {
+    bg: theme.colors.brand[50],
+    border: theme.colors.brand[200],
+    iconColor: theme.colors.brand[500],
+    titleColor: theme.colors.text.primary,
+    subtitleColor: theme.colors.text.secondary,
+    defaultIcon: 'shield-checkmark',
+  },
+  locked: {
+    bg: theme.colors.amberLight,
+    border: '#FDE68A',
+    iconColor: theme.colors.amber,
+    titleColor: '#92400E',
+    subtitleColor: '#B45309',
+    defaultIcon: 'lock-closed-outline',
+  },
+};
+
+export function EkycStatusBanner({
+  variant,
+  title,
+  subtitle,
+  icon,
+  actionText,
+  onActionPress,
+}: {
+  variant: EkycStatusBannerVariant;
+  title: string;
+  subtitle: string;
+  icon?: keyof typeof Ionicons.glyphMap;
+  actionText?: string;
+  onActionPress?: () => void;
+}) {
+  const cfg = BANNER_CONFIG[variant];
+
+  return (
+    <View
+      style={[
+        styles.bannerCard,
+        { backgroundColor: cfg.bg, borderColor: cfg.border },
+        variant === 'locked' && styles.bannerCardTopAligned,
+      ]}
+    >
+      <Ionicons name={icon || cfg.defaultIcon} size={30} color={cfg.iconColor} />
+      <View style={styles.bannerTextContainer}>
+        <Text style={[styles.bannerTitle, { color: cfg.titleColor }]}>{title}</Text>
+        <Text style={[styles.bannerSubtitle, { color: cfg.subtitleColor }]}>{subtitle}</Text>
+        {actionText && onActionPress ? (
+          <TouchableOpacity style={styles.bannerActionBtn} onPress={onActionPress}>
+            <Text style={styles.bannerActionBtnText}>{actionText}</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
 export function EkycAddressWarningCard({ onUpdatePress }: { onUpdatePress: () => void }) {
   return (
     <View style={styles.addressWarningCard}>
@@ -155,7 +249,7 @@ export function EkycProfileReadOnlyCard({
         </View>
       </View>
 
-      <View style={styles.fieldItem}>
+      <View style={[styles.fieldItem, styles.fieldItemLast]}>
         <View style={styles.fieldLabelRow}>
           <Text style={[styles.fieldLabel, { marginBottom: 0 }]}>{STRINGS.EKYC.ADDRESS_LABEL}</Text>
           {!hasAddress && (
@@ -190,6 +284,58 @@ export function EkycProfileReadOnlyCard({
   );
 }
 
+export function EkycFormSectionCard({
+  title,
+  subtitle,
+  icon = 'card-outline',
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  icon?: keyof typeof Ionicons.glyphMap;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.sectionCard}>
+      <View style={styles.sectionHeaderRow}>
+        <Ionicons name={icon} size={20} color={theme.colors.brand[500]} />
+        <Text style={styles.sectionTitle}>{title}</Text>
+      </View>
+      <Text style={styles.sectionSubtitle}>{subtitle}</Text>
+      {children}
+    </View>
+  );
+}
+
+export function EkycIdNumberField({
+  value,
+  editable,
+  onChangeText,
+}: {
+  value: string;
+  editable: boolean;
+  onChangeText: (text: string) => void;
+}) {
+  return (
+    <View style={styles.fieldItem}>
+      <Text style={styles.fieldLabel}>{STRINGS.EKYC.ID_NUMBER_LABEL}</Text>
+      <View style={[styles.inputContainer, !editable && styles.fieldBoxDisabled]}>
+        <Ionicons name="barcode-outline" size={20} color={theme.colors.brand[500]} />
+        <TextInput
+          style={styles.textInput}
+          placeholder={STRINGS.EKYC.ID_NUMBER_PLACEHOLDER}
+          placeholderTextColor={theme.colors.text.subtle}
+          value={value}
+          onChangeText={onChangeText}
+          keyboardType="number-pad"
+          maxLength={12}
+          editable={editable}
+        />
+      </View>
+    </View>
+  );
+}
+
 export interface EkycPhotoUploadFieldProps {
   label: string;
   uploadTitle: string;
@@ -201,6 +347,7 @@ export interface EkycPhotoUploadFieldProps {
   editable: boolean;
   iconName?: keyof typeof Ionicons.glyphMap;
   previewHeight?: number;
+  isLast?: boolean;
   onPress: () => void;
 }
 
@@ -215,10 +362,11 @@ export function EkycPhotoUploadField({
   editable,
   iconName = 'cloud-upload-outline',
   previewHeight = 180,
+  isLast = false,
   onPress,
 }: EkycPhotoUploadFieldProps) {
   return (
-    <View style={styles.fieldItem}>
+    <View style={[styles.fieldItem, isLast && styles.fieldItemLast]}>
       <Text style={styles.fieldLabel}>{label}</Text>
       {imageUri ? (
         <View style={styles.imagePreviewWrapper}>
@@ -262,10 +410,46 @@ export function EkycPhotoUploadField({
   );
 }
 
+export function EkycSubmitButton({
+  label,
+  loadingLabel,
+  loading,
+  disabled,
+  onPress,
+}: {
+  label: string;
+  loadingLabel: string;
+  loading: boolean;
+  disabled: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.submitButton, disabled && styles.submitButtonDisabled]}
+      onPress={onPress}
+      disabled={disabled}
+      activeOpacity={0.85}
+    >
+      {loading ? (
+        <View style={styles.submittingRow}>
+          <ActivityIndicator size="small" color={theme.colors.white} />
+          <Text style={styles.submitButtonText}>{loadingLabel}</Text>
+        </View>
+      ) : (
+        <View style={styles.submittingRow}>
+          <Ionicons name="shield-checkmark-outline" size={20} color={theme.colors.white} />
+          <Text style={styles.submitButtonText}>{label}</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
 export function EkycAddressModal({
   visible,
   value,
   saving,
+  errorText,
   onChangeText,
   onCancel,
   onSave,
@@ -273,6 +457,7 @@ export function EkycAddressModal({
   visible: boolean;
   value: string;
   saving: boolean;
+  errorText?: string;
   onChangeText: (text: string) => void;
   onCancel: () => void;
   onSave: () => void;
@@ -288,7 +473,7 @@ export function EkycAddressModal({
           <Text style={styles.modalSubtitle}>{STRINGS.EKYC.ADDRESS_MODAL_SUB}</Text>
 
           <TextInput
-            style={styles.addressModalInput}
+            style={[styles.addressModalInput, Boolean(errorText) && styles.addressModalInputError]}
             placeholder={STRINGS.EKYC.ADDRESS_MODAL_PLACEHOLDER}
             placeholderTextColor={theme.colors.text.subtle}
             value={value}
@@ -296,6 +481,7 @@ export function EkycAddressModal({
             multiline={true}
             numberOfLines={3}
           />
+          {Boolean(errorText) && <Text style={styles.addressModalError}>{errorText}</Text>}
 
           <View style={styles.modalActionRow}>
             <TouchableOpacity style={styles.modalCancelBtn} onPress={onCancel} disabled={saving}>
@@ -316,12 +502,49 @@ export function EkycAddressModal({
 }
 
 const styles = StyleSheet.create({
+  bannerCard: {
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderRadius: theme.radii.lg,
+    padding: 14,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  bannerCardTopAligned: {
+    alignItems: 'flex-start',
+  },
+  bannerTextContainer: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  bannerTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  bannerSubtitle: {
+    fontSize: 13,
+    marginTop: 3,
+    lineHeight: 18,
+  },
+  bannerActionBtn: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    backgroundColor: theme.colors.amber,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: theme.radii.sm,
+  },
+  bannerActionBtnText: {
+    color: theme.colors.white,
+    fontSize: 13,
+    fontWeight: '700',
+  },
   addressWarningCard: {
     flexDirection: 'row',
     backgroundColor: theme.colors.amberLight,
     borderWidth: 1,
     borderColor: '#FDE68A',
-    borderRadius: theme.radii.md,
+    borderRadius: theme.radii.lg,
     padding: 14,
     marginBottom: 16,
     alignItems: 'flex-start',
@@ -397,6 +620,9 @@ const styles = StyleSheet.create({
   fieldItem: {
     marginBottom: 12,
   },
+  fieldItemLast: {
+    marginBottom: 0,
+  },
   fieldLabelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -412,7 +638,7 @@ const styles = StyleSheet.create({
   fieldActionText: {
     fontSize: 12,
     fontWeight: '600',
-    color: theme.colors.blue,
+    color: theme.colors.brand[600],
   },
   fieldBox: {
     flexDirection: 'row',
@@ -437,6 +663,23 @@ const styles = StyleSheet.create({
     color: theme.colors.text.primary,
     marginLeft: 8,
     flex: 1,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1.5,
+    borderColor: theme.colors.border.default,
+    borderRadius: theme.radii.md,
+    paddingHorizontal: 12,
+  },
+  textInput: {
+    flex: 1,
+    fontSize: 15,
+    color: theme.colors.text.primary,
+    paddingVertical: 10,
+    marginLeft: 8,
+    fontWeight: '600',
   },
   uploadBox: {
     borderWidth: 1.5,
@@ -530,6 +773,30 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+  submitButton: {
+    backgroundColor: theme.colors.brand[500],
+    borderRadius: theme.radii.md,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    ...theme.shadows.cardHover,
+  },
+  submitButtonDisabled: {
+    backgroundColor: theme.colors.text.subtle,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  submittingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  submitButtonText: {
+    color: theme.colors.white,
+    fontSize: 16,
+    fontWeight: '700',
+    marginLeft: 8,
+  },
   modalBackdrop: {
     flex: 1,
     backgroundColor: theme.colors.overlay,
@@ -570,6 +837,14 @@ const styles = StyleSheet.create({
     marginTop: 14,
     minHeight: 80,
     textAlignVertical: 'top',
+  },
+  addressModalInputError: {
+    borderColor: theme.colors.red,
+  },
+  addressModalError: {
+    fontSize: 12,
+    color: theme.colors.red,
+    marginTop: 6,
   },
   modalActionRow: {
     flexDirection: 'row',
