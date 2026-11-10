@@ -298,11 +298,11 @@ export function ForgotPasswordScreen({
         activeOpacity={0.85}
       >
         {loading ? (
-          <ActivityIndicator color="#ffffff" size="small" />
+          <ActivityIndicator color={theme.colors.white} size="small" />
         ) : (
           <View style={styles.btnContent}>
             <Text style={styles.btnSubmitText}>{STRINGS.FORGOT_PASSWORD.STEP_1.BTN_CONTINUE}</Text>
-            <Ionicons name="arrow-forward" size={18} color="#ffffff" style={styles.btnArrowIcon} />
+            <Ionicons name="arrow-forward" size={18} color={theme.colors.white} style={styles.btnArrowIcon} />
           </View>
         )}
       </TouchableOpacity>
@@ -391,11 +391,11 @@ export function ForgotPasswordScreen({
         activeOpacity={0.85}
       >
         {loading ? (
-          <ActivityIndicator color="#ffffff" size="small" />
+          <ActivityIndicator color={theme.colors.white} size="small" />
         ) : (
           <View style={styles.btnContent}>
             <Text style={styles.btnSubmitText}>{STRINGS.FORGOT_PASSWORD.STEP_2.BTN_VERIFY}</Text>
-            <Ionicons name="checkmark" size={18} color="#ffffff" style={styles.btnArrowIcon} />
+            <Ionicons name="checkmark" size={18} color={theme.colors.white} style={styles.btnArrowIcon} />
           </View>
         )}
       </TouchableOpacity>
@@ -516,11 +516,11 @@ export function ForgotPasswordScreen({
         activeOpacity={0.85}
       >
         {loading ? (
-          <ActivityIndicator color="#ffffff" size="small" />
+          <ActivityIndicator color={theme.colors.white} size="small" />
         ) : (
           <View style={styles.btnContent}>
             <Text style={styles.btnSubmitText}>{STRINGS.FORGOT_PASSWORD.STEP_3.BTN_RESET}</Text>
-            <Ionicons name="checkmark-done" size={18} color="#ffffff" style={styles.btnArrowIcon} />
+            <Ionicons name="checkmark-done" size={18} color={theme.colors.white} style={styles.btnArrowIcon} />
           </View>
         )}
       </TouchableOpacity>
@@ -547,7 +547,7 @@ export function ForgotPasswordScreen({
       >
         <View style={styles.btnContent}>
           <Text style={styles.btnSubmitText}>{STRINGS.FORGOT_PASSWORD.SUCCESS.BTN_LOGIN_NOW}</Text>
-          <Ionicons name="log-in-outline" size={20} color="#ffffff" style={styles.btnArrowIcon} />
+          <Ionicons name="log-in-outline" size={20} color={theme.colors.white} style={styles.btnArrowIcon} />
         </View>
       </TouchableOpacity>
     </View>
@@ -672,7 +672,7 @@ export function ForgotPasswordScreen({
             {/* Header branding */}
             <View style={styles.header}>
               <View style={styles.logoBadge}>
-                <Ionicons name="hardware-chip-outline" size={30} color="#ffffff" />
+                <Ionicons name="hardware-chip-outline" size={30} color={theme.colors.white} />
               </View>
               <Text style={styles.brandTitle}>{STRINGS.FORGOT_PASSWORD.BRAND_TITLE}</Text>
               <Text style={styles.brandSubtitle}>
@@ -775,7 +775,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   stepTextActive: {
-    color: '#ffffff',
+    color: theme.colors.white,
   },
   stepTextInactive: {
     color: theme.colors.text.subtle,
@@ -895,7 +895,7 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.colors.background,
     borderWidth: 1,
     borderColor: theme.colors.border.light,
     borderRadius: 12,
@@ -958,7 +958,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   btnSubmitText: {
-    color: '#ffffff',
+    color: theme.colors.white,
     fontSize: 14,
     fontWeight: '700',
     letterSpacing: 0.5,

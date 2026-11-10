@@ -27,7 +27,7 @@ const validateLoginInput = (req, res, next) => {
   if (!identifier || String(identifier).trim() === '') {
     return res.status(400).json({
       success: false,
-      message: 'Vui lòng nhập tên đăng nhập hoặc email.',
+      message: 'Please enter your username or email.',
       field  : 'identifier',
     });
   }
@@ -35,7 +35,7 @@ const validateLoginInput = (req, res, next) => {
   if (!password || String(password).trim() === '') {
     return res.status(400).json({
       success: false,
-      message: 'Vui lòng nhập mật khẩu.',
+      message: 'Please enter your password.',
       field  : 'password',
     });
   }
@@ -44,7 +44,7 @@ const validateLoginInput = (req, res, next) => {
   if (String(password).length < 6) {
     return res.status(400).json({
       success: false,
-      message: 'Mật khẩu phải có ít nhất 6 ký tự.',
+      message: 'Password must be at least 6 characters.',
       field  : 'password',
     });
   }
@@ -69,7 +69,7 @@ const verifyLoginToken = (req, res, next) => {
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({
       success: false,
-      message: 'Bạn chưa đăng nhập. Vui lòng đăng nhập để tiếp tục.',
+      message: 'You are not logged in. Please log in to continue.',
     });
   }
 
@@ -89,7 +89,7 @@ const verifyLoginToken = (req, res, next) => {
     } catch {
       return res.status(401).json({
         success: false,
-        message: 'Token đăng nhập không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập lại.',
+        message: 'Invalid or expired login token. Please log in again.',
       });
     }
   }

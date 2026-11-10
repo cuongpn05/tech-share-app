@@ -52,7 +52,7 @@ export function LoginScreen({
 
     if (!validation.isValid) {
       setErrorMessage(
-        validation.identifierError || validation.passwordError || 'Vui lòng kiểm tra lại thông tin.',
+        validation.identifierError || validation.passwordError || 'Please check your login credentials.',
       );
       return;
     }
@@ -61,31 +61,31 @@ export function LoginScreen({
     setErrorMessage(null);
 
     try {
-      // ── Bước 2: Gọi loginService → POST /api/login ──────────────────
+      // ── Step 2: Call loginService → POST /api/login ──────────────────
       const data = await loginService.login({ identifier, password });
 
       if (data.success && data.token && data.user) {
-        // ── Bước 3: Lưu token vào axios headers ─────────────────────
+        // ── Step 3: Save token to axios headers ─────────────────────
         setAuthToken(data.token);
 
-        // ── Bước 4: Kết nối Socket.IO với user ID ───────────────────
+        // ── Step 4: Connect Socket.IO with user ID ───────────────────
         const userId = data.user._id || (data.user as any).id;
         if (userId) {
           socketService.connect(userId);
         }
 
-        // ── Bước 5: Cập nhật Redux store với token + user ────────────
+        // ── Step 5: Update Redux store with token + user ────────────
         dispatch(setAuth({ token: data.token, user: data.user }));
 
-        // ── Bước 6: Callback chuyển màn hình theo role ───────────────
+        // ── Step 6: Callback navigate by role ───────────────
         if (onLoginSuccess) {
           onLoginSuccess(data.user.role || 'renter');
         }
       } else {
-        setErrorMessage(data.message || 'Đăng nhập thất bại. Vui lòng thử lại.');
+        setErrorMessage(data.message || 'Login failed. Please try again.');
       }
     } catch (err: any) {
-      console.error('[LoginScreen] Lỗi đăng nhập:', err.message);
+      console.error('[LoginScreen] Login error:', err.message);
       if (err?.response?.status === 403 && err?.response?.data?.code === 'ACCOUNT_LOCKED') {
         Keyboard.dismiss();
         setErrorMessage(null);
@@ -95,9 +95,9 @@ export function LoginScreen({
       } else if (err.response?.data?.message) {
         setErrorMessage(err.response.data.message);
       } else if (err.message === 'Network Error' || !err.response) {
-        setErrorMessage('Không thể kết nối máy chủ. Vui lòng kiểm tra mạng và đảm bảo backend đang chạy.');
+        setErrorMessage('Unable to connect to server. Please check your network and make sure backend is running.');
       } else {
-        setErrorMessage('Đã xảy ra lỗi trong quá trình đăng nhập. Vui lòng thử lại.');
+        setErrorMessage('An error occurred during login. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -125,7 +125,7 @@ export function LoginScreen({
           {/* Logo & Header đặt ngoài khung */}
           <View style={styles.header}>
             <View style={styles.logoBadge}>
-              <Ionicons name="hardware-chip-outline" size={32} color="#ffffff" />
+              <Ionicons name="hardware-chip-outline" size={32} color={theme.colors.white} />
             </View>
             <Text style={styles.brandTitle}>TechShare</Text>
             <Text style={styles.brandSubtitle}>
@@ -224,7 +224,7 @@ export function LoginScreen({
                   ]}
                 >
                   {rememberMe ? (
-                    <Ionicons name="checkmark" size={14} color="#ffffff" />
+                    <Ionicons name="checkmark" size={14} color={theme.colors.white} />
                   ) : null}
                 </View>
                 <Text style={styles.rememberMeText}>Remember me</Text>
@@ -249,11 +249,11 @@ export function LoginScreen({
               activeOpacity={0.85}
             >
               {loading ? (
-                <ActivityIndicator color="#ffffff" size="small" />
+                <ActivityIndicator color={theme.colors.white} size="small" />
               ) : (
                 <View style={styles.btnSubmitContent}>
                   <Text style={styles.btnSubmitText}>SIGN IN</Text>
-                  <Ionicons name="arrow-forward" size={18} color="#ffffff" style={styles.btnArrowIcon} />
+                  <Ionicons name="arrow-forward" size={18} color={theme.colors.white} style={styles.btnArrowIcon} />
                 </View>
               )}
             </TouchableOpacity>
@@ -306,7 +306,7 @@ export function LoginScreen({
 const styles = StyleSheet.create({
   rootContainer: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.colors.background,
   },
   screenWrapper: {
     flex: 1,
@@ -317,9 +317,9 @@ const styles = StyleSheet.create({
   cardFrame: {
     width: '100%',
     maxWidth: 420,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.colors.white,
     borderWidth: 1.5,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border.default,
     borderRadius: 24,
     paddingVertical: 26,
     paddingHorizontal: 22,
@@ -399,9 +399,9 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.white,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border.default,
     borderRadius: 12,
     paddingHorizontal: 14,
     height: 48,
@@ -470,7 +470,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   btnSubmitText: {
-    color: '#ffffff',
+    color: theme.colors.white,
     fontSize: 15,
     fontWeight: '700',
     letterSpacing: 0.5,

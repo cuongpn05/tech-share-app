@@ -38,7 +38,7 @@ const BookingResultModal = ({
           <Ionicons
             name={isSuccess ? 'checkmark-circle' : 'close-circle'}
             size={65}
-            color={isSuccess ? colors.light.primary : '#EF4444'}
+            color={isSuccess ? colors.light.primary : colors.light.error}
           />
 
           <Text style={styles.title}>{title}</Text>
@@ -49,7 +49,7 @@ const BookingResultModal = ({
             style={[
               styles.button,
               {
-                backgroundColor: isSuccess ? colors.light.primary : '#EF4444',
+                backgroundColor: isSuccess ? colors.light.primary : colors.light.error,
               },
             ]}
             onPress={onClose}
@@ -68,13 +68,13 @@ export default BookingResultModal;
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   container: {
     width: '85%',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.light.white,
     borderRadius: 20,
     padding: 25,
     alignItems: 'center',
@@ -83,12 +83,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     marginTop: 15,
-    color: '#111827',
+    color: colors.light.textPrimary,
     textAlign: 'center',
   },
   message: {
     fontSize: 15,
-    color: '#6B7280',
+    color: colors.light.textSecondary,
     textAlign: 'center',
     marginTop: 10,
     marginBottom: 25,
@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   buttonText: {
-    color: '#FFFFFF',
+    color: colors.light.white,
     fontSize: 16,
     fontWeight: '600',
   },

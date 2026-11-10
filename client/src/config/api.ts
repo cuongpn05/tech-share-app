@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
+import { NETWORK_CONFIG } from '../constants/app';
 
 declare const process: {
   env: Record<string, string | undefined>;
@@ -11,9 +12,9 @@ const getBaseUrl = () => {
   }
 
   if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:5000/api';
+    return `http://${NETWORK_CONFIG.DEFAULT_EMULATOR_HOST}:${NETWORK_CONFIG.FALLBACK_PORT}/api`;
   }
-  return 'http://localhost:5000/api';
+  return `http://${NETWORK_CONFIG.DEFAULT_LOCALHOST}:${NETWORK_CONFIG.FALLBACK_PORT}/api`;
 };
 
 export const API_BASE_URL = getBaseUrl();
@@ -33,7 +34,7 @@ export const getAuthToken = () => currentToken;
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: NETWORK_CONFIG.API_TIMEOUT_MS,
   headers: {
     'Content-Type': 'application/json',
   },

@@ -512,7 +512,7 @@ export const DeviceModerationDetailScreen: React.FC<DeviceModerationDetailScreen
                 </Text>
                 <Text style={styles.depositValue}>
                   {formatCurrency(device.depositAmount)}
-                  <Text style={styles.pricingUnit}> đ</Text>
+                  <Text style={styles.pricingUnit}> VND</Text>
                 </Text>
               </View>
             </View>

@@ -522,11 +522,11 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
                 )}
                 {uploadingAvatar && (
                   <View style={styles.avatarUploadingOverlay}>
-                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <ActivityIndicator size="small" color={theme.white} />
                   </View>
                 )}
                 <View style={styles.cameraIconBadge}>
-                  <Ionicons name="camera" size={14} color="#FFFFFF" />
+                  <Ionicons name="camera" size={14} color={theme.white} />
                 </View>
               </TouchableOpacity>
 
@@ -639,11 +639,11 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
                 onPress={handleNavigateToEkyc}
                 activeOpacity={0.7}
               >
-                <View style={[styles.infoIconCircle, { backgroundColor: isUserVerified ? '#ECFDF5' : '#EEF2FF' }]}>
+                <View style={[styles.infoIconCircle, { backgroundColor: isUserVerified ? theme.colors.success[50] : theme.colors.brand[100] }]}>
                   <Ionicons
                     name={isUserVerified ? 'shield-checkmark' : 'shield-outline'}
                     size={20}
-                    color={isUserVerified ? '#10B981' : theme.primary}
+                    color={isUserVerified ? theme.colors.success[500] : theme.primary}
                   />
                 </View>
                 <View style={styles.infoTextContainer}>
@@ -651,7 +651,7 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
                     <Text style={styles.ekycTitle}>{STRINGS.PROFILE_SCREEN.EKYC_ROW_TITLE}</Text>
                     {isUserVerified ? (
                       <View style={styles.verifiedBadge}>
-                        <Ionicons name="checkmark-circle" size={12} color="#10B981" />
+                        <Ionicons name="checkmark-circle" size={12} color={theme.colors.success[500]} />
                         <Text style={styles.verifiedBadgeText}>{STRINGS.PROFILE_SCREEN.VERIFIED_BADGE}</Text>
                       </View>
                     ) : (
@@ -681,10 +681,10 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
                       {
                         backgroundColor:
                           effectiveOwnerStatus === 'approved'
-                            ? '#ECFDF5'
+                            ? theme.colors.success[50]
                             : effectiveOwnerStatus === 'rejected'
-                            ? '#FEF2F2'
-                            : '#F0FDFA',
+                            ? theme.colors.danger[50]
+                            : theme.colors.brand[50],
                       },
                     ]}
                   >
@@ -699,9 +699,9 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
                       size={20}
                       color={
                         effectiveOwnerStatus === 'approved'
-                          ? '#10B981'
+                          ? theme.colors.success[500]
                           : effectiveOwnerStatus === 'rejected'
-                          ? '#DC2626'
+                          ? theme.colors.danger[600]
                           : theme.primary
                       }
                     />
@@ -711,7 +711,7 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
                       <Text style={styles.ekycTitle}>{STRINGS.PROFILE_SCREEN.OWNER_EKYC_ROW_TITLE}</Text>
                       {effectiveOwnerStatus === 'approved' ? (
                         <View style={styles.verifiedBadge}>
-                          <Ionicons name="checkmark-circle" size={12} color="#10B981" />
+                          <Ionicons name="checkmark-circle" size={12} color={theme.colors.success[500]} />
                           <Text style={styles.verifiedBadgeText}>
                             {STRINGS.PROFILE_SCREEN.OWNER_EKYC_BADGE_VERIFIED}
                           </Text>
@@ -778,7 +778,7 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
               onPress={openEditModal}
               activeOpacity={0.8}
             >
-              <Ionicons name="pencil-outline" size={18} color="#FFFFFF" />
+              <Ionicons name="pencil-outline" size={18} color={theme.white} />
               <Text style={styles.editProfileButtonText}>{STRINGS.PROFILE_SCREEN.EDIT_PROFILE_BUTTON}</Text>
             </TouchableOpacity>
 
@@ -916,10 +916,10 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
                 activeOpacity={0.8}
               >
                 {isSaving ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <ActivityIndicator size="small" color={theme.white} />
                 ) : (
                   <>
-                    <Ionicons name="checkmark-sharp" size={18} color="#FFFFFF" />
+                    <Ionicons name="checkmark-sharp" size={18} color={theme.white} />
                     <Text style={styles.modalSaveButtonText}>
                       {STRINGS.PROFILE_SCREEN.SAVE_CHANGES_BUTTON}
                     </Text>
@@ -1174,7 +1174,7 @@ const styles = StyleSheet.create({
   editProfileButtonText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: theme.white,
   },
   signOutButton: {
     flexDirection: 'row',
@@ -1196,7 +1196,7 @@ const styles = StyleSheet.create({
   /* Modal */
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    backgroundColor: theme.overlay,
     justifyContent: 'flex-end',
   },
   modalContent: {
@@ -1218,7 +1218,7 @@ const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: theme.colors.danger[50],
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: theme.colors.danger[500],
     borderRadius: theme.radii.md,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -1305,7 +1305,7 @@ const styles = StyleSheet.create({
   modalSaveButtonText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: theme.white,
   },
 
   /* eKYC Row Styles */
@@ -1333,31 +1333,31 @@ const styles = StyleSheet.create({
   verifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: theme.colors.success[50],
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: theme.colors.success[500],
     gap: 3,
   },
   verifiedBadgeText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#065F46',
+    color: theme.colors.success[600],
   },
   unverifiedBadge: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: theme.colors.warning[50],
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#FDE68A',
+    borderColor: theme.colors.warning[500],
   },
   unverifiedBadgeText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#92400E',
+    color: theme.colors.warning[600],
   },
   ownerEkycRowDivider: {
     marginTop: 12,
@@ -1366,43 +1366,43 @@ const styles = StyleSheet.create({
     borderTopColor: theme.border,
   },
   availableOwnerBadge: {
-    backgroundColor: '#E6F7F7',
+    backgroundColor: theme.colors.brand[100],
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#99F6E4',
+    borderColor: theme.colors.brand[300],
   },
   availableOwnerBadgeText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#0F766E',
+    color: theme.colors.brand[800],
   },
   pendingOwnerBadge: {
-    backgroundColor: '#EBF5FF',
+    backgroundColor: theme.colors.brand[50],
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: theme.colors.brand[200],
   },
   pendingOwnerBadgeText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#1D4ED8',
+    color: theme.colors.brand[800],
   },
   rejectedOwnerBadge: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: theme.colors.danger[50],
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#FCA5A5',
+    borderColor: theme.colors.danger[500],
   },
   rejectedOwnerBadgeText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#B91C1C',
+    color: theme.colors.danger[600],
   },
   wishlistButton: {
     flexDirection: 'row',
@@ -1415,7 +1415,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: theme.border,
-    shadowColor: '#000',
+    shadowColor: theme.black,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
@@ -1430,7 +1430,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: theme.colors.danger[50],
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -80,8 +80,8 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigati
               if (!seenIds.has(msgId)) {
                 notifs.push({
                   id: msgId,
-                  title: `${c.otherUser?.name || 'Đối tác'} đã gửi tin nhắn`,
-                  body: c.lastMessage.text || 'Bạn có tin nhắn mới',
+                  title: `${c.otherUser?.name || 'Partner'} sent a message`,
+                  body: c.lastMessage.text || 'You have a new message',
                   type: 'message',
                   bookingId: c.bookingId,
                   createdAt: c.lastMessage.createdAt || c.lastActivityAt || new Date().toISOString(),
@@ -113,7 +113,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigati
       notificationService.incrementUnreadCount();
       const newItem: NotificationItem = {
         id: notif._id || `notif_${Date.now()}`,
-        title: notif.title || 'Thông báo mới',
+        title: notif.title || 'New notification',
         body: notif.body || '',
         type: (notif.type as any) === 'message' ? 'message' : 'booking',
         bookingId: notif.data?.bookingId || notif.relatedId,
@@ -205,16 +205,16 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigati
           }}
           activeOpacity={0.7}
         >
-          <Ionicons name="menu-outline" size={24} color="#0F172A" />
+          <Ionicons name="menu-outline" size={24} color={theme.colors.text.primary} />
         </TouchableOpacity>
 
         <View style={styles.headerTitleBox}>
-          <Text style={styles.headerTitle}>Thông báo</Text>
-          <Text style={styles.headerSubtitle}>Cập nhật tin nhắn và đơn thuê</Text>
+          <Text style={styles.headerTitle}>Notifications</Text>
+          <Text style={styles.headerSubtitle}>Message and booking updates</Text>
         </View>
 
         <TouchableOpacity onPress={handleMarkAllRead} style={styles.markAllBtn} activeOpacity={0.7}>
-          <Text style={styles.markAllText}>Đã đọc hết</Text>
+          <Text style={styles.markAllText}>Mark all read</Text>
         </TouchableOpacity>
       </View>
 
@@ -225,7 +225,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigati
           onPress={() => setActiveTab('all')}
           activeOpacity={0.75}
         >
-          <Text style={[styles.tabText, activeTab === 'all' && styles.tabTextActive]}>Tất cả</Text>
+          <Text style={[styles.tabText, activeTab === 'all' && styles.tabTextActive]}>All</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -233,7 +233,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigati
           onPress={() => setActiveTab('message')}
           activeOpacity={0.75}
         >
-          <Text style={[styles.tabText, activeTab === 'message' && styles.tabTextActive]}>Tin nhắn</Text>
+          <Text style={[styles.tabText, activeTab === 'message' && styles.tabTextActive]}>Messages</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -241,7 +241,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigati
           onPress={() => setActiveTab('booking')}
           activeOpacity={0.75}
         >
-          <Text style={[styles.tabText, activeTab === 'booking' && styles.tabTextActive]}>Đơn thuê</Text>
+          <Text style={[styles.tabText, activeTab === 'booking' && styles.tabTextActive]}>Bookings</Text>
         </TouchableOpacity>
       </View>
 
@@ -269,7 +269,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigati
                   <Ionicons
                     name={isMsg ? 'chatbubble-ellipses' : 'receipt'}
                     size={20}
-                    color={isMsg ? '#0D9488' : '#3B82F6'}
+                    color={isMsg ? theme.colors.brand[600] : theme.colors.blue}
                   />
                 </View>
 
@@ -286,7 +286,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigati
                   </Text>
 
                   <Text style={styles.cardTime}>
-                    {new Date(item.createdAt).toLocaleDateString('vi-VN', {
+                    {new Date(item.createdAt).toLocaleDateString('en-US', {
                       hour: '2-digit',
                       minute: '2-digit',
                       day: '2-digit',
@@ -299,9 +299,9 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigati
           }}
           ListEmptyComponent={
             <View style={styles.emptyBox}>
-              <Ionicons name="notifications-off-outline" size={54} color="#CBD5E1" />
-              <Text style={styles.emptyTitle}>Chưa có thông báo nào</Text>
-              <Text style={styles.emptySub}>Các cập nhật mới nhất về tin nhắn và đơn thuê sẽ xuất hiện tại đây.</Text>
+              <Ionicons name="notifications-off-outline" size={54} color={theme.colors.text.subtle} />
+              <Text style={styles.emptyTitle}>No notifications yet</Text>
+              <Text style={styles.emptySub}>Latest updates regarding messages and bookings will appear here.</Text>
             </View>
           }
         />
@@ -328,9 +328,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border.default,
     borderRadius: 12,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.colors.background,
     marginRight: 12,
   },
   headerTitleBox: {
@@ -352,7 +352,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surface,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border.default,
   },
   markAllText: {
     fontSize: 12,
@@ -373,7 +373,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border.default,
   },
   tabActive: {
     backgroundColor: theme.colors.brand[500],
@@ -382,10 +382,10 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 12.5,
     fontWeight: '500',
-    color: '#64748B',
+    color: theme.colors.text.secondary,
   },
   tabTextActive: {
-    color: '#FFFFFF',
+    color: theme.colors.white,
     fontWeight: '700',
   },
   listContent: {
@@ -399,13 +399,13 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: theme.colors.border.light,
     alignItems: 'flex-start',
     ...theme.shadows.card,
   },
   notifCardUnread: {
-    backgroundColor: '#F0FDFA',
-    borderColor: '#CCFBF1',
+    backgroundColor: theme.colors.brand[50],
+    borderColor: theme.colors.brand[200],
   },
   iconBox: {
     width: 42,
@@ -416,10 +416,10 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   iconBoxMsg: {
-    backgroundColor: '#CCFBF1',
+    backgroundColor: theme.colors.brand[100],
   },
   iconBoxBooking: {
-    backgroundColor: '#DBEAFE',
+    backgroundColor: theme.colors.blueLight,
   },
   cardContent: {
     flex: 1,
@@ -466,12 +466,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#334155',
+    color: theme.colors.text.primary,
     marginTop: 14,
   },
   emptySub: {
     fontSize: 13,
-    color: '#64748B',
+    color: theme.colors.text.muted,
     marginTop: 6,
     textAlign: 'center',
     lineHeight: 18,

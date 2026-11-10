@@ -58,16 +58,16 @@ export function validateLoginForm(credentials: LoginCredentials): LoginValidatio
   let identifierError: string | null = null;
   let passwordError  : string | null = null;
 
-  // Kiểm tra identifier
+  // Validate identifier
   if (!credentials.identifier || credentials.identifier.trim() === '') {
-    identifierError = 'Vui lòng nhập tên đăng nhập hoặc email.';
+    identifierError = 'Please enter your username or email.';
   }
 
-  // Kiểm tra password
+  // Validate password
   if (!credentials.password || credentials.password.trim() === '') {
-    passwordError = 'Vui lòng nhập mật khẩu.';
+    passwordError = 'Please enter your password.';
   } else if (credentials.password.length < 6) {
-    passwordError = 'Mật khẩu phải có ít nhất 6 ký tự.';
+    passwordError = 'Password must be at least 6 characters.';
   }
 
   return {

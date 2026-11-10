@@ -96,10 +96,10 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
       const serverMsg = err?.response?.data?.message || err?.message;
       console.warn('[ChatDetail] Load history error:', serverMsg);
 
-      if (serverMsg?.includes('chính mình') || err?.response?.status === 400) {
-        setLoadError(serverMsg || OWNER_STRINGS.MESSAGES.CANNOT_CHAT_WITH_SELF);
+      if (serverMsg?.toLowerCase().includes('yourself') || serverMsg?.includes('\u00ednh m\u00ecnh') || err?.response?.status === 400) {
+        setLoadError(OWNER_STRINGS.MESSAGES.CANNOT_CHAT_WITH_SELF);
       } else {
-        setLoadError(serverMsg || 'Không thể tải lịch sử trò chuyện.');
+        setLoadError('Unable to load chat history. Please try again.');
       }
     } finally {
       setIsLoading(false);
@@ -211,7 +211,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
   ) => {
     if (!effectiveBookingId) return;
     if (isSelf) {
-      Alert.alert('Thông báo', OWNER_STRINGS.MESSAGES.CANNOT_CHAT_WITH_SELF);
+      Alert.alert('Notice', OWNER_STRINGS.MESSAGES.CANNOT_CHAT_WITH_SELF);
       return;
     }
 
@@ -267,7 +267,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
       });
     } catch (err: any) {
       setMessages((prev) => prev.filter((m) => m._id !== tempId));
-      Alert.alert('Lỗi', err.message || 'Gửi tin nhắn thất bại. Vui lòng thử lại.');
+      Alert.alert('Error', err.message || 'Failed to send message. Please try again.');
     } finally {
       setIsSending(false);
     }
@@ -311,7 +311,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
           activeOpacity={0.7}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <Ionicons name="arrow-back" size={24} color="#0F172A" />
+          <Ionicons name="arrow-back" size={24} color={theme.colors.text.primary} />
         </TouchableOpacity>
 
         <View style={styles.avatarWrapper}>
@@ -322,7 +322,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
             />
           ) : (
             <View style={[styles.avatar, styles.avatarPlaceholder]}>
-              <Ionicons name="person" size={20} color="#64748B" />
+              <Ionicons name="person" size={20} color={theme.colors.text.muted} />
             </View>
           )}
           <View style={styles.onlineBadge} />
@@ -330,7 +330,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
 
         <View style={styles.headerInfo}>
           <Text style={styles.userName} numberOfLines={1}>
-            {otherUser?.name || 'Khách thuê'}
+            {otherUser?.name || 'Customer'}
           </Text>
           <Text style={styles.userRole}>
             {(otherUser?.role || 'Renter').toUpperCase()}
@@ -343,29 +343,29 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
             style={styles.callButton}
             activeOpacity={0.7}
           >
-            <Ionicons name="call-outline" size={20} color="#0D9488" />
+            <Ionicons name="call-outline" size={20} color={theme.colors.brand[500]} />
           </TouchableOpacity>
         ) : null}
       </View>
 
-      {/* Hiển thị lỗi nếu đơn thuê bị chặn (ví dụ tự chat với chính mình) */}
+      {/* Show error banner if booking is blocked */}
       {loadError ? (
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle-outline" size={56} color="#E11D48" />
-          <Text style={styles.errorTitle}>Không thể mở cuộc trò chuyện</Text>
+          <Ionicons name="alert-circle-outline" size={56} color={theme.colors.error} />
+          <Text style={styles.errorTitle}>Cannot open conversation</Text>
           <Text style={styles.errorSubtitle}>{loadError}</Text>
           <TouchableOpacity
             style={styles.goBackButton}
             onPress={handleBack}
             activeOpacity={0.7}
           >
-            <Ionicons name="arrow-back" size={18} color="#FFFFFF" />
-            <Text style={styles.goBackButtonText}>Quay lại danh sách</Text>
+            <Ionicons name="arrow-back" size={18} color={theme.colors.white} />
+            <Text style={styles.goBackButtonText}>Back to conversations</Text>
           </TouchableOpacity>
         </View>
       ) : (
         <>
-          {/* Banner thông tin thiết bị đang thuê */}
+          {/* Banner of rented device */}
           {booking?.device && (
             <View style={styles.deviceBanner}>
               {booking.device.image ? (
@@ -375,7 +375,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
                 />
               ) : (
                 <View style={[styles.bannerImage, styles.bannerPlaceholder]}>
-                  <Ionicons name="hardware-chip-outline" size={20} color="#64748B" />
+                  <Ionicons name="hardware-chip-outline" size={20} color={theme.colors.text.muted} />
                 </View>
               )}
               <View style={styles.bannerDetails}>
@@ -383,7 +383,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
                   {booking.device.title}
                 </Text>
                 <Text style={styles.bannerSubtitle}>
-                  Mã đơn: {booking.bookingCode || effectiveBookingId.slice(-6).toUpperCase()} •{' '}
+                  Booking Code: {booking.bookingCode || effectiveBookingId.slice(-6).toUpperCase()} •{' '}
                   <Text style={styles.bannerStatus}>{booking.status.toUpperCase()}</Text>
                 </Text>
               </View>
@@ -403,12 +403,12 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
             </View>
           )}
 
-          {/* Danh sách tin nhắn - Khi chưa có tin nhắn, render Empty State bên ngoài FlatList để không bị lật ngược chữ */}
+          {/* Messages list */}
           {isLoading && messages.length === 0 ? (
             <ChatMessagesSkeleton />
           ) : messages.length === 0 ? (
             <View style={styles.emptyMessagesContainer}>
-              <Ionicons name="chatbubble-ellipses-outline" size={44} color="#94A3B8" />
+              <Ionicons name="chatbubble-ellipses-outline" size={44} color={theme.colors.text.subtle} />
               <Text style={styles.emptyMessagesTitle}>
                 {OWNER_STRINGS.MESSAGES.START_CONVERSATION_TITLE}
               </Text>
@@ -443,10 +443,10 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
             />
           )}
 
-          {/* Chặn thanh nhập tin nhắn nếu là tự chat với chính mình */}
+          {/* Self-chat prevention banner */}
           {isSelf ? (
             <View style={styles.selfChatBanner}>
-              <Ionicons name="information-circle-outline" size={20} color="#E11D48" />
+              <Ionicons name="information-circle-outline" size={20} color={theme.colors.error} />
               <Text style={styles.selfChatBannerText}>
                 {OWNER_STRINGS.MESSAGES.CANNOT_CHAT_WITH_SELF}
               </Text>
@@ -470,7 +470,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
                       await dispatchMessage('image', undefined, uploadedUrl);
                     }
                   } catch (err: any) {
-                    Alert.alert('Lỗi', 'Không thể tải ảnh lên: ' + (err.message || 'Lỗi mạng'));
+                    Alert.alert('Error', 'Unable to upload image: ' + (err.message || 'Network error'));
                   } finally {
                     setIsSending(false);
                   }
@@ -540,10 +540,10 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
                           ]}
                           numberOfLines={1}
                         >
-                          {b.deviceName || 'Thiết bị'}
+                          {b.deviceName || 'Device'}
                         </Text>
                         <Text style={styles.bookingOptionCode}>
-                          Mã: {b.bookingId.slice(-6).toUpperCase()} • {b.statusLabel || b.status}
+                          ID: {b.bookingId.slice(-6).toUpperCase()} • {b.statusLabel || b.status}
                         </Text>
                       </View>
                     </View>
@@ -569,7 +569,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -578,7 +578,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: theme.colors.border.light,
     gap: 12,
   },
   backButton: {
@@ -587,9 +587,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border.default,
     borderRadius: 12,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.colors.background,
   },
   avatarWrapper: {
     position: 'relative',
@@ -600,12 +600,12 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: theme.colors.border.default,
   },
   avatarPlaceholder: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E2E8F0',
+    backgroundColor: theme.colors.border.default,
   },
   onlineBadge: {
     position: 'absolute',
@@ -614,9 +614,9 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#10B981',
+    backgroundColor: theme.colors.success,
     borderWidth: 1.5,
-    borderColor: '#FFFFFF',
+    borderColor: theme.colors.white,
   },
   headerInfo: {
     flex: 1,
@@ -636,29 +636,29 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#E6F7F7',
+    backgroundColor: theme.colors.brand[100],
     alignItems: 'center',
     justifyContent: 'center',
   },
   deviceBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.white,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: theme.colors.border.light,
   },
   bannerImage: {
     width: 36,
     height: 36,
     borderRadius: 8,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: theme.colors.border.light,
   },
   bannerPlaceholder: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E2E8F0',
+    backgroundColor: theme.colors.border.default,
   },
   bannerDetails: {
     marginLeft: 12,
@@ -667,15 +667,15 @@ const styles = StyleSheet.create({
   bannerTitle: {
     fontSize: 13.5,
     fontWeight: '700',
-    color: '#0F172A',
+    color: theme.colors.text.primary,
   },
   bannerSubtitle: {
     fontSize: 12,
-    color: '#64748B',
+    color: theme.colors.text.muted,
     marginTop: 2,
   },
   bannerStatus: {
-    color: '#0D9488',
+    color: theme.colors.brand[600],
     fontWeight: '700',
   },
   switchBookingBtn: {
@@ -684,9 +684,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 8,
-    backgroundColor: '#F0FDFA',
+    backgroundColor: theme.colors.brand[50],
     borderWidth: 1,
-    borderColor: '#CCFBF1',
+    borderColor: theme.colors.brand[200],
     gap: 4,
     marginLeft: 8,
   },
@@ -697,7 +697,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    backgroundColor: theme.colors.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
@@ -705,10 +705,10 @@ const styles = StyleSheet.create({
   modalContent: {
     width: '100%',
     maxHeight: '70%',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.white,
     borderRadius: 16,
     padding: 18,
-    shadowColor: '#000000',
+    shadowColor: theme.colors.black,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
@@ -720,12 +720,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: theme.colors.border.light,
   },
   modalTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#0F172A',
+    color: theme.colors.text.primary,
   },
   modalList: {
     marginTop: 10,
@@ -738,12 +738,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 10,
     marginVertical: 4,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.colors.background,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border.default,
   },
   bookingOptionSelected: {
-    backgroundColor: '#F0FDFA',
+    backgroundColor: theme.colors.brand[50],
     borderColor: theme.colors.brand[500],
   },
   bookingOptionLeft: {
@@ -758,7 +758,7 @@ const styles = StyleSheet.create({
   bookingOptionName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1E293B',
+    color: theme.colors.text.primary,
   },
   bookingOptionNameSelected: {
     color: theme.colors.brand[600],
@@ -766,7 +766,7 @@ const styles = StyleSheet.create({
   },
   bookingOptionCode: {
     fontSize: 12,
-    color: '#64748B',
+    color: theme.colors.text.muted,
     marginTop: 2,
   },
   listContent: {
@@ -783,13 +783,13 @@ const styles = StyleSheet.create({
   emptyMessagesTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#334155',
+    color: theme.colors.text.secondary,
     marginTop: 12,
     textAlign: 'center',
   },
   emptyMessagesSubtitle: {
     fontSize: 13,
-    color: '#64748B',
+    color: theme.colors.text.muted,
     marginTop: 6,
     textAlign: 'center',
     lineHeight: 18,
@@ -798,9 +798,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFF1F2',
+    backgroundColor: theme.colors.dangerLight,
     borderTopWidth: 1,
-    borderTopColor: '#FECDD3',
+    borderTopColor: theme.colors.redBorder,
     paddingVertical: 14,
     paddingHorizontal: 16,
     gap: 8,
@@ -808,7 +808,7 @@ const styles = StyleSheet.create({
   selfChatBannerText: {
     fontSize: 13.5,
     fontWeight: '600',
-    color: '#E11D48',
+    color: theme.colors.danger,
   },
   errorContainer: {
     flex: 1,
@@ -819,13 +819,13 @@ const styles = StyleSheet.create({
   errorTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#0F172A',
+    color: theme.colors.text.primary,
     marginTop: 14,
     textAlign: 'center',
   },
   errorSubtitle: {
     fontSize: 14,
-    color: '#64748B',
+    color: theme.colors.text.muted,
     marginTop: 8,
     textAlign: 'center',
     lineHeight: 20,
@@ -841,7 +841,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   goBackButtonText: {
-    color: '#FFFFFF',
+    color: theme.colors.white,
     fontWeight: '700',
     fontSize: 14,
   },

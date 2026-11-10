@@ -329,11 +329,11 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
       {/* 2. Search Bar */}
       <View style={styles.searchSection}>
         <View style={styles.searchBox}>
-          <Ionicons name="search-outline" size={18} color="#94A3B8" />
+          <Ionicons name="search-outline" size={18} color={colors.light.textMuted} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search by customer, device or booking code"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={colors.light.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
             returnKeyType="search"
@@ -344,7 +344,7 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
               onPress={() => setSearchQuery('')}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Ionicons name="close-circle" size={16} color="#94A3B8" />
+              <Ionicons name="close-circle" size={16} color={colors.light.textMuted} />
             </TouchableOpacity>
           )}
         </View>
@@ -511,7 +511,7 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
             <TextInput
               style={styles.modalTextInput}
               placeholder="Enter specific reason for declining..."
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={colors.light.textMuted}
               value={rejectReason}
               onChangeText={setRejectReason}
               multiline={true}
@@ -533,7 +533,7 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
                 onPress={handleConfirmReject}
                 activeOpacity={0.85}
               >
-                <Ionicons name="close-circle" size={16} color="#FFFFFF" />
+                <Ionicons name="close-circle" size={16} color={colors.light.white} />
                 <Text style={styles.modalConfirmRejectText}>Confirm Decline</Text>
               </TouchableOpacity>
             </View>
@@ -683,7 +683,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     height: 36,
     borderRadius: 10,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.light.borderSubtle,
     borderWidth: 1,
     borderColor: colors.light.borderDefault,
     gap: 6,
@@ -715,7 +715,7 @@ const styles = StyleSheet.create({
   badgeCounterText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#475569',
+    color: colors.light.textSecondary,
   },
   badgeCounterTextActive: {
     color: colors.light.white,
@@ -773,7 +773,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: colors.light.primaryLight,
     borderWidth: 1,
-    borderColor: '#A4DEE2',
+    borderColor: colors.light.primaryLight,
     gap: 6,
   },
   reloadButtonText: {
@@ -839,7 +839,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.light.borderSubtle,
     borderWidth: 1,
     borderColor: colors.light.borderDefault,
   },
@@ -849,7 +849,7 @@ const styles = StyleSheet.create({
   },
   reasonChipText: {
     fontSize: 12,
-    color: '#475569',
+    color: colors.light.textSecondary,
   },
   reasonChipTextSelected: {
     color: colors.light.error,
@@ -875,7 +875,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 11,
     borderRadius: 10,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.light.borderSubtle,
     borderWidth: 1,
     borderColor: colors.light.borderDefault,
     alignItems: 'center',
@@ -884,7 +884,7 @@ const styles = StyleSheet.create({
   modalCancelText: {
     fontSize: 13.5,
     fontWeight: '600',
-    color: '#475569',
+    color: colors.light.textSecondary,
   },
   modalConfirmRejectButton: {
     flex: 1.4,

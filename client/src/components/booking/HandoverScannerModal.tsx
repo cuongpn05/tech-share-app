@@ -248,7 +248,7 @@ export function HandoverScannerModal({
       statusBarTranslucent
       onRequestClose={handleClose}
     >
-      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
+      <StatusBar barStyle="light-content" backgroundColor={colors.light.textPrimary} />
 
       <View style={[styles.container, { paddingTop: Math.max(insets.top, 16) }]}>
         {/* Header */}
@@ -443,7 +443,7 @@ export function HandoverScannerModal({
                 <Ionicons
                   name={torch ? 'flash' : 'flash-outline'}
                   size={18}
-                  color={torch ? '#F59E0B' : colors.light.white}
+                  color={torch ? colors.light.warning : colors.light.white}
                 />
                 <Text
                   style={[
@@ -484,7 +484,7 @@ export function HandoverScannerModal({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.light.textPrimary,
   },
   headerRow: {
     flexDirection: 'row',
@@ -512,7 +512,7 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: colors.light.textMuted,
     marginTop: 2,
   },
   headerSpacer: {
@@ -637,7 +637,7 @@ const styles = StyleSheet.create({
   },
   statusIndicatorText: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: colors.light.textMuted,
   },
   errorAlertCard: {
     width: '100%',
@@ -655,7 +655,7 @@ const styles = StyleSheet.create({
   errorAlertText: {
     flex: 1,
     fontSize: 12,
-    color: '#FCA5A5',
+    color: colors.light.dangerLight,
     lineHeight: 16,
   },
   retryButton: {
@@ -688,7 +688,7 @@ const styles = StyleSheet.create({
   },
   torchButtonActive: {
     backgroundColor: 'rgba(245, 158, 11, 0.18)',
-    borderColor: '#F59E0B',
+    borderColor: colors.light.warning,
   },
   torchButtonText: {
     fontSize: 13,
@@ -696,7 +696,7 @@ const styles = StyleSheet.create({
     color: colors.light.white,
   },
   torchButtonTextActive: {
-    color: '#F59E0B',
+    color: colors.light.warning,
   },
   buttonDisabled: {
     opacity: 0.5,
@@ -718,7 +718,7 @@ const styles = StyleSheet.create({
   cancelScanBtnText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#CBD5E1',
+    color: colors.light.borderDefault,
   },
   permissionContainer: {
     flex: 1,
@@ -746,7 +746,7 @@ const styles = StyleSheet.create({
   },
   permissionDesc: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: colors.light.textMuted,
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 28,
@@ -776,6 +776,6 @@ const styles = StyleSheet.create({
   },
   cancelLinkText: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: colors.light.textMuted,
   },
 });

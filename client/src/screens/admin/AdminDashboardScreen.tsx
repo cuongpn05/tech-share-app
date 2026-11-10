@@ -311,7 +311,7 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navi
           {categoryBreakdown.length === 0 ? (
             <View style={styles.emptyCategoriesContainer}>
               <Ionicons name="pie-chart-outline" size={32} color={theme.colors.text.muted} />
-              <Text style={styles.emptyCategoriesText}>Chưa có dữ liệu danh mục thiết bị</Text>
+              <Text style={styles.emptyCategoriesText}>{ADMIN_STRINGS.SECTIONS.NO_CATEGORY_DATA}</Text>
             </View>
           ) : (
             categoryBreakdown.map((cat, index) => {

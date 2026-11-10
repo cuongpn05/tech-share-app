@@ -25,7 +25,7 @@ export const fetchWishlist = createAsyncThunk(
       const list: Device[] = res.data?.wishlist || [];
       return list;
     } catch (err: any) {
-      return rejectWithValue(err.response?.data?.message || 'Không thể tải danh sách yêu thích');
+      return rejectWithValue(err.response?.data?.message || 'Unable to load wishlist');
     }
   }
 );
@@ -43,7 +43,7 @@ export const toggleFavoriteDevice = createAsyncThunk(
         wishlist: (res.data?.wishlist || []) as Device[],
       };
     } catch (err: any) {
-      return rejectWithValue(err.response?.data?.message || 'Không thể cập nhật danh sách yêu thích');
+      return rejectWithValue(err.response?.data?.message || 'Unable to update wishlist');
     }
   }
 );

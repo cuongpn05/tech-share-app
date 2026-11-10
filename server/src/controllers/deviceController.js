@@ -134,7 +134,7 @@ const getMyDevices = asyncHandler(async (req, res) => {
   }).sort({ createdAt: -1 });
   return res.status(200).json({
     success: true,
-    message: "Lấy danh sách thiết bị thành công",
+    message: "Device list retrieved successfully",
     data: devices,
   });
 });
@@ -176,7 +176,7 @@ const createDevice = asyncHandler(async (req, res) => {
 
   return res.status(201).json({
     success: true,
-    message: "Đăng thiết bị thành công",
+    message: "Device created successfully",
     data: device,
   });
 });
@@ -186,7 +186,7 @@ const updateMyDevice = asyncHandler(async (req, res) => {
   if (!/^[a-fA-F0-9]{24}$/.test(id)) {
     return res.status(400).json({
       success: false,
-      message: "ID thiết bị không hợp lệ",
+      message: "Invalid device ID",
     });
   }
 
@@ -243,7 +243,7 @@ const updateMyDevice = asyncHandler(async (req, res) => {
   ) {
     return res.status(400).json({
       success: false,
-      message: "Vui lòng nhập thông tin hợp lệ cho thiết bị.",
+      message: "Please provide valid device information.",
     });
   }
 
@@ -277,13 +277,13 @@ const updateMyDevice = asyncHandler(async (req, res) => {
   if (!device) {
     return res.status(404).json({
       success: false,
-      message: "Không tìm thấy thiết bị hoặc bạn không có quyền cập nhật.",
+      message: "Device not found or you do not have permission to update.",
     });
   }
 
   return res.status(200).json({
     success: true,
-    message: "Cập nhật thiết bị thành công.",
+    message: "Device updated successfully.",
     data: device,
   });
 });
@@ -320,7 +320,7 @@ const getDeviceById = asyncHandler(async (req, res) => {
   if (!/^[a-fA-F0-9]{24}$/.test(req.params.id)) {
     return res.status(400).json({
       success: false,
-      message: "ID thiết bị không hợp lệ",
+      message: "Invalid device ID",
     });
   }
 
@@ -332,7 +332,7 @@ const getDeviceById = asyncHandler(async (req, res) => {
   if (!device) {
     return res.status(404).json({
       success: false,
-      message: "Không tìm thấy thiết bị",
+      message: "Device not found",
     });
   }
 
@@ -347,7 +347,7 @@ const updateDeviceStatus = asyncHandler(async (req, res) => {
   if (!/^[a-fA-F0-9]{24}$/.test(id)) {
     return res.status(400).json({
       success: false,
-      message: "ID thiết bị không hợp lệ",
+      message: "Invalid device ID",
     });
   }
 
@@ -355,7 +355,7 @@ const updateDeviceStatus = asyncHandler(async (req, res) => {
   if (!["available", "maintenance", "hidden"].includes(status)) {
     return res.status(400).json({
       success: false,
-      message: "Trạng thái thiết bị không hợp lệ",
+      message: "Invalid device status",
     });
   }
 
@@ -381,17 +381,17 @@ const updateDeviceStatus = asyncHandler(async (req, res) => {
     if (rentedDevice) {
       return res.status(409).json({
         success: false,
-        message: "Không thể đổi trạng thái thiết bị đang được cho thuê.",
+        message: "Cannot change status of an active rented device.",
       });
     }
     return res.status(404).json({
       success: false,
-      message: "Không tìm thấy thiết bị hoặc bạn không có quyền cập nhật.",
+      message: "Device not found or you do not have permission to update.",
     });
   }
   return res.status(200).json({
     success: true,
-    message: "Cập nhật trạng thái thiết bị thành công.",
+    message: "Device status updated successfully.",
     data: device,
   });
 });
@@ -433,7 +433,7 @@ const updateBlockedDates = asyncHandler(async (req, res) => {
   ) {
     return res.status(400).json({
       success: false,
-      message: "Danh sách ngày bận không hợp lệ.",
+      message: "Invalid blocked dates list.",
     });
   }
 
@@ -458,13 +458,13 @@ const updateBlockedDates = asyncHandler(async (req, res) => {
   if (!updatedDevice) {
     return res.status(404).json({
       success: false,
-      message: "Không tìm thấy thiết bị hoặc bạn không có quyền cập nhật.",
+      message: "Device not found or you do not have permission to update.",
     });
   }
 
   return res.status(200).json({
     success: true,
-    message: "Cập nhật lịch bận thành công.",
+    message: "Blocked calendar updated successfully.",
     data: updatedDevice.blockedDates,
   });
 });
@@ -474,7 +474,7 @@ const deleteMyDevice = asyncHandler(async (req, res) => {
   if (!/^[a-fA-F0-9]{24}$/.test(id)) {
     return res.status(400).json({
       success: false,
-      message: "ID thiết bị không hợp lệ",
+      message: "Invalid device ID",
     });
   }
 
@@ -488,7 +488,7 @@ const deleteMyDevice = asyncHandler(async (req, res) => {
   if (!ownedDevice) {
     return res.status(404).json({
       success: false,
-      message: "Không tìm thấy thiết bị hoặc bạn không có quyền xóa.",
+      message: "Device not found or you do not have permission to delete.",
     });
   }
 
@@ -499,7 +499,7 @@ const deleteMyDevice = asyncHandler(async (req, res) => {
   if (hasActiveBooking) {
     return res.status(409).json({
       success: false,
-      message: "Không thể xóa thiết bị đang có đơn thuê cần xử lý.",
+      message: "Cannot delete device with active or pending bookings.",
     });
   }
 
@@ -516,18 +516,18 @@ const deleteMyDevice = asyncHandler(async (req, res) => {
     if (rentedDevice) {
       return res.status(409).json({
         success: false,
-        message: "Không thể xóa thiết bị đang được cho thuê.",
+        message: "Cannot delete device currently on rent.",
       });
     }
     return res.status(404).json({
       success: false,
-      message: "Không tìm thấy thiết bị hoặc bạn không có quyền xóa.",
+      message: "Device not found or you do not have permission to delete.",
     });
   }
 
   return res.status(200).json({
     success: true,
-    message: "Xóa thiết bị thành công.",
+    message: "Device deleted successfully.",
     data: { _id: device._id },
   });
 });

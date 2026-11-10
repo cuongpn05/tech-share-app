@@ -718,55 +718,55 @@ exports.updateBookingStatus = async (req, res) => {
     // Bắn thông báo tự động cho người thuê
     if (booking.renterId) {
       const renterIdVal = booking.renterId._id || booking.renterId;
-      const deviceName = booking.deviceId?.name || 'thiết bị';
+      const deviceName = booking.deviceId?.name || 'device';
       if (status === 'approved') {
         await createAndSendNotification({
           userId: renterIdVal,
-          title: 'Yêu cầu thuê đã được duyệt! 🎉',
-          body: `Chủ máy ${ownerUser.name || 'chủ máy'} đã duyệt đơn thuê "${deviceName}" (#${booking.bookingCode}). Vui lòng chuẩn bị nhận máy.`,
+          title: 'Rental Request Approved! 🎉',
+          body: `Owner ${ownerUser.name || 'Owner'} approved rental request for "${deviceName}" (#${booking.bookingCode}). Please prepare for handover.`,
           type: 'order',
           relatedId: booking._id,
           data: {
             bookingId: booking._id.toString(),
             status: 'approved',
           },
-        }).catch((err) => console.error('❌ Lỗi gửi thông báo duyệt cho khách:', err.message));
+        }).catch((err) => console.error('❌ Notification error on approval:', err.message));
       } else if (status === 'rejected' || status === 'cancelled') {
         await createAndSendNotification({
           userId: renterIdVal,
-          title: 'Yêu cầu thuê đã bị từ chối ❌',
-          body: `Chủ máy không thể đáp ứng đơn thuê "${deviceName}" (#${booking.bookingCode}). Lý do: ${reason || 'Chủ máy bận vào thời gian này'}.`,
+          title: 'Rental Request Declined ❌',
+          body: `Owner declined rental request for "${deviceName}" (#${booking.bookingCode}). Reason: ${reason || 'Owner unavailable during this period'}.`,
           type: 'order',
           relatedId: booking._id,
           data: {
             bookingId: booking._id.toString(),
             status: 'rejected',
           },
-        }).catch((err) => console.error('❌ Lỗi gửi thông báo từ chối cho khách:', err.message));
+        }).catch((err) => console.error('❌ Notification error on decline:', err.message));
       } else if (status === 'active') {
         await createAndSendNotification({
           userId: renterIdVal,
-          title: 'Thiết bị đã được bàn giao! 📱',
-          body: `Đơn thuê "${deviceName}" (#${booking.bookingCode}) đã bắt đầu tính thời gian thuê. Chúc bạn trải nghiệm tốt!`,
+          title: 'Device Handover Completed! 📱',
+          body: `Rental for "${deviceName}" (#${booking.bookingCode}) is now active. Enjoy your rental experience!`,
           type: 'order',
           relatedId: booking._id,
           data: {
             bookingId: booking._id.toString(),
             status: 'active',
           },
-        }).catch((err) => console.error('❌ Lỗi gửi thông báo bàn giao cho khách:', err.message));
+        }).catch((err) => console.error('❌ Notification error on handover:', err.message));
       } else if (status === 'completed') {
         await createAndSendNotification({
           userId: renterIdVal,
-          title: 'Đơn thuê đã hoàn tất! 🎉',
-          body: `Chủ máy đã xác nhận nhận lại "${deviceName}" (#${booking.bookingCode}). Hãy để lại đánh giá trải nghiệm thuê nhé!`,
+          title: 'Rental Completed! 🎉',
+          body: `The owner confirmed receipt of "${deviceName}" (#${booking.bookingCode}). Please leave a review of your experience!`,
           type: 'order',
           relatedId: booking._id,
           data: {
             bookingId: booking._id.toString(),
             status: 'completed',
           },
-        }).catch((err) => console.error('❌ Lỗi gửi thông báo hoàn tất cho khách:', err.message));
+        }).catch((err) => console.error('❌ Notification error on complete:', err.message));
       }
     }
 

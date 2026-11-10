@@ -47,13 +47,13 @@ export function OwnerProfileScreen({
     setAvatarFailed(false);
 
     if (!/^[a-fA-F0-9]{24}$/.test(ownerId)) {
-      setError('Mã chủ thiết bị không hợp lệ.');
+      setError('Invalid owner ID.');
       setLoading(false);
       setLoadingDevices(false);
       return;
     }
 
-    // 1. Tải thông tin hồ sơ chủ sở hữu
+    // 1. Load owner profile
     userService.getOwnerProfile(ownerId)
       .then(data => {
         if (active) setOwner(data);
@@ -61,13 +61,13 @@ export function OwnerProfileScreen({
       .catch((requestError: unknown) => {
         if (!active) return;
         const status = (requestError as { response?: { status?: number } })?.response?.status;
-        setError(status === 404 ? 'Không tìm thấy chủ thiết bị.' : 'Không thể tải thông tin chủ thiết bị. Vui lòng thử lại.');
+        setError(status === 404 ? 'Owner not found.' : 'Unable to load owner profile. Please try again.');
       })
       .finally(() => {
         if (active) setLoading(false);
       });
 
-    // 2. Tải danh sách các thiết bị thuộc chủ sở hữu này
+    // 2. Load owner devices
     userService.getOwnerDevices(ownerId)
       .then(data => {
         if (active && Array.isArray(data)) {
@@ -75,7 +75,7 @@ export function OwnerProfileScreen({
         }
       })
       .catch(() => {
-        // Lỗi lấy thiết bị giữ danh sách rỗng
+        // Keep empty devices array on error
       })
       .finally(() => {
         if (active) setLoadingDevices(false);
@@ -92,14 +92,14 @@ export function OwnerProfileScreen({
     : owner?.avatar;
 
   const stats = [
-    { label: 'Thiết bị', icon: 'cube-outline' as const, value: owner?.deviceCount ?? devices.length },
-    { label: 'Đánh giá', icon: 'chatbox-ellipses-outline' as const, value: owner?.totalReviews ?? '—' },
+    { label: 'Devices', icon: 'cube-outline' as const, value: owner?.deviceCount ?? devices.length },
+    { label: 'Reviews', icon: 'chatbox-ellipses-outline' as const, value: owner?.totalReviews ?? '—' },
     {
-      label: 'Xếp hạng',
+      label: 'Rating',
       icon: 'star' as const,
       value: typeof owner?.rating === 'number' && Number.isFinite(owner.rating) && (owner.totalReviews ?? 0) > 0
         ? `${owner.rating.toFixed(1)} / 5`
-        : 'Chưa có',
+        : 'None',
     },
   ];
 
@@ -108,17 +108,17 @@ export function OwnerProfileScreen({
     try {
       await Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`);
     } catch {
-      Alert.alert('Không thể mở bản đồ', 'Vui lòng thử lại.');
+      Alert.alert('Unable to open map', 'Please try again.');
     }
   }
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} accessibilityRole="button" accessibilityLabel="Quay lại" onPress={onBack}>
+        <TouchableOpacity style={styles.backButton} accessibilityRole="button" accessibilityLabel="Back" onPress={onBack}>
           <Ionicons name="chevron-back" size={24} color={colors.light.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Hồ sơ chủ thiết bị</Text>
+        <Text style={styles.headerTitle}>Owner Profile</Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -128,12 +128,12 @@ export function OwnerProfileScreen({
         <View style={styles.panel}>
           <Text style={styles.body}>{error}</Text>
           <TouchableOpacity style={styles.retry} onPress={() => setRetry(value => value + 1)}>
-            <Text style={styles.retryText}>Thử lại</Text>
+            <Text style={styles.retryText}>Retry</Text>
           </TouchableOpacity>
         </View>
       ) : owner ? (
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
-          {/* Thông tin hồ sơ chính */}
+          {/* Main Profile Info */}
           <View style={styles.profilePanel}>
             <View style={styles.cover} pointerEvents="none">
               <View style={styles.coverWaveLeft} />
@@ -160,7 +160,7 @@ export function OwnerProfileScreen({
             {owner.trust?.isVerified ? (
               <View style={styles.verifiedBadge}>
                 <Ionicons name="shield-checkmark" size={16} color={colors.light.primaryHover} />
-                <Text style={styles.verified}>Chủ sở hữu đã xác thực</Text>
+                <Text style={styles.verified}>Verified Owner</Text>
               </View>
             ) : null}
 
@@ -176,29 +176,29 @@ export function OwnerProfileScreen({
                 style={styles.messageButton}
                 onPress={onMessage}
                 accessibilityRole="button"
-                accessibilityLabel="Nhắn tin với chủ thiết bị"
+                accessibilityLabel="Message owner"
               >
                 <Ionicons name="chatbubble-ellipses" size={18} color={colors.light.white} />
-                <Text style={styles.messageText}>Nhắn tin</Text>
+                <Text style={styles.messageText}>Message</Text>
               </TouchableOpacity>
 
               {address ? (
                 <TouchableOpacity
                   style={styles.directionButton}
                   accessibilityRole="button"
-                  accessibilityLabel="Chỉ đường trên Google Maps"
+                  accessibilityLabel="Directions on Google Maps"
                   onPress={openDirections}
                 >
                   <Ionicons name="navigate" size={18} color={colors.light.primaryDark} />
-                  <Text style={styles.directionText}>Chỉ đường</Text>
+                  <Text style={styles.directionText}>Directions</Text>
                 </TouchableOpacity>
               ) : null}
             </View>
           </View>
 
-          {/* Thống kê hoạt động */}
+          {/* Reputation & Activity Stats */}
           <View style={styles.panel}>
-            <Text style={styles.heading}>Thông tin uy tín</Text>
+            <Text style={styles.heading}>Reputation & Stats</Text>
             {stats.map((stat, index) => (
               <View key={stat.label} style={styles.statRow}>
                 <View style={[styles.statIcon, index === 1 && styles.reviewIcon, index === 2 && styles.ratingIcon]}>
@@ -214,21 +214,21 @@ export function OwnerProfileScreen({
             ))}
           </View>
 
-          {/* Danh sách các thiết bị của chủ sở hữu */}
+          {/* Owner Devices */}
           <View style={styles.panel}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.heading}>Thiết bị cho thuê ({devices.length})</Text>
+              <Text style={styles.heading}>Available Devices ({devices.length})</Text>
             </View>
 
             {loadingDevices ? (
               <View style={styles.loadingBox}>
                 <ActivityIndicator size="small" color={colors.light.primaryDark} />
-                <Text style={styles.mutedText}>Đang tải danh sách thiết bị...</Text>
+                <Text style={styles.mutedText}>Loading devices...</Text>
               </View>
             ) : devices.length === 0 ? (
               <View style={styles.emptyBox}>
                 <Ionicons name="cube-outline" size={36} color={colors.light.textMuted} />
-                <Text style={styles.mutedText}>Chủ sở hữu này chưa có thiết bị nào đang cho thuê.</Text>
+                <Text style={styles.mutedText}>This owner has no devices listed for rent.</Text>
               </View>
             ) : (
               <View style={styles.deviceList}>
@@ -244,7 +244,7 @@ export function OwnerProfileScreen({
                       onPress={() => onNavigateToDeviceDetail?.(device._id)}
                       activeOpacity={0.7}
                       accessibilityRole="button"
-                      accessibilityLabel={`Xem chi tiết ${device.name || device.title}`}
+                      accessibilityLabel={`View details for ${device.name || device.title}`}
                     >
                       {imgUrl ? (
                         <Image source={{ uri: imgUrl }} style={styles.cardThumb} />
@@ -257,11 +257,11 @@ export function OwnerProfileScreen({
                       <View style={styles.cardContent}>
                         <View style={styles.cardHeader}>
                           <Text style={styles.cardCategory} numberOfLines={1}>
-                            {device.category?.toUpperCase() || 'THIẾT BỊ'}
+                            {device.category?.toUpperCase() || 'DEVICE'}
                           </Text>
                           <View style={[styles.statusBadge, isAvailable ? styles.statusAvailable : styles.statusOther]}>
                             <Text style={[styles.statusText, isAvailable ? styles.statusAvailableText : styles.statusOtherText]}>
-                              {isAvailable ? 'Sẵn sàng' : (device.status === 'rented' ? 'Đang thuê' : 'Bận')}
+                              {isAvailable ? 'Available' : (device.status === 'rented' ? 'Rented' : 'Unavailable')}
                             </Text>
                           </View>
                         </View>
@@ -273,11 +273,11 @@ export function OwnerProfileScreen({
                         <View style={styles.cardFooter}>
                           <Text style={styles.cardPrice}>
                             {typeof rate === 'number' && Number.isFinite(rate)
-                              ? `${rate.toLocaleString('vi-VN')} đ/ngày`
-                              : 'Liên hệ'}
+                              ? `${rate.toLocaleString('en-US')} VND/day`
+                              : 'Contact'}
                           </Text>
                           <View style={styles.viewDetailBtn}>
-                            <Text style={styles.viewDetailText}>Xem chi tiết</Text>
+                            <Text style={styles.viewDetailText}>View Details</Text>
                             <Ionicons name="chevron-forward" size={14} color={colors.light.primaryDark} />
                           </View>
                         </View>
@@ -324,7 +324,7 @@ const styles = StyleSheet.create({
   directionText: { fontSize: 13, fontWeight: '700', color: colors.light.primaryDark },
   statRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 12, backgroundColor: colors.light.background },
   statIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.light.primaryLight },
-  reviewIcon: { backgroundColor: '#EAF4FD' },
+  reviewIcon: { backgroundColor: colors.light.primaryLight },
   ratingIcon: { backgroundColor: colors.light.warningLight },
   statLabel: { flex: 1, fontSize: 13, color: colors.light.textSecondary },
   statValue: { fontSize: 14, fontWeight: '800', color: colors.light.textPrimary, flexShrink: 1 },
@@ -338,16 +338,16 @@ const styles = StyleSheet.create({
   /* Device card styles */
   deviceList: { gap: 10 },
   deviceCard: { flexDirection: 'row', gap: 12, padding: 10, borderRadius: 14, backgroundColor: colors.light.background, borderWidth: 1, borderColor: colors.light.borderDefault },
-  cardThumb: { width: 80, height: 80, borderRadius: 10, backgroundColor: '#E2E8F0' },
+  cardThumb: { width: 80, height: 80, borderRadius: 10, backgroundColor: colors.light.borderDefault },
   cardThumbPlaceholder: { alignItems: 'center', justifyContent: 'center' },
   cardContent: { flex: 1, justifyContent: 'space-between' },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardCategory: { fontSize: 10, fontWeight: '700', color: colors.light.textSecondary, letterSpacing: 0.5 },
   statusBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  statusAvailable: { backgroundColor: '#DCFCE7' },
-  statusOther: { backgroundColor: '#F1F5F9' },
+  statusAvailable: { backgroundColor: colors.light.successLight },
+  statusOther: { backgroundColor: colors.light.borderSubtle },
   statusText: { fontSize: 10, fontWeight: '700' },
-  statusAvailableText: { color: '#166534' },
+  statusAvailableText: { color: colors.light.success },
   statusOtherText: { color: colors.light.textSecondary },
   cardTitle: { fontSize: 14, fontWeight: '700', color: colors.light.textPrimary, lineHeight: 19 },
   cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

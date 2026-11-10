@@ -1,5 +1,16 @@
 import { Device } from '../../types';
 import { MapOwner } from '../../services/userService';
+import { theme } from '../../theme';
+
+const MAP_COLORS = {
+  ownerPin: theme.colors.brand[800], // '#286E74'
+  selectedPin: theme.colors.brand[500], // '#67BEC3'
+  textPrimary: theme.colors.text.primary, // '#1E293B'
+  borderSubtle: theme.colors.borderSubtle, // '#E2E8F0'
+  devicePin: '#D97706',
+  userPulse: 'rgba(26, 115, 232, 0.28)',
+  userDot: '#1A73E8',
+};
 
 export interface MapDevice {
   id: string;
@@ -37,7 +48,7 @@ export function getMapOwnersMarkers(owners: MapOwner[]): MapOwnerMarker[] {
     }
     markers.push({
       id: targetId,
-      name: owner.name || 'Chủ sở hữu',
+      name: owner.name || 'Owner',
       count: owner.deviceCount || (owner.devices?.length ?? 0),
       coordinates: [coords[0], coords[1]],
     });
@@ -46,7 +57,7 @@ export function getMapOwnersMarkers(owners: MapOwner[]): MapOwnerMarker[] {
 }
 
 /**
- * Trích xuất và kiểm tra tọa độ hợp lệ của các thiết bị để vẽ lên bản đồ (tương thích ngược).
+ * Extract and validate device coordinates for map plotting.
  */
 export function getMapDevices(devices: Device[]): MapDevice[] {
   const markers = new Map<string, MapDevice>();
@@ -67,7 +78,7 @@ export function getMapDevices(devices: Device[]): MapDevice[] {
     const rate = device.pricePerDay ?? device.dailyRate;
     markers.set(device._id, {
       id: device._id,
-      name: device.name || device.title || 'Thiết bị',
+      name: device.name || device.title || 'Device',
       category: device.category,
       price: typeof rate === 'number' && Number.isFinite(rate) ? rate : undefined,
       coordinates: [coordinates[0], coordinates[1]],
@@ -188,7 +199,7 @@ export function createGoogleMapHtml(): string {
       transform: scale(1.22);
     }
     .owner-badge-pill {
-      background: #286E74;
+      background: ${MAP_COLORS.ownerPin};
       color: #FFFFFF;
       font-size: 11px;
       font-weight: 700;
@@ -204,14 +215,14 @@ export function createGoogleMapHtml(): string {
       gap: 3px;
     }
     .owner-pin-wrap.selected .owner-badge-pill {
-      background: #E07A5F;
+      background: ${MAP_COLORS.selectedPin};
     }
     .owner-pin-icon svg {
       filter: drop-shadow(0 3px 5px rgba(0,0,0,0.32));
     }
     .owner-name-label {
       background: rgba(255, 255, 255, 0.95);
-      color: #1E293B;
+      color: ${MAP_COLORS.textPrimary};
       font-size: 10px;
       font-weight: 700;
       padding: 2px 6px;
@@ -222,12 +233,12 @@ export function createGoogleMapHtml(): string {
       text-overflow: ellipsis;
       box-shadow: 0 1px 3px rgba(0,0,0,0.2);
       margin-top: 1px;
-      border: 1px solid #E2E8F0;
+      border: 1px solid ${MAP_COLORS.borderSubtle};
     }
     .owner-pin-wrap.selected .owner-name-label {
-      background: #E07A5F;
+      background: ${MAP_COLORS.selectedPin};
       color: #FFFFFF;
-      border-color: #E07A5F;
+      border-color: ${MAP_COLORS.selectedPin};
     }
 
     /* Nút chuyển chế độ bản đồ (Bản đồ / Vệ tinh) */
@@ -255,7 +266,7 @@ export function createGoogleMapHtml(): string {
       transition: all 0.15s;
     }
     .layer-btn.active {
-      background: #286E74;
+      background: ${MAP_COLORS.ownerPin};
       color: #FFFFFF;
     }
 
@@ -330,8 +341,8 @@ export function createGoogleMapHtml(): string {
 <body>
   <div id="map"></div>
   <div class="layer-toggle">
-    <button id="btn-road" class="layer-btn active" onclick="switchLayer('road')">Bản đồ</button>
-    <button id="btn-sat" class="layer-btn" onclick="switchLayer('sat')">Vệ tinh</button>
+    <button id="btn-road" class="layer-btn active" onclick="switchLayer('road')">Map</button>
+    <button id="btn-sat" class="layer-btn" onclick="switchLayer('sat')">Satellite</button>
   </div>
   <div class="google-badge">
     <span class="g-blue">G</span><span class="g-red">o</span><span class="g-yellow">o</span><span class="g-blue">g</span><span class="g-green">l</span><span class="g-red">e</span> Maps
@@ -433,8 +444,8 @@ export function createGoogleMapHtml(): string {
           if (!pinLatLng) return;
 
           var isSelected = (item.id === selectedId);
-          var pinColor = isSelected ? '#E07A5F' : '#286E74';
-          var countText = (item.count || 0) + ' máy';
+          var pinColor = isSelected ? '${MAP_COLORS.selectedPin}' : '${MAP_COLORS.ownerPin}';
+          var countText = (item.count || 0) + ' items';
 
           var pinHtml = '<div class="owner-pin-wrap ' + (isSelected ? 'selected' : '') + '">' +
             '<div class="owner-badge-pill">' + countText + '</div>' +
@@ -493,7 +504,7 @@ export function createGoogleMapHtml(): string {
           var devLatLng = toLatLng(device.coordinates);
           if (!devLatLng) return;
 
-          var rateText = device.price ? (Number(device.price) >= 1000 ? Math.round(Number(device.price) / 1000) + 'k' : device.price + 'đ') : 'Thiết bị';
+          var rateText = device.price ? (Number(device.price) >= 1000 ? Math.round(Number(device.price) / 1000) + 'k' : device.price + ' VND') : 'Device';
           var devHtml = '<div class="device-pin-wrap">' +
             '<div class="device-badge-pill">' + rateText + '</div>' +
             '<div class="device-pin-icon">' +
@@ -593,7 +604,7 @@ export function createGoogleMapHtml(): string {
             }
           }
         } catch (e) {
-          fail('Lỗi cập nhật dữ liệu bản đồ.');
+          fail('Error updating map data.');
         }
       }
 
@@ -602,27 +613,27 @@ export function createGoogleMapHtml(): string {
 
       function initMap() {
         if (!window.L) {
-          fail('Không thể khởi tạo thư viện bản đồ.');
+          fail('Unable to initialize map library.');
           return;
         }
 
         try {
-          // Google Maps chuẩn tiếng Việt
-          roadLayer = L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&hl=vi&x={x}&y={y}&z={z}', {
+          // Google Maps Standard
+          roadLayer = L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}', {
             subdomains: ['0', '1', '2', '3'],
             maxZoom: 20,
             attribution: 'Google Maps'
           });
 
-          // Google Maps vệ tinh kết hợp nhãn đường
-          satLayer = L.tileLayer('https://mt{s}.google.com/vt/lyrs=y&hl=vi&x={x}&y={y}&z={z}', {
+          // Google Maps Satellite with roads
+          satLayer = L.tileLayer('https://mt{s}.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}', {
             subdomains: ['0', '1', '2', '3'],
             maxZoom: 20,
             attribution: 'Google Maps'
           });
 
           map = L.map('map', {
-            center: [16.047, 107.5], // Toàn cảnh Việt Nam (không hardcode Hà Nội)
+            center: [16.047, 107.5], // Center of Vietnam overview
             zoom: 6,
             zoomControl: false,
             layers: [roadLayer],
@@ -639,7 +650,7 @@ export function createGoogleMapHtml(): string {
             }
           });
 
-          // Lắng nghe khi người dùng kéo bản đồ sang khu vực khác
+          // Listen for map dragend
           map.on('dragend', function () {
             if (!ready) return;
             var c = map.getCenter();
@@ -653,7 +664,7 @@ export function createGoogleMapHtml(): string {
           ready = true;
           send({ type: 'ready' });
         } catch (e) {
-          fail('Không thể khởi tạo Google Maps: ' + (e && e.message ? e.message : 'Lỗi không xác định'));
+          fail('Unable to initialize Google Maps: ' + (e && e.message ? e.message : 'Unknown error'));
         }
       }
 
@@ -668,7 +679,7 @@ export function createGoogleMapHtml(): string {
             initMap();
           } else if (checkCount > 50) {
             clearInterval(checkInterval);
-            fail('Tải thư viện Google Maps quá thời gian. Vui lòng thử lại.');
+            fail('Loading Google Maps library timed out. Please try again.');
           }
         }, 200);
       }

@@ -106,9 +106,9 @@ export function HomeScreen({
         STRINGS.DEVICE_CARD.LOGIN_REQUIRED_TITLE,
         STRINGS.DEVICE_CARD.LOGIN_REQUIRED_MSG,
         [
-          { text: 'Hủy', style: 'cancel' },
+          { text: STRINGS.COMMON.CANCEL, style: 'cancel' },
           {
-            text: 'Đăng nhập',
+            text: STRINGS.AUTH.LOGIN,
             onPress: () => onNavigateToLogin?.(),
           },
         ]
@@ -282,7 +282,7 @@ export function HomeScreen({
       <View style={[styles.topBar, { paddingTop: topInset + 8 }]}>
         <View style={styles.brandContainer}>
           <View style={styles.logoBadge}>
-            <Ionicons name="hardware-chip" size={18} color="#FFFFFF" />
+            <Ionicons name="hardware-chip" size={18} color={colors.light.white} />
           </View>
           <View>
             <Text style={styles.brandTitle}>{STRINGS.HOME_SCREEN.BRAND_TITLE}</Text>
@@ -315,7 +315,7 @@ export function HomeScreen({
             accessibilityRole="button"
             accessibilityLabel="Login"
           >
-            <Ionicons name="log-in-outline" size={16} color="#FFFFFF" style={styles.headerLoginIcon} />
+            <Ionicons name="log-in-outline" size={16} color={colors.light.white} style={styles.headerLoginIcon} />
             <Text style={styles.headerLoginText}>Login</Text>
           </TouchableOpacity>
         )}
@@ -339,7 +339,7 @@ export function HomeScreen({
             </Text>
           </View>
           <View style={styles.ownerSwitchCta}>
-            <Ionicons name="arrow-forward" size={13} color="#FFFFFF" />
+            <Ionicons name="arrow-forward" size={13} color={colors.light.white} />
           </View>
         </TouchableOpacity>
       )}
@@ -347,7 +347,7 @@ export function HomeScreen({
       {/* SEARCH BAR */}
       <View style={styles.searchContainer}>
         <View style={styles.searchBar}>
-          <Ionicons name="search-outline" size={20} color="#94A3B8" />
+          <Ionicons name="search-outline" size={20} color={colors.light.textMuted} />
           <TextInput
             style={styles.searchInput}
             placeholder={STRINGS.HOME_SCREEN.SEARCH_PLACEHOLDER}
@@ -454,7 +454,7 @@ export function HomeScreen({
     return (
       <View style={styles.emptyContainer}>
         <View style={styles.emptyIconCircle}>
-          <Ionicons name="hardware-chip-outline" size={36} color="#64748B" />
+          <Ionicons name="hardware-chip-outline" size={36} color={colors.light.textSecondary} />
         </View>
         <Text style={styles.emptyTitle}>{STRINGS.HOME_SCREEN.EMPTY_TITLE}</Text>
         <Text style={styles.emptySubtitle}>
@@ -469,7 +469,7 @@ export function HomeScreen({
             onPress={handleResetFilters}
             activeOpacity={0.8}
           >
-            <Ionicons name="refresh-outline" size={16} color="#FFFFFF" />
+            <Ionicons name="refresh-outline" size={16} color={colors.light.white} />
             <Text style={styles.resetBtnText}>{STRINGS.HOME_SCREEN.SEE_ALL}</Text>
           </TouchableOpacity>
         )}
@@ -480,7 +480,7 @@ export function HomeScreen({
   // Error State
   const renderErrorState = () => (
     <View style={styles.errorContainer}>
-      <Ionicons name="alert-circle-outline" size={40} color="#EF4444" />
+      <Ionicons name="alert-circle-outline" size={40} color={colors.light.error} />
       <Text style={styles.errorTitle}>{STRINGS.HOME_SCREEN.ERROR_TITLE}</Text>
       <Text style={styles.errorSubtitle}>{error}</Text>
       <TouchableOpacity
@@ -488,7 +488,7 @@ export function HomeScreen({
         onPress={handleRetry}
         activeOpacity={0.8}
       >
-        <Ionicons name="reload-outline" size={16} color="#FFFFFF" />
+        <Ionicons name="reload-outline" size={16} color={colors.light.white} />
         <Text style={styles.retryBtnText}>{STRINGS.HOME_SCREEN.TRY_AGAIN}</Text>
       </TouchableOpacity>
     </View>
@@ -640,7 +640,7 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   headerLoginText: {
-    color: '#FFFFFF',
+    color: colors.light.white,
     fontSize: 13,
     fontWeight: '700',
     letterSpacing: 0.2,
