@@ -81,11 +81,11 @@ const styles = StyleSheet.create({
   option: {
     flex: 1,
     minWidth: 0,
-    minHeight: 48,
+    minHeight: 38,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: theme.spacing.xs,
-    paddingVertical: theme.spacing.sm + 2,
+    paddingVertical: theme.spacing.xs,
     borderRadius: theme.radii.sm,
     borderWidth: 1,
     borderColor: theme.border,

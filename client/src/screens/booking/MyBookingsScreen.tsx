@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -115,6 +115,8 @@ export function MyBookingsScreen({
       }
     }, [fetchBookings, isAuthenticated])
   );
+
+  useEffect(() => bookingService.onBookingsUpdated(() => fetchBookings()), [fetchBookings]);
 
   const onRefresh = async () => {
     if (!isAuthenticated) return;

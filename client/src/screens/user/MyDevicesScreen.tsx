@@ -27,6 +27,7 @@ import type {
   Device,
   ManagedDeviceStatus,
 } from '../../types';
+import { colors } from '../../theme/colors';
 
 const FALLBACK_DEVICE_IMAGE =
   'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=600';
@@ -42,10 +43,13 @@ const resolveImageUri = (image?: string) => {
 };
 
 interface MyDevicesScreenProps {
-  onBack: () => void;
+  navigation?: {
+    goBack?: () => void;
+    openDrawer?: () => void;
+  };
 }
 
-export function MyDevicesScreen({ onBack }: MyDevicesScreenProps) {
+export function MyDevicesScreen({ navigation }: MyDevicesScreenProps) {
   const insets = useSafeAreaInsets();
   const token = useAppSelector((state) => state.auth.token);
   const topInset = Math.max(
@@ -128,23 +132,26 @@ export function MyDevicesScreen({ onBack }: MyDevicesScreenProps) {
 
   const renderDevice = ({ item }: { item: Device }) => (
     <View style={styles.card}>
-      <Image
-        source={{ uri: resolveImageUri(item.images[0]) }}
-        style={styles.deviceImage}
-        resizeMode="cover"
-        accessibilityLabel={item.title}
-        onError={() =>
-          console.warn('[MyDevicesScreen] Device image failed to load', item._id)
-        }
-      />
       <View style={styles.cardContent}>
-        <Text style={styles.deviceTitle}>{item.title}</Text>
-        <Text style={styles.category}>{item.category}</Text>
-        <Text style={styles.price}>
-          {item.dailyRate.toLocaleString('vi-VN')} {STRINGS.COMMON.CURRENCY_SUFFIX}
-          <Text style={styles.priceUnit}>{STRINGS.MY_DEVICES.PRICE_UNIT}</Text>
-        </Text>
-
+        <View style={styles.deviceSummary}>
+          <Image
+            source={{ uri: resolveImageUri(item.images[0]) }}
+            style={styles.deviceImage}
+            resizeMode="cover"
+            accessibilityLabel={item.title}
+            onError={() =>
+              console.warn('[MyDevicesScreen] Device image failed to load', item._id)
+            }
+          />
+          <View style={styles.deviceInfo}>
+            <Text style={styles.deviceTitle} numberOfLines={2}>{item.title}</Text>
+            <Text style={styles.category} numberOfLines={1}>{item.category}</Text>
+            <Text style={styles.price} numberOfLines={1}>
+              {item.dailyRate.toLocaleString('vi-VN')} {STRINGS.COMMON.CURRENCY_SUFFIX}
+              <Text style={styles.priceUnit}>{STRINGS.MY_DEVICES.PRICE_UNIT}</Text>
+            </Text>
+          </View>
+        </View>
         <Text style={styles.statusLabel}>
           {STRINGS.MY_DEVICES.DEVICE_STATUS_LABEL}
         </Text>
@@ -178,12 +185,12 @@ export function MyDevicesScreen({ onBack }: MyDevicesScreenProps) {
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: topInset + theme.spacing.sm }]}>
         <TouchableOpacity
-          onPress={onBack}
+          onPress={navigation?.openDrawer}
           style={styles.backButton}
           accessibilityRole="button"
           accessibilityLabel={STRINGS.MY_DEVICES.BACK_ACCESSIBILITY_LABEL}
         >
-          <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
+         <Ionicons name="menu-outline" size={24} color={colors.light.textPrimary} />
         </TouchableOpacity>
         <View style={styles.heading}>
           <Text style={styles.title} accessibilityRole="header">
@@ -289,24 +296,29 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.xl,
   },
   card: {
-    backgroundColor: theme.background,
+    backgroundColor: theme.surface,
     borderRadius: theme.radii.lg,
     borderWidth: 1,
     borderColor: theme.border,
-    marginBottom: theme.spacing.md,
+    marginBottom: theme.spacing.sm + 4,
     ...theme.shadows.card,
   },
-  deviceImage: {
-    width: '100%',
-    aspectRatio: 1.8,
-    maxHeight: 300,
-    backgroundColor: theme.border,
-    borderTopLeftRadius: theme.radii.lg - 1,
-    borderTopRightRadius: theme.radii.lg - 1,
+  deviceSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
   },
-  cardContent: { padding: theme.spacing.md },
+  deviceImage: {
+    width: 84,
+    height: 84,
+    borderRadius: theme.radii.md,
+    backgroundColor: theme.border,
+  },
+  cardContent: { padding: theme.spacing.sm + 4 },
+  deviceInfo: { flex: 1, minWidth: 0 },
   deviceTitle: {
-    fontSize: theme.typography.sizes.title + 2,
+    fontSize: theme.typography.sizes.title,
     fontWeight: theme.typography.weights.bold,
     color: theme.textPrimary,
   },
@@ -317,13 +329,13 @@ const styles = StyleSheet.create({
     textTransform: 'capitalize',
   },
   price: {
-    fontSize: theme.typography.sizes.title + 2,
+    fontSize: theme.typography.sizes.subheading,
     fontWeight: theme.typography.weights.bold,
     color: theme.primary,
-    marginTop: theme.spacing.md,
+    marginTop: theme.spacing.sm,
   },
   priceUnit: {
-    fontSize: theme.typography.sizes.body,
+    fontSize: theme.typography.sizes.bodySm,
     fontWeight: theme.typography.weights.normal,
     color: theme.textSecondary,
   },
@@ -331,10 +343,10 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.sizes.body,
     fontWeight: theme.typography.weights.semibold,
     color: theme.textPrimary,
-    marginBottom: theme.spacing.sm,
+    marginBottom: theme.spacing.xs,
   },
   rentedStatus: {
-    minHeight: 48,
+    minHeight: 38,
     textAlignVertical: 'center',
     color: theme.textSecondary,
     fontWeight: theme.typography.weights.semibold,
@@ -344,8 +356,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: theme.spacing.sm,
-    marginTop: theme.spacing.md,
-    paddingVertical: theme.spacing.md,
+    marginTop: theme.spacing.sm,
+    paddingVertical: theme.spacing.sm,
     borderRadius: theme.radii.md,
     borderWidth: 1,
     borderColor: theme.primary,

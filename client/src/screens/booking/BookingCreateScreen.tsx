@@ -25,6 +25,7 @@ import { useAppSelector } from '../../store';
 import { PriceBreakdownCard } from './components/PriceBreakdownCard';
 import { BookingSuccessModal } from './components/BookingSuccessModal';
 import BookingResultModal from './components/BookingResultModal';
+import { ActionConfirmModal } from '../../components/common/ActionFeedbackModals';
 
 interface BookingCreateScreenProps {
   deviceId: string;
@@ -102,6 +103,7 @@ export function BookingCreateScreen({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successModalVisible, setSuccessModalVisible] = useState(false);
+  const [verifyModalVisible, setVerifyModalVisible] = useState(false);
   const [resultModal, setResultModal] = useState<{
     visible: boolean;
     type: 'success' | 'error' | 'warning' | 'info';
@@ -908,6 +910,38 @@ export function BookingCreateScreen({
         onConfirm={resultModal.onConfirmAction}
         onClose={() => {
           setResultModal({ ...resultModal, visible: false });
+        }}
+      />
+
+      <ActionConfirmModal
+        visible={verifyModalVisible}
+        title={STRINGS.AUTH_VERIFY_ALERT.TITLE}
+        message={STRINGS.AUTH_VERIFY_ALERT.MSG}
+        icon="shield-checkmark-outline"
+        tone="brand"
+        summaryItems={[
+          ...(device?.name
+            ? [
+                {
+                  icon: 'hardware-chip-outline' as const,
+                  label: STRINGS.AUTH_VERIFY_ALERT.DEVICE_LABEL,
+                  value: device.name,
+                },
+              ]
+            : []),
+          {
+            icon: 'shield-checkmark-outline' as const,
+            label: STRINGS.AUTH_VERIFY_ALERT.REQUIREMENT_LABEL,
+            value: STRINGS.AUTH_VERIFY_ALERT.REQUIREMENT_VALUE,
+          },
+        ]}
+        noticeText={STRINGS.AUTH_VERIFY_ALERT.NOTICE}
+        confirmText={STRINGS.AUTH_VERIFY_ALERT.VERIFY_NOW}
+        cancelText={STRINGS.AUTH_VERIFY_ALERT.LATER}
+        onCancel={() => setVerifyModalVisible(false)}
+        onConfirm={() => {
+          setVerifyModalVisible(false);
+          onNavigateToVerification?.();
         }}
       />
     </View>

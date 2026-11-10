@@ -193,7 +193,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigati
         const convs = await chatService.getConversations();
         if (Array.isArray(convs)) {
           convs.forEach((c) => {
-            if (c.lastMessage) {
+            if (c.lastMessage && !c.lastMessage.isFromMe && c.lastMessage.senderId !== currentUserId) {
               const msgId = `msg_${c.bookingId}_${c.lastMessage._id || Date.now()}`;
               if (!seenIds.has(msgId)) {
                 notifs.push({
@@ -221,7 +221,7 @@ export const NotificationScreen: React.FC<NotificationScreenProps> = ({ navigati
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [currentUserId]);
 
   useEffect(() => {
     loadNotifications();

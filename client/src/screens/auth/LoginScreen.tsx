@@ -18,6 +18,8 @@ import { setAuth } from '../../store/slices/authSlice';
 import { setAuthToken } from '../../config/api';
 import { socketService } from '../../services/socketService';
 import { loginService } from '../../services/loginService';
+import { ActionResultModal } from '../../components/common/ActionFeedbackModals';
+import { STRINGS } from '../../constants/strings';
 import { theme } from '../../theme/tokens';
 
 export interface LoginScreenProps {
@@ -42,6 +44,7 @@ export function LoginScreen({
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [lockedReason, setLockedReason] = useState<string | null>(null);
 
   const handleLogin = async () => {
     // ── Bước 1: Validate form phía client (không cần gọi API) ───────────
@@ -83,7 +86,13 @@ export function LoginScreen({
       }
     } catch (err: any) {
       console.error('[LoginScreen] Lỗi đăng nhập:', err.message);
-      if (err.response?.data?.message) {
+      if (err?.response?.status === 403 && err?.response?.data?.code === 'ACCOUNT_LOCKED') {
+        Keyboard.dismiss();
+        setErrorMessage(null);
+        setLockedReason(
+          err.response.data.lockReason || STRINGS.AUTH_LOCKED.DEFAULT_REASON
+        );
+      } else if (err.response?.data?.message) {
         setErrorMessage(err.response.data.message);
       } else if (err.message === 'Network Error' || !err.response) {
         setErrorMessage('Không thể kết nối máy chủ. Vui lòng kiểm tra mạng và đảm bảo backend đang chạy.');
@@ -265,6 +274,31 @@ export function LoginScreen({
           </View>
         </View>
       </TouchableWithoutFeedback>
+
+      <ActionResultModal
+        visible={Boolean(lockedReason)}
+        type="locked"
+        title={STRINGS.AUTH_LOCKED.ALERT_TITLE}
+        message={STRINGS.AUTH_LOCKED.LOGIN_LOCKED_MSG}
+        summaryItems={
+          lockedReason
+            ? [
+                {
+                  icon: 'alert-circle-outline',
+                  label: STRINGS.AUTH_LOCKED.REASON_LABEL,
+                  value: lockedReason,
+                },
+                {
+                  icon: 'lock-closed-outline',
+                  label: STRINGS.AUTH_LOCKED.STATUS_LABEL,
+                  value: STRINGS.AUTH_LOCKED.STATUS_VALUE,
+                },
+              ]
+            : []
+        }
+        buttonText={STRINGS.AUTH_LOCKED.ACK_BTN}
+        onClose={() => setLockedReason(null)}
+      />
     </KeyboardAvoidingView>
   );
 }

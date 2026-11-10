@@ -41,6 +41,16 @@ export interface ChatBookingInfo {
   } | null;
 }
 
+export interface ChatDetailParams {
+  bookingId?: string;
+  otherBookings?: {
+    bookingId: string;
+    deviceName: string;
+    status: string;
+    statusLabel?: string;
+  }[];
+}
+
 export interface ChatOtherUser {
   _id: string;
   name: string;
@@ -134,8 +144,6 @@ export interface User {
   pushConfig?: UserPushConfig;
   biometricEnabled?: boolean;
   wishlist?: string[];
-  referralCode?: string;
-  referredBy?: string | null;
   favoriteDevices?: string[];
   rating?: number;
   ownerRating?: number;
@@ -179,7 +187,7 @@ export interface Device {
   ownerId?: User | string | null;
   name?: string;
   pricePerDay?: number;
-  stats?: { ratingAvg?: number; ratingCount?: number };
+  stats?: { ratingAvg?: number; ratingCount?: number; rentalCount?: number; revenueTotal?: number };
   distanceMeters?: number;
   _id: string;
   addressText?: string;
@@ -196,6 +204,7 @@ export interface Device {
   status: DeviceStatus;
   rating: number;
   reviewCount: number;
+  rentalCount?: number;
   aiAnalysis?: DeviceAiAnalysis;
   viewsCount?: number;
   createdAt?: string;

@@ -1,4 +1,3 @@
-import { API_BASE_URL, apiClient } from '../../config/api';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
@@ -12,6 +11,7 @@ import {
   StatusBar,
   Image,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,11 +24,12 @@ import Svg, {
   Text as SvgText,
   Circle,
 } from 'react-native-svg';
-import { theme } from '../../theme/tokens';
+import { API_BASE_URL, apiClient } from '../../config/api';
+import { colors } from '../../theme/colors';
 import { OWNER_STRINGS } from '../../constants/ownerStrings';
-import { chatService } from '../../services/chatService';
-import { socketService } from '../../services/socketService';
+import { bookingService } from '../../services/bookingService';
 import { notificationService } from '../../services/notificationService';
+import { socketService } from '../../services/socketService';
 import { useAppSelector } from '../../store';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -86,14 +87,141 @@ interface OwnerChartData {
 
 export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navigation }) => {
   const currentUser = useAppSelector((state) => state.auth.user);
+  const currentUserId = currentUser?._id || (currentUser as any)?.id;
+
   const [selectedTimeframe, setSelectedTimeframe] = useState<'week' | 'month'>('week');
   const [refreshing, setRefreshing] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(
     notificationService.getUnreadCountCached()
   );
 
+  const [profile, setProfile] = useState<OwnerProfileData>({
+    id: '',
+    username: '',
+    email: '',
+    avatar: '',
+    rating: '0.0',
+    reviewsCount: 0,
+    trustScore: 0,
+    badge: 'Equipment Owner',
+  });
+
+  const [kpis, setKpis] = useState<OwnerKpisData>({
+    netRevenue: 0,
+    netRevenueFormatted: '0 VND',
+    totalRentals: 0,
+    totalRentalsFormatted: '0 orders',
+    activeRentals: 0,
+    activeRentalsFormatted: '0 devices',
+    occupancyRate: 0,
+    occupancyRateFormatted: '0%',
+  });
+
+  const [wallet, setWallet] = useState<OwnerWalletData>({
+    availableBalance: 0,
+    availableBalanceFormatted: '0 VND',
+    escrowHolding: 0,
+    escrowHoldingFormatted: '0 VND',
+    monthlyRevenue: 0,
+    monthlyRevenueFormatted: '0 VND',
+    monthlyTrend: '',
+  });
+
+  const [chart, setChart] = useState<OwnerChartData>({
+    title: 'Revenue last 7 days (VND)',
+    peakFormatted: 'Peak: 0 VND',
+    peakValue: 0,
+    yMax: 0,
+    yLabels: ['0', '0', '0', '0', '0'],
+    dataPoints: [],
+  });
+
+  // Rental Activity Summary Counts
+  const [pendingCount, setPendingCount] = useState<number>(0);
+  const [awaitingHandoverCount, setAwaitingHandoverCount] = useState<number>(0);
+  const [activeRentalsCount, setActiveRentalsCount] = useState<number>(0);
+
+  // Fetch Dashboard Data from API
+  const fetchDashboardData = useCallback(
+    async (timeframe = selectedTimeframe) => {
+      try {
+        const userId = currentUserId;
+        const res = await apiClient.get('/owner/dashboard', {
+          params: {
+            ...(userId ? { userId } : {}),
+            timeframe,
+          },
+        });
+
+        if (res.data?.success && res.data?.data) {
+          const d = res.data.data;
+          if (d.profile) setProfile(d.profile);
+          if (d.kpis) setKpis(d.kpis);
+          if (d.wallet) setWallet(d.wallet);
+          if (d.chart) setChart(d.chart);
+          if (d.pendingBookingsCount !== undefined) setPendingCount(d.pendingBookingsCount);
+          if (d.awaitingHandoverCount !== undefined) {
+            setAwaitingHandoverCount(d.awaitingHandoverCount);
+          }
+          if (d.activeRentalsCount !== undefined) {
+            setActiveRentalsCount(d.activeRentalsCount);
+          }
+          return;
+        }
+      } catch {
+        try {
+          const userId = currentUserId;
+          const query = `?timeframe=${timeframe}${userId ? `&userId=${userId}` : ''}`;
+          const response = await fetch(`${API_BASE_URL}/owner/dashboard${query}`);
+          if (response.ok) {
+            const jsonResult = await response.json();
+            if (jsonResult?.success && jsonResult?.data) {
+              const d = jsonResult.data;
+              if (d.profile) setProfile(d.profile);
+              if (d.kpis) setKpis(d.kpis);
+              if (d.wallet) setWallet(d.wallet);
+              if (d.chart) setChart(d.chart);
+              if (d.pendingBookingsCount !== undefined) setPendingCount(d.pendingBookingsCount);
+              if (d.awaitingHandoverCount !== undefined) {
+                setAwaitingHandoverCount(d.awaitingHandoverCount);
+              }
+              if (d.activeRentalsCount !== undefined) {
+                setActiveRentalsCount(d.activeRentalsCount);
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('[OwnerDashboard] Error loading dashboard data:', err);
+        }
+      }
+
+      // Synchronize booking activity counts via bookingService
+      try {
+        if (currentUserId) {
+          const allOwnerBookings = await bookingService.getOwnerBookings('all', currentUserId);
+          if (Array.isArray(allOwnerBookings)) {
+            setPendingCount(allOwnerBookings.filter((b) => b.status === 'pending').length);
+            setAwaitingHandoverCount(
+              allOwnerBookings.filter((b) => b.status === 'approved').length
+            );
+            setActiveRentalsCount(
+              allOwnerBookings.filter((b) => b.status === 'active').length
+            );
+          }
+        }
+      } catch {
+        // Soft fail
+      }
+    },
+    [currentUserId, selectedTimeframe]
+  );
+
   useEffect(() => {
-    const userId = currentUser?._id || (currentUser as any)?.id;
+    fetchDashboardData(selectedTimeframe);
+  }, [fetchDashboardData, selectedTimeframe]);
+
+  useEffect(() => {
+    const userId = currentUserId;
     if (userId) {
       notificationService.fetchUnreadCount(userId);
     }
@@ -108,132 +236,70 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
       }
     });
 
+    const unsubBookings = bookingService.onBookingsUpdated(() => {
+      fetchDashboardData(selectedTimeframe);
+    });
+
     return () => {
       unsubNotifCount();
       unsubNotif();
+      unsubBookings();
     };
-  }, [currentUser]);
-
-  // Khởi tạo trạng thái mặc định rỗng/0, toàn bộ số liệu được kéo trực tiếp từ MongoDB Atlas
-  const [profile, setProfile] = useState<OwnerProfileData>({
-    id: '',
-    username: '',
-    email: '',
-    avatar: '',
-    rating: '0.0',
-    reviewsCount: 0,
-    trustScore: 0,
-    badge: '',
-  });
-
-  const [kpis, setKpis] = useState<OwnerKpisData>({
-    netRevenue: 0,
-    netRevenueFormatted: '0 đ',
-    totalRentals: 0,
-    totalRentalsFormatted: '0 orders',
-    activeRentals: 0,
-    activeRentalsFormatted: '0 devices',
-    occupancyRate: 0,
-    occupancyRateFormatted: '0%',
-  });
-
-  const [wallet, setWallet] = useState<OwnerWalletData>({
-    availableBalance: 0,
-    availableBalanceFormatted: '0 đ',
-    escrowHolding: 0,
-    escrowHoldingFormatted: '0 đ',
-    monthlyRevenue: 0,
-    monthlyRevenueFormatted: '0 đ',
-    monthlyTrend: '',
-  });
-
-  const [chart, setChart] = useState<OwnerChartData>({
-    title: OWNER_STRINGS.CHART.TITLE,
-    peakFormatted: 'Peak: 0 đ',
-    peakValue: 0,
-    yMax: 0,
-    yLabels: ['0', '0', '0', '0', '0'],
-    dataPoints: [],
-  });
-
-  const [pendingCount, setPendingCount] = useState<number>(0);
-
-  // Tải dữ liệu từ Backend API MongoDB Atlas
-  const fetchDashboardData = useCallback(async () => {
-    try {
-      const userId = currentUser?._id || (currentUser as any)?.id;
-      const res = await apiClient.get('/owner/dashboard', {
-        params: userId ? { userId } : {},
-      });
-
-      if (res.data?.success && res.data?.data) {
-        const d = res.data.data;
-        if (d.profile) setProfile(d.profile);
-        if (d.kpis) setKpis(d.kpis);
-        if (d.wallet) setWallet(d.wallet);
-        if (d.chart) setChart(d.chart);
-        if (d.pendingBookingsCount !== undefined) setPendingCount(d.pendingBookingsCount);
-        return;
-      }
-    } catch {
-      try {
-        const userId = currentUser?._id || (currentUser as any)?.id;
-        const query = userId ? `?userId=${userId}` : '';
-        const response = await fetch(`${API_BASE_URL}/owner/dashboard${query}`);
-        if (response.ok) {
-          const jsonResult = await response.json();
-          if (jsonResult && jsonResult.success && jsonResult.data) {
-            const d = jsonResult.data;
-            if (d.profile) setProfile(d.profile);
-            if (d.kpis) setKpis(d.kpis);
-            if (d.wallet) setWallet(d.wallet);
-            if (d.chart) setChart(d.chart);
-            if (d.pendingBookingsCount !== undefined) setPendingCount(d.pendingBookingsCount);
-          }
-        }
-      } catch (err) {
-        console.warn('[OwnerDashboard] Lỗi khi tải dữ liệu từ server:', err);
-      }
-    }
-  }, [currentUser]);
-
-  useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
+  }, [currentUserId, fetchDashboardData, selectedTimeframe]);
 
   useFocusEffect(
     useCallback(() => {
-      fetchDashboardData();
-      const userId = currentUser?._id || (currentUser as any)?.id;
-      notificationService.fetchUnreadCount(userId);
-    }, [fetchDashboardData, currentUser])
+      fetchDashboardData(selectedTimeframe);
+      if (currentUserId) {
+        notificationService.fetchUnreadCount(currentUserId);
+      }
+    }, [fetchDashboardData, currentUserId, selectedTimeframe])
   );
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchDashboardData();
+    await fetchDashboardData(selectedTimeframe);
     setRefreshing(false);
+  };
+
+  const handleTimeframeChange = (tf: 'week' | 'month') => {
+    setSelectedTimeframe(tf);
+    fetchDashboardData(tf);
+  };
+
+  const handleWithdrawPress = () => {
+    if (wallet.availableBalance <= 0) {
+      Alert.alert(
+        'Withdrawal Unavailable',
+        'Your available balance is currently 0 VND. Complete rentals to earn balance for withdrawal.'
+      );
+    } else {
+      Alert.alert(
+        'Withdrawal Request',
+        `Available balance: ${wallet.availableBalanceFormatted}\n\nWithdrawals are processed securely via our payments team to your registered bank account within 24 hours.`,
+        [{ text: 'OK' }]
+      );
+    }
   };
 
   const insets = useSafeAreaInsets();
   const topInset = Math.max(
     insets.top,
-    Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 20
+    Platform.OS === 'android' ? StatusBar.currentHeight || 20 : 16
   );
-  const bottomInset = Math.max(insets.bottom, 24);
+  const bottomInset = Math.max(insets.bottom + 20, 32);
 
-  // Tính toán kích thước SVG Chart
-  const chartCardWidth = SCREEN_WIDTH - theme.spacing.lg * 2;
-  const svgWidth = chartCardWidth - 24;
-  const svgHeight = 175;
-  const leftAxisWidth = 46;
+  // SVG Chart Layout & Dimensions
+  const chartCardWidth = SCREEN_WIDTH - 40;
+  const svgWidth = chartCardWidth - 28;
+  const svgHeight = 160;
+  const leftAxisWidth = 44;
   const rightPadding = 12;
   const plotWidth = svgWidth - leftAxisWidth - rightPadding;
-  const topPadding = 16;
-  const bottomPadding = 30;
+  const topPadding = 14;
+  const bottomPadding = 26;
   const plotHeight = svgHeight - topPadding - bottomPadding;
 
-  const yMax = chart.yMax > 0 ? chart.yMax : 1;
   const points =
     chart.dataPoints && chart.dataPoints.length > 0
       ? chart.dataPoints
@@ -247,7 +313,8 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
           { day: 'Sun', revenue: 0, label: '0' },
         ];
 
-  // Tọa độ các điểm vẽ biểu đồ (100% dựa vào dữ liệu thực tế từ DB)
+  const hasRevenue = chart.peakValue > 0 && points.some((p) => p.revenue > 0);
+
   const coords = points.map((p, index) => {
     const x = leftAxisWidth + (index / Math.max(1, points.length - 1)) * plotWidth;
     const ratio = chart.yMax > 0 ? Math.min(1, Math.max(0, p.revenue / chart.yMax)) : 0;
@@ -255,7 +322,6 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
     return { x, y, ...p };
   });
 
-  // Tạo đường cong Cubic Bezier mượt mà (Smooth Area Curve)
   const createSmoothPath = (pts: { x: number; y: number }[]) => {
     if (pts.length < 2) return '';
     let path = `M ${pts[0].x} ${pts[0].y}`;
@@ -283,32 +349,37 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
 
   return (
     <View style={[styles.screenContainer, { paddingTop: topInset }]}>
-      <StatusBar
-        barStyle="dark-content"
-      />
-      {/* 1. Header Navigation Bar */}
+      <StatusBar barStyle="dark-content" backgroundColor={colors.light.background} />
+
+      {/* 1. Compact Dashboard Header */}
       <View style={styles.headerBar}>
         <TouchableOpacity
           accessibilityRole="button"
-          accessibilityLabel="Menu"
+          accessibilityLabel="Open Navigation Menu"
           style={styles.headerIconButton}
           onPress={() => navigation?.openDrawer?.()}
           activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons name="menu-outline" size={24} color={theme.colors.text.primary} />
+          <Ionicons name="menu-outline" size={22} color={colors.light.textPrimary} />
         </TouchableOpacity>
 
         <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>{OWNER_STRINGS.HEADER.TITLE}</Text>
-          <Text style={styles.headerSubtitle}>{OWNER_STRINGS.HEADER.SUBTITLE}</Text>
+          <Text style={styles.headerTitle}>Owner Dashboard</Text>
+          <Text style={styles.headerSubtitle} numberOfLines={1}>
+            Performance overview
+          </Text>
         </View>
 
         <TouchableOpacity
           style={styles.headerIconButton}
           onPress={() => navigation?.navigate?.('OwnerNotifications')}
           activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityLabel="View Notifications"
+          accessibilityRole="button"
         >
-          <Ionicons name="notifications-outline" size={20} color={theme.colors.text.primary} />
+          <Ionicons name="notifications-outline" size={20} color={colors.light.textPrimary} />
           {unreadNotifications > 0 && (
             <View style={styles.notifBadge}>
               <Text style={styles.notifBadgeText}>
@@ -321,90 +392,133 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomInset + 16 }]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomInset }]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[theme.colors.brand[500]]}
+            colors={[colors.light.primary]}
+            tintColor={colors.light.primary}
           />
         }
       >
-        {/* 2. Thẻ Profile người dùng */}
+        {/* 2. Simplified Owner Profile Card */}
         <View style={styles.profileCard}>
           {profile.avatar ? (
             <Image source={{ uri: profile.avatar }} style={styles.profileAvatar} />
           ) : (
-            <View
-              style={[
-                styles.profileAvatar,
-                {
-                  backgroundColor: theme.colors.brand[50],
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                },
-              ]}
-            >
-              <Ionicons name="person" size={26} color={theme.colors.brand[500]} />
+            <View style={styles.profileAvatarPlaceholder}>
+              <Ionicons name="person" size={24} color={colors.light.textSecondary} />
             </View>
           )}
 
           <View style={styles.profileInfo}>
-            <Text style={styles.profileUsername}>{profile.username || 'Chủ thiết bị'}</Text>
+            <View style={styles.profileNameRow}>
+              <Text style={styles.profileUsername} numberOfLines={1}>
+                {profile.username || 'Device Owner'}
+              </Text>
+              <View style={styles.ownerRoleTag}>
+                <Text style={styles.ownerRoleTagText}>
+                  {profile.badge || 'Equipment Owner'}
+                </Text>
+              </View>
+            </View>
 
-            <View style={styles.badgesRow}>
-              {/* Rating badge */}
-              <View style={styles.ratingBadge}>
-                <Text style={styles.ratingText}>
-                  ★ {profile.rating} ({profile.reviewsCount})
+            {/* Inlined Rating & Trust without heavy colored badge backgrounds */}
+            <View style={styles.profileMetaRow}>
+              <View style={styles.profileMetaItem}>
+                <Ionicons name="star" size={13} color="#F59E0B" />
+                <Text style={styles.profileMetaText}>
+                  {profile.rating} ({profile.reviewsCount})
                 </Text>
               </View>
 
-              {/* Trust score badge */}
-              <View style={styles.trustBadge}>
-                <Ionicons name="shield-checkmark" size={13} color="#059669" />
-                <Text style={styles.trustText}>Trust: {profile.trustScore}</Text>
+              <Text style={styles.profileMetaDot}>•</Text>
+
+              <View style={styles.profileMetaItem}>
+                <Ionicons name="shield-checkmark" size={13} color={colors.light.primaryDark} />
+                <Text style={styles.profileMetaText}>
+                  Trust: {profile.trustScore}
+                </Text>
               </View>
             </View>
-
-            {/* Top Owner Pill */}
-            {profile.badge ? (
-              <View style={styles.topOwnerPill}>
-                <Text style={styles.topOwnerText}>{profile.badge}</Text>
-              </View>
-            ) : null}
           </View>
         </View>
 
-
-        {/* 3. Section Header: Performance & Revenue + Segmented Toggle */}
-        <View style={styles.sectionHeaderRow}>
-          <View style={styles.sectionTitleWithIcon}>
-            <View style={styles.sectionIconBox}>
-              <Ionicons name="stats-chart-outline" size={17} color={theme.colors.brand[500]} />
-            </View>
-            <Text style={styles.sectionTitle}>{OWNER_STRINGS.TIMEFRAME.SECTION_TITLE}</Text>
+        {/* 3. Rental Activity Summary (Operational Overview) */}
+        <View style={styles.activityCard}>
+          <View style={styles.activityHeader}>
+            <Text style={styles.activityTitle}>Rental Activity</Text>
+            <TouchableOpacity
+              onPress={() => navigation?.navigate?.('OwnerPendingBookings')}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.activityViewAllText}>View All</Text>
+            </TouchableOpacity>
           </View>
 
-          {/* Timeframe Toggle: Week / Month */}
+          <View style={styles.activityStatsRow}>
+            <TouchableOpacity
+              style={styles.activityStatCol}
+              onPress={() => navigation?.navigate?.('OwnerPendingBookings')}
+              activeOpacity={0.75}
+            >
+              <Text style={[styles.activityCount, pendingCount > 0 && styles.activityCountActive]}>
+                {pendingCount}
+              </Text>
+              <Text style={styles.activityLabel}>Pending</Text>
+            </TouchableOpacity>
+
+            <View style={styles.activityDivider} />
+
+            <TouchableOpacity
+              style={styles.activityStatCol}
+              onPress={() => navigation?.navigate?.('OwnerPendingBookings')}
+              activeOpacity={0.75}
+            >
+              <Text style={[styles.activityCount, awaitingHandoverCount > 0 && styles.activityCountActive]}>
+                {awaitingHandoverCount}
+              </Text>
+              <Text style={styles.activityLabel}>Handover</Text>
+            </TouchableOpacity>
+
+            <View style={styles.activityDivider} />
+
+            <TouchableOpacity
+              style={styles.activityStatCol}
+              onPress={() => navigation?.navigate?.('OwnerPendingBookings')}
+              activeOpacity={0.75}
+            >
+              <Text style={[styles.activityCount, activeRentalsCount > 0 && styles.activityCountActive]}>
+                {activeRentalsCount}
+              </Text>
+              <Text style={styles.activityLabel}>Active</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* 4. Section Header: Performance & Revenue + Segmented Toggle */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>Performance & Revenue</Text>
+
+          {/* Segmented Timeframe Toggle */}
           <View style={styles.segmentedContainer}>
             <TouchableOpacity
               style={[
                 styles.segmentTab,
                 selectedTimeframe === 'week' && styles.segmentTabActive,
               ]}
-              onPress={() => setSelectedTimeframe('week')}
-              activeOpacity={0.8}
+              onPress={() => handleTimeframeChange('week')}
+              activeOpacity={0.75}
             >
               <Text
                 style={[
                   styles.segmentText,
-                  selectedTimeframe === 'week'
-                    ? styles.segmentTextActive
-                    : styles.segmentTextInactive,
+                  selectedTimeframe === 'week' && styles.segmentTextActive,
                 ]}
               >
-                {OWNER_STRINGS.TIMEFRAME.WEEK}
+                Week
               </Text>
             </TouchableOpacity>
 
@@ -413,195 +527,212 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
                 styles.segmentTab,
                 selectedTimeframe === 'month' && styles.segmentTabActive,
               ]}
-              onPress={() => setSelectedTimeframe('month')}
-              activeOpacity={0.8}
+              onPress={() => handleTimeframeChange('month')}
+              activeOpacity={0.75}
             >
               <Text
                 style={[
                   styles.segmentText,
-                  selectedTimeframe === 'month'
-                    ? styles.segmentTextActive
-                    : styles.segmentTextInactive,
+                  selectedTimeframe === 'month' && styles.segmentTextActive,
                 ]}
               >
-                {OWNER_STRINGS.TIMEFRAME.MONTH}
+                Month
               </Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* 4. 4 Metric Cards (2x2 Grid) */}
+        {/* 5. 4 Unified KPI Cards (2x2 Grid) */}
         <View style={styles.kpiGrid}>
           {/* Card 1: Net Revenue */}
           <View style={styles.kpiCard}>
-            <View style={[styles.kpiIconCircle, { backgroundColor: '#E6F7F7' }]}>
-              <Ionicons name="cash-outline" size={20} color={theme.colors.brand[500]} />
+            <View style={styles.kpiIconCircle}>
+              <Ionicons name="cash-outline" size={19} color={colors.light.primaryDark} />
             </View>
-            <Text style={styles.kpiLabel}>{OWNER_STRINGS.METRICS.NET_REVENUE}</Text>
-            <Text style={styles.kpiValueLarge}>{kpis.netRevenueFormatted}</Text>
+            <Text style={styles.kpiLabel}>Net Revenue</Text>
+            <Text style={styles.kpiValueLarge} numberOfLines={1}>
+              {kpis.netRevenueFormatted}
+            </Text>
           </View>
 
           {/* Card 2: Total Rentals */}
           <View style={styles.kpiCard}>
-            <View style={[styles.kpiIconCircle, { backgroundColor: '#DCFCE7' }]}>
-              <Ionicons name="checkmark-sharp" size={20} color="#16A34A" />
+            <View style={styles.kpiIconCircle}>
+              <Ionicons name="receipt-outline" size={19} color={colors.light.primaryDark} />
             </View>
-            <Text style={styles.kpiLabel}>{OWNER_STRINGS.METRICS.TOTAL_RENTALS}</Text>
-            <Text style={styles.kpiValueLarge}>{kpis.totalRentalsFormatted}</Text>
+            <Text style={styles.kpiLabel}>Total Rentals</Text>
+            <Text style={styles.kpiValueLarge} numberOfLines={1}>
+              {kpis.totalRentalsFormatted}
+            </Text>
           </View>
 
           {/* Card 3: Active Rentals */}
           <View style={styles.kpiCard}>
-            <View style={[styles.kpiIconCircle, { backgroundColor: '#FEF3C7' }]}>
-              <Ionicons name="flash-outline" size={20} color="#D97706" />
+            <View style={styles.kpiIconCircle}>
+              <Ionicons name="repeat-outline" size={19} color={colors.light.primaryDark} />
             </View>
-            <Text style={styles.kpiLabel}>{OWNER_STRINGS.METRICS.ACTIVE_RENTALS}</Text>
-            <Text style={styles.kpiValueLarge}>{kpis.activeRentalsFormatted}</Text>
+            <Text style={styles.kpiLabel}>Active Rentals</Text>
+            <Text style={styles.kpiValueLarge} numberOfLines={1}>
+              {kpis.activeRentalsFormatted}
+            </Text>
           </View>
 
           {/* Card 4: Occupancy Rate */}
           <View style={styles.kpiCard}>
-            <View style={[styles.kpiIconCircle, { backgroundColor: '#EDE9FE' }]}>
-              <Ionicons name="pie-chart-outline" size={20} color="#7C3AED" />
+            <View style={styles.kpiIconCircle}>
+              <Ionicons name="pie-chart-outline" size={19} color={colors.light.primaryDark} />
             </View>
-            <Text style={styles.kpiLabel}>{OWNER_STRINGS.METRICS.OCCUPANCY_RATE}</Text>
-            <Text style={styles.kpiValueLarge}>{kpis.occupancyRateFormatted}</Text>
+            <Text style={styles.kpiLabel}>Occupancy Rate</Text>
+            <Text style={styles.kpiValueLarge} numberOfLines={1}>
+              {kpis.occupancyRateFormatted}
+            </Text>
           </View>
         </View>
 
-        {/* 5. Revenue last 7 days (VND) Chart Card */}
+        {/* 6. Revenue Chart Card */}
         <View style={styles.chartCard}>
           <View style={styles.chartHeader}>
-            <View style={styles.chartTitleRow}>
-              <View style={styles.chartDot} />
-              <Text style={styles.chartTitleText}>{chart.title}</Text>
-            </View>
-            <View style={styles.peakPill}>
-              <Text style={styles.peakText}>{chart.peakFormatted}</Text>
-            </View>
+            <Text style={styles.chartTitleText}>{chart.title}</Text>
+            {hasRevenue && (
+              <View style={styles.peakPill}>
+                <Text style={styles.peakText}>{chart.peakFormatted}</Text>
+              </View>
+            )}
           </View>
 
-          {/* Biểu đồ SVG Area Chart */}
-          <View style={styles.svgContainer}>
-            <Svg width={svgWidth} height={svgHeight}>
-              <Defs>
-                <SvgGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                  <Stop offset="0" stopColor="#2DD4BF" stopOpacity="0.4" />
-                  <Stop offset="0.7" stopColor="#99F6E4" stopOpacity="0.15" />
-                  <Stop offset="1" stopColor="#FFFFFF" stopOpacity="0.0" />
-                </SvgGradient>
-              </Defs>
+          {/* Zero revenue compact empty state vs active SVG chart */}
+          {!hasRevenue ? (
+            <View style={styles.chartEmptyWrap}>
+              <View style={styles.chartEmptyIconCircle}>
+                <Ionicons name="bar-chart-outline" size={26} color={colors.light.textMuted} />
+              </View>
+              <Text style={styles.chartEmptyTitle}>No revenue yet</Text>
+              <Text style={styles.chartEmptySubtitle}>
+                Your revenue statistics will appear here once rentals are completed.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.svgContainer}>
+              <Svg width={svgWidth} height={svgHeight}>
+                <Defs>
+                  <SvgGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                    <Stop offset="0" stopColor={colors.light.primary} stopOpacity="0.3" />
+                    <Stop offset="0.8" stopColor={colors.light.primaryLight} stopOpacity="0.08" />
+                    <Stop offset="1" stopColor="#FFFFFF" stopOpacity="0.0" />
+                  </SvgGradient>
+                </Defs>
 
-              {/* Các đường grid ngang và nhãn trục Y */}
-              {chart.yLabels.map((lbl, idx) => {
-                const ratio = idx / (chart.yLabels.length - 1);
-                const yPos = topPadding + ratio * plotHeight;
-                return (
-                  <React.Fragment key={`grid-${idx}`}>
-                    <SvgText
-                      x={leftAxisWidth - 8}
-                      y={yPos + 4}
-                      fill="#94A3B8"
-                      fontSize={11}
-                      fontWeight="500"
-                      textAnchor="end"
-                    >
-                      {lbl}
-                    </SvgText>
-                    <Line
-                      x1={leftAxisWidth}
-                      y1={yPos}
-                      x2={svgWidth - rightPadding}
-                      y2={yPos}
-                      stroke="#F1F5F9"
-                      strokeWidth={1}
-                      strokeDasharray="4, 4"
+                {/* Horizontal Grid lines & Y axis labels */}
+                {chart.yLabels.map((lbl, idx) => {
+                  const ratio = idx / (chart.yLabels.length - 1);
+                  const yPos = topPadding + ratio * plotHeight;
+                  return (
+                    <React.Fragment key={`grid-${idx}`}>
+                      <SvgText
+                        x={leftAxisWidth - 8}
+                        y={yPos + 4}
+                        fill="#94A3B8"
+                        fontSize={11}
+                        fontWeight="500"
+                        textAnchor="end"
+                      >
+                        {lbl}
+                      </SvgText>
+                      <Line
+                        x1={leftAxisWidth}
+                        y1={yPos}
+                        x2={svgWidth - rightPadding}
+                        y2={yPos}
+                        stroke="#F1F5F9"
+                        strokeWidth={1}
+                        strokeDasharray="4, 4"
+                      />
+                    </React.Fragment>
+                  );
+                })}
+
+                {/* Area Gradient Fill */}
+                <Path d={areaPath} fill="url(#chartGradient)" />
+
+                {/* Primary Teal Line Stroke */}
+                <Path
+                  d={linePath}
+                  fill="none"
+                  stroke={colors.light.primary}
+                  strokeWidth={2.4}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+
+                {/* Data point circular dots */}
+                {coords.map((pt, idx) => (
+                  <React.Fragment key={`dot-${idx}`}>
+                    <Circle
+                      cx={pt.x}
+                      cy={pt.y}
+                      r={4.5}
+                      fill="#FFFFFF"
+                      stroke={colors.light.primary}
+                      strokeWidth={2}
                     />
+                    <SvgText
+                      x={pt.x}
+                      y={svgHeight - 6}
+                      fill="#64748B"
+                      fontSize={11.5}
+                      fontWeight="500"
+                      textAnchor="middle"
+                    >
+                      {pt.day}
+                    </SvgText>
                   </React.Fragment>
-                );
-              })}
-
-              {/* Vùng bóng màu Gradient (Area Fill) */}
-              <Path d={areaPath} fill="url(#chartGradient)" />
-
-              {/* Đường line biểu đồ màu xanh Teal */}
-              <Path
-                d={linePath}
-                fill="none"
-                stroke="#2DD4BF"
-                strokeWidth={2.8}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-
-              {/* Điểm nút (Data point circular dots) */}
-              {coords.map((pt, idx) => (
-                <React.Fragment key={`dot-${idx}`}>
-                  <Circle
-                    cx={pt.x}
-                    cy={pt.y}
-                    r={5.5}
-                    fill="#FFFFFF"
-                    stroke="#2DD4BF"
-                    strokeWidth={2.5}
-                  />
-                  {/* Nhãn trục X: Mon, Tue,... */}
-                  <SvgText
-                    x={pt.x}
-                    y={svgHeight - 8}
-                    fill="#64748B"
-                    fontSize={12}
-                    fontWeight="500"
-                    textAnchor="middle"
-                  >
-                    {pt.day}
-                  </SvgText>
-                </React.Fragment>
-              ))}
-            </Svg>
-          </View>
+                ))}
+              </Svg>
+            </View>
+          )}
         </View>
 
-        {/* 6. Thẻ Available Balance & Wallet Details */}
+        {/* 7. Available Balance & Wallet Section */}
         <View style={styles.walletCard}>
           <View style={styles.walletTopRow}>
             <View style={styles.balanceInfo}>
-              <Text style={styles.balanceLabel}>{OWNER_STRINGS.WALLET.AVAILABLE_BALANCE}</Text>
+              <Text style={styles.balanceLabel}>Available Balance</Text>
               <Text style={styles.balanceAmount}>{wallet.availableBalanceFormatted}</Text>
             </View>
 
-            <TouchableOpacity style={styles.withdrawButton} activeOpacity={0.85}>
-              <Ionicons name="wallet-outline" size={17} color="#FFFFFF" />
-              <Text style={styles.withdrawText}>{OWNER_STRINGS.WALLET.WITHDRAW}</Text>
+            <TouchableOpacity
+              style={styles.withdrawButton}
+              onPress={handleWithdrawPress}
+              activeOpacity={0.85}
+              accessibilityLabel="Withdraw available balance"
+              accessibilityRole="button"
+            >
+              <Ionicons name="wallet-outline" size={16} color={colors.light.white} />
+              <Text style={styles.withdrawText}>Withdraw</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.walletDivider} />
 
           <View style={styles.walletBottomStats}>
-            {/* Cột trái: Escrow Holding */}
+            {/* Left: Escrow Holding */}
             <View style={styles.walletStatColumn}>
               <View style={styles.statLabelRow}>
-                <Ionicons name="time-outline" size={15} color="#F59E0B" />
-                <Text style={styles.statLabelText}>{OWNER_STRINGS.WALLET.ESCROW_HOLDING}</Text>
+                <Ionicons name="time-outline" size={14} color={colors.light.textSecondary} />
+                <Text style={styles.statLabelText}>Escrow Holding</Text>
               </View>
-              <Text style={styles.escrowAmountText}>{wallet.escrowHoldingFormatted}</Text>
+              <Text style={styles.statAmountText}>{wallet.escrowHoldingFormatted}</Text>
             </View>
 
             <View style={styles.walletVerticalDivider} />
 
-            {/* Cột phải: Monthly Revenue */}
+            {/* Right: Monthly Revenue */}
             <View style={styles.walletStatColumn}>
               <View style={styles.statLabelRow}>
-                <Ionicons name="trending-up-outline" size={15} color={theme.colors.brand[500]} />
-                <Text style={styles.statLabelText}>{OWNER_STRINGS.WALLET.MONTHLY_REVENUE}</Text>
+                <Ionicons name="trending-up-outline" size={14} color={colors.light.primaryDark} />
+                <Text style={styles.statLabelText}>Monthly Revenue</Text>
               </View>
-              <View style={styles.monthlyValueRow}>
-                <Text style={styles.monthlyAmountText}>{wallet.monthlyRevenueFormatted}</Text>
-                {wallet.monthlyTrend ? (
-                  <Text style={styles.monthlyTrendText}>{wallet.monthlyTrend}</Text>
-                ) : null}
-              </View>
+              <Text style={styles.statAmountText}>{wallet.monthlyRevenueFormatted}</Text>
             </View>
           </View>
         </View>
@@ -613,46 +744,26 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
 const styles = StyleSheet.create({
   screenContainer: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: colors.light.background,
   },
   headerBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: 12,
-    backgroundColor: theme.colors.background,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 10,
+    backgroundColor: colors.light.background,
   },
   headerIconButton: {
     width: 38,
     height: 38,
     borderRadius: 12,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.light.card,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.light.borderDefault,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  notifBadge: {
-    position: 'absolute',
-    top: -5,
-    right: -5,
-    backgroundColor: '#EF4444',
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    paddingHorizontal: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: '#FFFFFF',
-  },
-  notifBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: theme.typography.fontWeight.bold,
-    textAlign: 'center',
-    lineHeight: 12,
   },
   headerTitleContainer: {
     flex: 1,
@@ -660,182 +771,262 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 19,
-    fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.text.primary,
+    fontWeight: '700',
+    color: colors.light.textPrimary,
+    letterSpacing: -0.3,
   },
   headerSubtitle: {
-    fontSize: 12.5,
-    color: theme.colors.text.muted,
+    fontSize: 12,
+    color: colors.light.textSecondary,
     marginTop: 2,
   },
+  notifBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: colors.light.error,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.light.white,
+  },
+  notifBadgeText: {
+    color: colors.light.white,
+    fontSize: 10,
+    fontWeight: '700',
+    textAlign: 'center',
+    lineHeight: 12,
+  },
   scrollContent: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingBottom: 36,
+    paddingHorizontal: 20,
+    paddingTop: 4,
   },
   profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.surface,
-    borderRadius: 22,
-    padding: 16,
-    marginTop: 4,
+    backgroundColor: colors.light.card,
+    borderRadius: 16,
+    padding: 14,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
-    ...theme.shadows.card,
+    borderColor: colors.light.borderDefault,
+    marginBottom: 12,
+    shadowColor: colors.light.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   profileAvatar: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: theme.colors.surfaceMuted,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: colors.light.background,
+  },
+  profileAvatarPlaceholder: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.light.borderDefault,
   },
   profileInfo: {
-    marginLeft: 16,
+    marginLeft: 12,
     flex: 1,
   },
-  profileUsername: {
-    fontSize: 18,
-    fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.text.primary,
-  },
-
-  badgesRow: {
+  profileNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 6,
-    flexWrap: 'wrap',
+    justifyContent: 'space-between',
     gap: 8,
   },
-  ratingBadge: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+  profileUsername: {
+    fontSize: 15.5,
+    fontWeight: '700',
+    color: colors.light.textPrimary,
+    flex: 1,
   },
-  ratingText: {
-    color: '#D97706',
-    fontSize: 12,
-    fontWeight: theme.typography.fontWeight.bold,
+  ownerRoleTag: {
+    backgroundColor: colors.light.primaryLight,
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 6,
   },
-  trustBadge: {
+  ownerRoleTagText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.light.primaryDark,
+  },
+  profileMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  trustText: {
-    color: '#059669',
-    fontSize: 12,
-    fontWeight: theme.typography.fontWeight.bold,
-    marginLeft: 4,
-  },
-  topOwnerPill: {
-    backgroundColor: '#E6F7F7',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 10,
-    alignSelf: 'flex-start',
     marginTop: 6,
+    gap: 8,
   },
-  topOwnerText: {
-    color: theme.colors.brand[500],
+  profileMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  profileMetaText: {
+    fontSize: 12.5,
+    color: colors.light.textSecondary,
+    fontWeight: '500',
+  },
+  profileMetaDot: {
+    fontSize: 12,
+    color: colors.light.textMuted,
+  },
+  activityCard: {
+    backgroundColor: colors.light.card,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: colors.light.borderDefault,
+    marginBottom: 14,
+    shadowColor: colors.light.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  activityHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  activityTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.light.textPrimary,
+  },
+  activityViewAllText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: colors.light.primaryDark,
+  },
+  activityStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  activityStatCol: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  activityCount: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.light.textPrimary,
+  },
+  activityCountActive: {
+    color: colors.light.primaryDark,
+  },
+  activityLabel: {
     fontSize: 11.5,
-    fontWeight: theme.typography.fontWeight.bold,
+    color: colors.light.textSecondary,
+    marginTop: 3,
+  },
+  activityDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: colors.light.borderSubtle,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 20,
-    marginBottom: 12,
-  },
-  sectionTitleWithIcon: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  sectionIconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: '#E6F7F7',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 8,
+    marginBottom: 10,
   },
   sectionTitle: {
-    fontSize: 15.5,
-    fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.text.primary,
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.light.textPrimary,
   },
   segmentedContainer: {
     flexDirection: 'row',
     backgroundColor: '#F1F5F9',
-    borderRadius: 16,
+    borderRadius: 10,
     padding: 3,
+    borderWidth: 1,
+    borderColor: colors.light.borderDefault,
   },
   segmentTab: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 13,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 7,
   },
   segmentTabActive: {
-    backgroundColor: '#E6F7F7',
+    backgroundColor: colors.light.primary,
   },
   segmentText: {
-    fontSize: 12.5,
+    fontSize: 12,
+    color: colors.light.textSecondary,
+    fontWeight: '500',
   },
   segmentTextActive: {
-    color: theme.colors.brand[500],
-    fontWeight: theme.typography.fontWeight.bold,
-  },
-  segmentTextInactive: {
-    color: theme.colors.text.muted,
-    fontWeight: theme.typography.fontWeight.medium,
+    color: colors.light.white,
+    fontWeight: '700',
   },
   kpiGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 12,
+    gap: 10,
+    marginBottom: 12,
   },
   kpiCard: {
-    width: (SCREEN_WIDTH - theme.spacing.lg * 2 - 12) / 2,
-    backgroundColor: theme.colors.surface,
-    borderRadius: 20,
-    padding: 16,
+    width: (SCREEN_WIDTH - 40 - 10) / 2,
+    backgroundColor: colors.light.card,
+    borderRadius: 16,
+    padding: 14,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
-    ...theme.shadows.card,
+    borderColor: colors.light.borderDefault,
+    shadowColor: colors.light.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   kpiIconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: colors.light.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
   kpiLabel: {
-    fontSize: 13,
-    color: theme.colors.text.muted,
-    fontWeight: theme.typography.fontWeight.medium,
-    marginTop: 12,
+    fontSize: 12.5,
+    color: colors.light.textSecondary,
+    fontWeight: '500',
+    marginTop: 10,
   },
   kpiValueLarge: {
     fontSize: 20,
-    fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.text.primary,
+    fontWeight: '700',
+    color: colors.light.textPrimary,
     marginTop: 4,
+    letterSpacing: -0.2,
   },
   chartCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: 22,
-    padding: 18,
-    marginTop: 14,
+    backgroundColor: colors.light.card,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
-    ...theme.shadows.card,
+    borderColor: colors.light.borderDefault,
+    shadowColor: colors.light.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   chartHeader: {
     flexDirection: 'row',
@@ -843,46 +1034,66 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 8,
   },
-  chartTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  chartDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: theme.colors.brand[400],
-    marginRight: 8,
-  },
   chartTitleText: {
-    fontSize: 14,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: '#475569',
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: colors.light.textSecondary,
   },
   peakPill: {
-    backgroundColor: '#E6F7F7',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    backgroundColor: colors.light.primaryLight,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
   },
   peakText: {
-    color: theme.colors.brand[500],
+    color: colors.light.primaryDark,
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+  chartEmptyWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 28,
+    paddingHorizontal: 16,
+  },
+  chartEmptyIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  chartEmptyTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.light.textPrimary,
+    marginBottom: 4,
+  },
+  chartEmptySubtitle: {
     fontSize: 12,
-    fontWeight: theme.typography.fontWeight.bold,
+    color: colors.light.textSecondary,
+    textAlign: 'center',
+    lineHeight: 17,
+    maxWidth: 240,
   },
   svgContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 6,
+    marginTop: 4,
   },
   walletCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: 22,
-    padding: 18,
-    marginTop: 14,
+    backgroundColor: colors.light.card,
+    borderRadius: 16,
+    padding: 16,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
-    ...theme.shadows.card,
+    borderColor: colors.light.borderDefault,
+    shadowColor: colors.light.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   walletTopRow: {
     flexDirection: 'row',
@@ -893,35 +1104,35 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   balanceLabel: {
-    fontSize: 13,
-    color: theme.colors.text.muted,
-    fontWeight: theme.typography.fontWeight.medium,
+    fontSize: 12.5,
+    color: colors.light.textSecondary,
+    fontWeight: '500',
   },
   balanceAmount: {
-    fontSize: 23,
-    fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.text.primary,
-    marginTop: 6,
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.light.textPrimary,
+    marginTop: 4,
+    letterSpacing: -0.2,
   },
   withdrawButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0D9488',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 18,
-    ...theme.shadows.card,
+    backgroundColor: colors.light.primary,
+    paddingHorizontal: 15,
+    height: 38,
+    borderRadius: 10,
+    gap: 6,
   },
   withdrawText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: theme.typography.fontWeight.bold,
-    marginLeft: 6,
+    color: colors.light.white,
+    fontSize: 13,
+    fontWeight: '700',
   },
   walletDivider: {
     height: 1,
-    backgroundColor: '#F1F5F9',
-    marginVertical: 16,
+    backgroundColor: colors.light.borderSubtle,
+    marginVertical: 14,
   },
   walletBottomStats: {
     flexDirection: 'row',
@@ -932,52 +1143,24 @@ const styles = StyleSheet.create({
   },
   walletVerticalDivider: {
     width: 1,
-    height: 38,
-    backgroundColor: '#F1F5F9',
-    marginHorizontal: 10,
+    height: 32,
+    backgroundColor: colors.light.borderSubtle,
+    marginHorizontal: 12,
   },
   statLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 5,
   },
   statLabelText: {
-    fontSize: 12.5,
-    color: theme.colors.text.muted,
-    marginLeft: 5,
+    fontSize: 12,
+    color: colors.light.textSecondary,
   },
-  escrowAmountText: {
-    fontSize: 16,
-    fontWeight: theme.typography.fontWeight.bold,
-    color: '#D97706',
-    marginTop: 6,
-  },
-  monthlyValueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 6,
-    flexWrap: 'wrap',
-  },
-  monthlyAmountText: {
+  statAmountText: {
     fontSize: 15,
-    fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.text.primary,
-  },
-  monthlyTrendText: {
-    fontSize: 12.5,
-    fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.brand[500],
-    marginLeft: 4,
-  },
-  notifBadgeDot: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 9,
-    height: 9,
-    borderRadius: 4.5,
-    backgroundColor: '#EF4444',
-    borderWidth: 1.5,
-    borderColor: '#FFFFFF',
+    fontWeight: '700',
+    color: colors.light.textPrimary,
+    marginTop: 4,
   },
 });
 

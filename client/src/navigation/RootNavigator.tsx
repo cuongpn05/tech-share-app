@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, ActivityIndicator, StyleSheet, Alert } from 'react-native';
 import { clearAuth, updateUser } from '../store/slices/authSlice';
-import { clearLocalSession } from '../services/logoutService';
+import { clearLocalSession, closeLogoutModal } from '../services/logoutService';
 import { STRINGS } from '../constants/strings';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -17,6 +17,7 @@ import OwnerDrawerNavigator from './OwnerDrawerNavigator';
 import AdminDrawerNavigator from './AdminDrawerNavigator';
 import { HomeRoute } from './HomeRoute';
 import OwnerMessagesScreen from '../screens/owner/OwnerMessagesScreen';
+import MessagesScreen from '../screens/chat/MessagesScreen';
 import OwnerPendingBookingsScreen from '../screens/owner/OwnerPendingBookingsScreen';
 import ChatDetailScreen from '../screens/chat/ChatDetailScreen';
 import NotificationScreen from '../screens/notification/NotificationScreen';
@@ -33,9 +34,10 @@ import { socketService } from '../services/socketService';
 import { firebaseMessagingService } from '../services/firebaseMessagingService';
 import { notificationService } from '../services/notificationService';
 import { setAuthToken, setAccountLockedHandler } from '../config/api';
+import { ActionResultModal } from '../components/common/ActionFeedbackModals';
 import { navigationRef } from './navigationRef';
 import { theme } from '../theme/tokens';
-import { ScreenType } from '../types';
+import { ChatDetailParams, ScreenType } from '../types';
 
 import { Ionicons } from '@expo/vector-icons';
 import { Text, TouchableOpacity } from 'react-native';
@@ -57,7 +59,8 @@ export type RootStackParamList = {
   EkycVerification: undefined;
   OwnerEkycVerification: undefined;
   OwnerMessages: undefined;
-  ChatDetail: { bookingId?: string; otherBookings?: any[] } | undefined;
+  Messages: undefined;
+  ChatDetail: ChatDetailParams | undefined;
   Notification: undefined;
   BookingCreate: { deviceId: string };
   DeviceDetail: { deviceId: string };
@@ -141,6 +144,32 @@ export function RootNavigator() {
   const dispatch = useAppDispatch();
   const { isAuthenticated, user, token } = useAppSelector((state) => state.auth);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean | null>(null);
+  const [lockedAccountReason, setLockedAccountReason] = useState<string | null>(null);
+  const lockModalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (lockModalTimerRef.current) {
+        clearTimeout(lockModalTimerRef.current);
+      }
+    };
+  }, []);
+
+  const triggerAccountLockedKickOut = useCallback(
+    (rawReason?: string) => {
+      const resolvedReason = (rawReason || '').trim() || STRINGS.AUTH_LOCKED.DEFAULT_REASON;
+      closeLogoutModal();
+      clearLocalSession(dispatch);
+      if (lockModalTimerRef.current) {
+        clearTimeout(lockModalTimerRef.current);
+      }
+      // Chờ stack reset về Home (~150ms) để đóng mọi modal màn hình cũ trước khi hiện thông báo khóa tài khoản
+      lockModalTimerRef.current = setTimeout(() => {
+        setLockedAccountReason(resolvedReason);
+      }, 220);
+    },
+    [dispatch]
+  );
 
   useEffect(() => {
     const checkOnboarding = async () => {
@@ -157,16 +186,12 @@ export function RootNavigator() {
   useEffect(() => {
     setAccountLockedHandler((reason) => {
       console.warn('[RootNavigator] 403 ACCOUNT_LOCKED received. Terminating session...');
-      clearLocalSession(dispatch);
-      Alert.alert(
-        STRINGS.AUTH_LOCKED.ALERT_TITLE,
-        `${STRINGS.AUTH_LOCKED.ALERT_MSG}\n\nReason: ${reason || STRINGS.AUTH_LOCKED.DEFAULT_REASON}`
-      );
+      triggerAccountLockedKickOut(reason);
     });
     return () => {
       setAccountLockedHandler(null);
     };
-  }, [dispatch]);
+  }, [triggerAccountLockedKickOut]);
 
   useEffect(() => {
     if (isAuthenticated && token) {
@@ -179,11 +204,7 @@ export function RootNavigator() {
       // Lắng nghe sự kiện Admin khóa tài khoản (Kick-out real-time)
       const unsubLock = socketService.onAccountLocked((data) => {
         console.warn('[RootNavigator] Account locked by admin! Terminating session...');
-        clearLocalSession(dispatch);
-        Alert.alert(
-          STRINGS.AUTH_LOCKED.ALERT_TITLE,
-          `${STRINGS.AUTH_LOCKED.ALERT_MSG}\n\nReason: ${data.reason || STRINGS.AUTH_LOCKED.DEFAULT_REASON}`
-        );
+        triggerAccountLockedKickOut(data.reason);
       });
 
       // Lắng nghe sự kiện Admin duyệt nâng cấp role (Renter -> Owner)
@@ -289,7 +310,8 @@ export function RootNavigator() {
   };
 
   return (
-    <Stack.Navigator initialRouteName={getInitialRoute()} screenOptions={{ headerShown: false }}>
+    <>
+      <Stack.Navigator initialRouteName={getInitialRoute()} screenOptions={{ headerShown: false }}>
       <Stack.Screen name="DeviceDetail" component={DeviceDetailRoute} />
       <Stack.Screen name="OwnerProfile" component={OwnerProfileRoute} />
       <Stack.Screen name="Wishlist" component={WishlistRoute} />
@@ -323,6 +345,7 @@ export function RootNavigator() {
           {/* Các màn hình chức năng khi đã đăng nhập */}
           <Stack.Screen name="OwnerPendingBookings" component={OwnerPendingBookingsScreen} />
           <Stack.Screen name="OwnerMessages" component={OwnerMessagesScreen} />
+          <Stack.Screen name="Messages" component={MessagesScreen} />
           <Stack.Screen name="ChatDetail" component={ChatDetailScreen} />
           <Stack.Screen name="Notification" component={NotificationScreen} />
           <Stack.Screen name="Profile">
@@ -402,6 +425,7 @@ export function RootNavigator() {
           {/* Các màn hình chức năng khách có thể bấm xem */}
           <Stack.Screen name="OwnerPendingBookings" component={OwnerPendingBookingsScreen} />
           <Stack.Screen name="OwnerMessages" component={OwnerMessagesScreen} />
+          <Stack.Screen name="Messages" component={MessagesScreen} />
           <Stack.Screen name="ChatDetail" component={ChatDetailScreen} />
           <Stack.Screen name="Notification" component={NotificationScreen} />
           <Stack.Screen name="Profile">
@@ -419,7 +443,33 @@ export function RootNavigator() {
           />
         </>
       )}
-    </Stack.Navigator>
+      </Stack.Navigator>
+
+      <ActionResultModal
+        visible={Boolean(lockedAccountReason)}
+        type="locked"
+        title={STRINGS.AUTH_LOCKED.ALERT_TITLE}
+        message={STRINGS.AUTH_LOCKED.ALERT_MSG}
+        summaryItems={
+          lockedAccountReason
+            ? [
+                {
+                  icon: 'alert-circle-outline',
+                  label: STRINGS.AUTH_LOCKED.REASON_LABEL,
+                  value: lockedAccountReason,
+                },
+                {
+                  icon: 'lock-closed-outline',
+                  label: STRINGS.AUTH_LOCKED.STATUS_LABEL,
+                  value: STRINGS.AUTH_LOCKED.STATUS_VALUE,
+                },
+              ]
+            : []
+        }
+        buttonText={STRINGS.AUTH_LOCKED.ACK_BTN}
+        onClose={() => setLockedAccountReason(null)}
+      />
+    </>
   );
 }
 

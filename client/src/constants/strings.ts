@@ -1042,6 +1042,7 @@ export const STRINGS = {
     RETURN_CONDITION_NOTES: 'Return condition notes:',
     UPDATE_RETAKE_RETURN_PHOTOS: 'Update / Retake return photos',
     NO_RETURN_PHOTOS_TITLE: 'No return inspection photos yet',
+    RETURN_PHOTOS_REQUIRED: 'Take and upload all 4 return photos to enable completion.',
     NO_RETURN_PHOTOS_ACTIVE_DESC: 'Capture 4 angles of the returned device to cross-check condition before completing the rental.',
     NO_RETURN_PHOTOS_COMPLETED_DESC: 'No return inspection photos were recorded for this order.',
     TAKE_RETURN_PHOTOS_CTA: 'Take Return Photos (4 angles)',
@@ -1288,6 +1289,10 @@ export const STRINGS = {
   AUTH_VERIFY_ALERT: {
     TITLE: 'Identity Verification Required (eKYC)',
     MSG: 'You must complete Identity Verification (eKYC) before renting devices.',
+    DEVICE_LABEL: 'Device',
+    REQUIREMENT_LABEL: 'Requirement',
+    REQUIREMENT_VALUE: 'Identity Verification (eKYC)',
+    NOTICE: 'Complete a quick ID verification so your rental booking can be submitted.',
     LATER: 'Later',
     VERIFY_NOW: 'Verify Now',
   },
@@ -2000,7 +2005,10 @@ export const STRINGS = {
     GUEST_DESC:
       'You are browsing TechShare as a Guest. Log in to unlock full features, book devices, and manage your rentals.',
     LOGIN_SIGNUP_BUTTON: 'Log In / Sign Up',
-    REVIEWS_COUNT: (count: number) => `(${count} reviews)`,
+    REVIEWS_COUNT: (count: number) => `(${count} ${count === 1 ? 'review' : 'reviews'})`,
+    NO_RATING_YET: 'No rating yet',
+    TRUST_SCORE_LABEL: 'Trust Score',
+    NO_TRUST_SCORE_YET: 'No trust score yet',
 
     // Contact Information
     CONTACT_SECTION_TITLE: 'Contact Information',
@@ -2032,14 +2040,6 @@ export const STRINGS = {
     OWNER_EKYC_DESC_APPROVED:
       'Your account has been verified and upgraded to Device Owner.',
 
-    // Referral Code
-    REFERRAL_SECTION_TITLE: 'Referral Code',
-    NO_REFERRAL_CODE: 'None',
-    COPY_BUTTON: 'Copy',
-    REFERRAL_COPIED_ALERT_TITLE: 'Referral Code',
-    REFERRAL_COPIED_ALERT_MSG: (code: string) => `Referral code copied: ${code}`,
-    REFERRAL_NONE_ALERT_MSG: 'No referral code available for this account.',
-
     // Wishlist
     WISHLIST_BUTTON: 'Wishlist',
 
@@ -2053,6 +2053,9 @@ export const STRINGS = {
     ADDRESS_REQUIRED_TITLE: 'Address Required',
     ADDRESS_REQUIRED_MSG:
       'You need to update your contact address in your profile before proceeding with identity verification (eKYC).',
+    ADDRESS_REQUIRED_SUMMARY_LABEL: 'Requirement',
+    ADDRESS_REQUIRED_SUMMARY_VALUE: 'Profile Contact Address',
+    ADDRESS_REQUIRED_NOTICE: 'Update your address in your profile to continue eKYC verification.',
     LATER: 'Later',
     UPDATE_NOW: 'Update Now',
 
@@ -2063,8 +2066,19 @@ export const STRINGS = {
     PHONE_PLACEHOLDER: 'Enter phone number...',
     EMAIL_PLACEHOLDER: 'Enter email address...',
     ADDRESS_PLACEHOLDER: 'Enter your address...',
-    AVATAR_LABEL: 'Avatar URL',
+    AVATAR_LABEL: 'Profile Photo',
     AVATAR_PLACEHOLDER: 'https://...',
+    AVATAR_CHANGE_BTN: 'Change Photo',
+    AVATAR_PICKER_TITLE: 'Update Profile Photo',
+    AVATAR_PICKER_DESC: 'Take a new photo or choose one from your device gallery.',
+    AVATAR_UPLOAD_SUCCESS_TITLE: 'Avatar Updated',
+    AVATAR_UPLOAD_SUCCESS_MSG: 'Your profile photo has been uploaded and updated.',
+    AVATAR_UPLOAD_ERROR_TITLE: 'Upload Failed',
+    AVATAR_UPLOAD_ERROR_MSG: 'Unable to upload profile photo. Please try again.',
+    AVATAR_SUMMARY_ITEM: 'Updated Item',
+    AVATAR_SUMMARY_VALUE: 'Profile Photo',
+    AVATAR_SUMMARY_STATUS: 'Status',
+    AVATAR_SUMMARY_STATUS_VALUE: 'Saved to Profile',
     SAVE_CHANGES_BUTTON: 'Save Changes',
 
     // Alerts
@@ -2074,6 +2088,10 @@ export const STRINGS = {
     ALERT_SUCCESS_MSG: 'Profile updated successfully.',
     ALERT_ERROR_TITLE: 'Error',
     ALERT_SAVE_ERROR_DEFAULT: 'Unable to save changes.',
+    SAVE_SUMMARY_NAME: 'Full Name',
+    SAVE_SUMMARY_PHONE: 'Phone Number',
+    SAVE_SUMMARY_ADDRESS: 'Contact Address',
+    SAVE_DONE_BTN: 'Done',
   },
 
   EKYC: {
@@ -2141,7 +2159,9 @@ export const STRINGS = {
     PICK_IMAGE_FRONT_DESC: 'Please provide a clear photo of the front side',
     PICK_IMAGE_BACK_DESC: 'Please provide a clear photo of the back side',
     TAKE_PHOTO: 'Take New Photo',
+    TAKE_PHOTO_DESC: 'Capture directly using your camera',
     CHOOSE_FROM_GALLERY: 'Choose from Gallery',
+    CHOOSE_FROM_GALLERY_DESC: 'Pick an existing photo from your library',
 
     // Permissions & Errors
     PERMISSION_TITLE: 'Permission Required',
@@ -2178,9 +2198,21 @@ export const STRINGS = {
       'Unable to upload the front ID photo. Please check your internet connection and try again.',
     UPLOAD_BACK_ERROR:
       'Unable to upload the back ID photo. Please check your internet connection and try again.',
-    SUBMIT_SUCCESS_TITLE: 'Submitted Successfully! 🎉',
+    CONFIRM_SUBMIT_TITLE: 'Confirm eKYC Submission',
+    CONFIRM_SUBMIT_MSG:
+      'Please verify your National ID details before submitting for manual review.',
+    CONFIRM_SUBMIT_NOTICE:
+      'Your ID documents are securely encrypted and reviewed by TechShare administrators.',
+    CONFIRM_SUBMIT_BTN: 'Confirm & Submit',
+    SUMMARY_APPLICANT_LABEL: 'Applicant',
+    SUMMARY_ID_NUMBER_LABEL: 'National ID (CCCD)',
+    SUMMARY_TYPE_LABEL: 'Verification Type',
+    SUMMARY_TYPE_RENTER: 'Renter Identity (2-Sided CCCD)',
+    SUMMARY_STATUS_LABEL: 'Status',
+    SUMMARY_STATUS_PENDING: 'Pending Admin Review',
+    SUBMIT_SUCCESS_TITLE: 'eKYC Application Submitted!',
     SUBMIT_SUCCESS_MSG:
-      'Your identity verification (eKYC) request has been submitted. Our administrators will review and approve your submission shortly.',
+      'Your identity verification (eKYC) request has been submitted. Administrators will review and update your status shortly.',
     SUBMIT_SUCCESS_ACK: 'Got it',
     SUBMIT_FAIL_TITLE: 'Submission Failed',
     DEFAULT_ERROR: 'Please try again later.',
@@ -2233,9 +2265,18 @@ export const STRINGS = {
       'Unable to upload the portrait photo holding CCCD. Please check your internet connection and try again.',
     SUBMIT_BUTTON_NEW: 'Submit Owner Upgrade eKYC',
     SUBMIT_BUTTON_RESUBMIT: 'Resubmit Owner Upgrade eKYC',
-    SUBMIT_SUCCESS_TITLE: 'Owner eKYC Submitted! 🎉',
+    CONFIRM_SUBMIT_TITLE: 'Confirm Owner Upgrade eKYC',
+    CONFIRM_SUBMIT_MSG:
+      'Please verify your CCCD details, 2-sided ID photos, and portrait holding CCCD before submitting.',
+    CONFIRM_SUBMIT_NOTICE:
+      'Once approved by administrators, your account will be upgraded from Renter to Owner.',
+    CONFIRM_SUBMIT_BTN: 'Confirm & Submit',
+    SUMMARY_TYPE_OWNER: 'Owner Upgrade (CCCD + Portrait w/ ID)',
+    SUMMARY_UPGRADE_LABEL: 'Account Upgrade',
+    SUMMARY_UPGRADE_VALUE: 'Verified Renter → Owner',
+    SUBMIT_SUCCESS_TITLE: 'Owner Upgrade Submitted!',
     SUBMIT_SUCCESS_MSG:
-      'Your Owner upgrade eKYC request has been saved and sent to administrators for review. You will be notified once your account is upgraded to Owner.',
+      'Your Owner upgrade eKYC request has been saved and sent to administrators for review. You will be notified once upgraded.',
     SUBMIT_SUCCESS_ACK: 'Got it',
     SUBMIT_FAIL_TITLE: 'Submission Failed',
     VERIFICATION_ERROR_TITLE: 'Verification Error',
@@ -2279,6 +2320,7 @@ export const STRINGS = {
       FRONT_PHOTO: 'Front Side',
       BACK_PHOTO: 'Back Side',
       SELFIE_WITH_ID_PHOTO: 'Portrait Holding CCCD',
+      SELFIE_WITH_ID_HINT: 'Tap to inspect full photo',
       REJECT_REASON_PREFIX: (reason: string) => `Rejection reason: ${reason}`,
       IMAGE_TITLE: (side: string, name: string) => `${side} - ${name}`,
     },
@@ -2293,19 +2335,36 @@ export const STRINGS = {
       OWNER_UPGRADED_NOTICE: 'Upgraded to Owner',
     },
     ALERTS: {
-      CONFIRM_APPROVE_TITLE: 'Confirm Approval',
+      CONFIRM_APPROVE_TITLE: 'Confirm Renter eKYC Approval',
       CONFIRM_APPROVE_MSG: (name: string, idNum: string) =>
-        `Are you sure you want to approve the eKYC verification for "${name}" (ID: ${idNum})?`,
+        `Approve identity verification for "${name}" (ID: ${idNum})? The user will receive a Verified badge and rental eligibility.`,
+      CONFIRM_APPROVE_NOTICE:
+        'Please make sure the CCCD number matches both uploaded ID photos.',
       CONFIRM_APPROVE_OWNER_TITLE: 'Approve Upgrade to Owner',
       CONFIRM_APPROVE_OWNER_MSG: (name: string, idNum: string) =>
-        `Are you sure you want to approve Owner eKYC for "${name}" (ID: ${idNum}) and upgrade their account role from Renter to Owner?`,
-      APPROVE_SUCCESS_TITLE: 'Approved 🎉',
-      APPROVE_SUCCESS_MSG: 'eKYC verification has been approved successfully.',
+        `Approve Owner eKYC for "${name}" (ID: ${idNum}) and upgrade their account role from Renter to Owner?`,
+      CONFIRM_APPROVE_OWNER_NOTICE:
+        'Approving will immediately grant Owner privileges to list devices on TechShare.',
+      SUMMARY_APPLICANT: 'Applicant',
+      SUMMARY_EMAIL: 'Email',
+      SUMMARY_ID_NUMBER: 'National ID (CCCD)',
+      SUMMARY_RESULT: 'Action',
+      SUMMARY_RESULT_RENTER: 'Verify Renter Identity',
+      SUMMARY_RESULT_OWNER: 'Upgrade Role: Renter → Owner',
+      SUMMARY_STATUS_VERIFIED: 'Verified Renter',
+      SUMMARY_STATUS_OWNER: 'Owner (Verified)',
+      SUMMARY_STATUS_REJECTED: 'Rejected',
+      APPROVE_SUCCESS_TITLE: 'Renter eKYC Approved',
+      APPROVE_SUCCESS_MSG: 'Renter identity verification has been approved successfully.',
+      APPROVE_OWNER_SUCCESS_TITLE: 'Upgraded to Owner',
       APPROVE_OWNER_SUCCESS_MSG:
         'Owner eKYC approved! The renter has been upgraded to Owner.',
-      REJECT_SUCCESS_TITLE: 'Rejected',
-      REJECT_SUCCESS_MSG: 'eKYC verification request has been rejected.',
-      REJECT_OWNER_SUCCESS_MSG: 'Owner upgrade eKYC request has been rejected.',
+      REJECT_SUCCESS_TITLE: 'eKYC Request Rejected',
+      REJECT_SUCCESS_MSG: 'eKYC verification request has been rejected and the user has been notified.',
+      REJECT_OWNER_SUCCESS_TITLE: 'Owner Upgrade Rejected',
+      REJECT_OWNER_SUCCESS_MSG:
+        'Owner upgrade eKYC request has been rejected and the user has been notified.',
+      DONE_BTN: 'Done',
       CANCEL: 'Cancel',
       REASON_REQUIRED_TITLE: 'Notice',
       REASON_REQUIRED_MSG: 'Please select or enter a rejection reason.',
@@ -2400,6 +2459,11 @@ export const STRINGS = {
       MSG: (name: string) => `Are you sure you want to unlock account "${name}"? The user will be able to log in again.`,
       CANCEL: 'Cancel',
       CONFIRM: 'Unlock Account',
+      NOTICE: 'The user will immediately regain login and rental access.',
+      SUMMARY_MEMBER: 'Member',
+      SUMMARY_EMAIL: 'Email',
+      SUMMARY_ACTION: 'Action',
+      SUMMARY_ACTION_VALUE: 'Unlock & Restore Active Status',
     },
     ALERTS: {
       LOCK_SUCCESS_TITLE: 'Account Locked',
@@ -2413,6 +2477,12 @@ export const STRINGS = {
       ACTION_ERROR: 'Unable to update account status. Please try again.',
       NETWORK_ERROR: 'Network error. Please check your connection.',
       RETRY: 'Retry',
+      SUMMARY_MEMBER: 'Member',
+      SUMMARY_REASON: 'Lock Reason',
+      SUMMARY_STATUS: 'Account Status',
+      SUMMARY_STATUS_LOCKED: 'Locked',
+      SUMMARY_STATUS_ACTIVE: 'Active',
+      DONE_BTN: 'Done',
     },
     EMPTY_STATES: {
       TITLE: 'No members found',
@@ -2422,8 +2492,13 @@ export const STRINGS = {
     },
   },
   AUTH_LOCKED: {
-    ALERT_TITLE: 'Account Locked ⚠️',
+    ALERT_TITLE: 'Account Locked',
     ALERT_MSG: 'Your account has been locked by an administrator.',
+    LOGIN_LOCKED_MSG: 'Unable to sign in because your account has been locked by an administrator.',
     DEFAULT_REASON: 'Violation of platform policies.',
+    REASON_LABEL: 'Lock Reason',
+    STATUS_LABEL: 'Account Status',
+    STATUS_VALUE: 'Locked',
+    ACK_BTN: 'Understood',
   },
 } as const;

@@ -251,16 +251,7 @@ const verifyRegisterOtp = async (req, res) => {
       lastLogin   : new Date(),
     });
 
-    // ── Bước 6: Sinh mã giới thiệu (referral code) ───────
-    // Định dạng: TS + 6 ký tự đầu username (viết hoa) + 4 số ngẫu nhiên
-    const cleanPrefix  = registrationData.username
-      .toUpperCase()
-      .replace(/[^A-Z0-9]/g, '')
-      .slice(0, 6);
-    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-    const referralCode = `TS${cleanPrefix}${randomSuffix}`;
-
-    // ── Bước 7: Tạo User profile trong collection 'users' ─
+    // ── Bước 6: Tạo User profile trong collection 'users' ─
     // Dữ liệu mặc định ban đầu, user sẽ tự cập nhật trong phần Profile
     const newUser = await User.create({
       accountId : newAccount._id,
@@ -288,11 +279,8 @@ const verifyRegisterOtp = async (req, res) => {
         coordinates: [105.7826, 21.0285],  // Mặc định Hà Nội, Việt Nam
       },
       wishlist    : [],
-      referralCode,
-      referredBy  : null,
       rating      : 5.0,
       totalReviews: 0,
-      isActive    : true,
     });
 
     // ── Bước 8: Xoá document OTP đã sử dụng ──────────────
@@ -326,6 +314,9 @@ const verifyRegisterOtp = async (req, res) => {
         phone             : newUser.phone,
         address           : newUser.address,
         isVerified        : newUser.isVerified,
+        rating            : newUser.rating,
+        totalReviews      : newUser.totalReviews,
+        trust             : newUser.trust,
         trustScore        : newUser.trustScore,
         walletBalance     : newUser.walletBalance,
         walletEscrowBalance: newUser.walletEscrowBalance,

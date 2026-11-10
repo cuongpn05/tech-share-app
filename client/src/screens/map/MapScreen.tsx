@@ -122,7 +122,7 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
       })
       .catch(() => {
         if (!active) return;
-        setOwnerError('Không thể tải danh sách chủ sở hữu trên bản đồ. Vui lòng thử lại.');
+        setOwnerError('Unable to load device owners on map. Please try again.');
       })
       .finally(() => {
         if (active) setLoadingOwners(false);
@@ -135,7 +135,7 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
   useEffect(() => {
     if (mapReady || mapError) return;
     const timeout = setTimeout(() => {
-      setMapError('Bản đồ phản hồi quá lâu. Vui lòng kiểm tra kết nối mạng và thử lại.');
+      setMapError('Map took too long to respond. Please check your network and try again.');
     }, 25000);
     return () => clearTimeout(timeout);
   }, [mapReady, mapError, mapReload]);
@@ -266,8 +266,8 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
     <View style={[styles.root, { paddingTop: insets.top }]}>
       {/* Tiêu đề & Subtitle */}
       <View style={styles.header}>
-        <Text style={styles.title}>Vị trí chủ thiết bị</Text>
-        <Text style={styles.body}>Chạm vào chủ sở hữu trên bản đồ để xem các thiết bị cho thuê</Text>
+        <Text style={styles.title}>Device Owners Map</Text>
+        <Text style={styles.body}>Tap on an owner marker on the map to view their rental devices</Text>
       </View>
 
       {/* Thanh lọc Category */}
@@ -281,7 +281,7 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
 
       {categoryError ? (
         <TouchableOpacity style={styles.notice} onPress={() => setCategoryRetry(value => value + 1)}>
-          <Text style={styles.error}>Không thể tải danh mục. Nhấn để thử lại.</Text>
+          <Text style={styles.error}>Unable to load categories. Tap to retry.</Text>
         </TouchableOpacity>
       ) : null}
 
@@ -290,7 +290,7 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
         <View style={styles.locationBannerLoading}>
           <View style={styles.row}>
             <ActivityIndicator size="small" color={colors.light.primaryDark} />
-            <Text style={styles.body}>Đang xác định vị trí của bạn qua GPS...</Text>
+            <Text style={styles.body}>Determining your GPS location...</Text>
           </View>
         </View>
       ) : location.error && !userGps ? (
@@ -304,19 +304,19 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
               style={styles.actionBtnSmall}
               onPress={() => void location.refresh(true)}
               accessibilityRole="button"
-              accessibilityLabel="Thử lại GPS"
+              accessibilityLabel="Retry GPS"
             >
               <Ionicons name="refresh" size={13} color={colors.light.primaryDark} />
-              <Text style={styles.link}>Thử lại GPS</Text>
+              <Text style={styles.link}>Retry GPS</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.actionBtnSmall}
-              onPress={() => void Linking.openSettings().catch(() => setOwnerError('Không thể mở cài đặt.'))}
+              onPress={() => void Linking.openSettings().catch(() => setOwnerError('Unable to open settings.'))}
               accessibilityRole="button"
-              accessibilityLabel="Mở cài đặt vị trí"
+              accessibilityLabel="Open Location Settings"
             >
               <Ionicons name="settings-outline" size={13} color={colors.light.primaryDark} />
-              <Text style={styles.link}>Mở cài đặt</Text>
+              <Text style={styles.link}>Open Settings</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -331,19 +331,19 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
         {loadingOwners ? (
           <View style={styles.row}>
             <ActivityIndicator size="small" color={colors.light.primaryDark} />
-            <Text style={styles.body}>Đang tìm các chủ thiết bị trong khu vực...</Text>
+            <Text style={styles.body}>Searching for device owners in this area...</Text>
           </View>
         ) : ownerError ? (
           <TouchableOpacity onPress={() => setOwnerRetry(value => value + 1)}>
-            <Text style={styles.error}>{ownerError} Nhấn để thử lại.</Text>
+            <Text style={styles.error}>{ownerError} Tap to retry.</Text>
           </TouchableOpacity>
         ) : (
           <Text style={styles.body}>
             {searchCoordinate
               ? (markers.length > 0
-                ? `Tìm thấy ${markers.length} chủ thiết bị xung quanh khu vực này (bán kính 50 km)`
-                : `Không có chủ thiết bị nào ${category !== 'all' ? `thuộc danh mục "${category}" ` : ''}trong bán kính 50 km quanh đây.`)
-              : 'Đang đợi vị trí GPS để tìm thiết bị lân cận...'}
+                ? `Found ${markers.length} device owner${markers.length === 1 ? '' : 's'} in this area (within 50 km)`
+                : `No device owners found ${category !== 'all' ? `in category "${category}" ` : ''}within 50 km.`)
+              : 'Waiting for GPS location to find nearby devices...'}
           </Text>
         )}
       </View>
@@ -364,9 +364,9 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
           setSupportMultipleWindows={false}
           geolocationEnabled={false}
           onMessage={handleMapMessage}
-          onError={() => setMapError('Không thể tải bản đồ Google. Vui lòng kiểm tra mạng và thử lại.')}
-          onRenderProcessGone={() => setMapError('Bộ xử lý bản đồ đã dừng. Vui lòng tải lại.')}
-          onContentProcessDidTerminate={() => setMapError('Bộ xử lý bản đồ đã dừng. Vui lòng tải lại.')}
+          onError={() => setMapError('Unable to load Google Maps. Please check your network and try again.')}
+          onRenderProcessGone={() => setMapError('Map renderer terminated. Please reload.')}
+          onContentProcessDidTerminate={() => setMapError('Map renderer terminated. Please reload.')}
         />
 
         {/* Nút tìm kiếm tại khu vực này (Hiện khi người dùng kéo bản đồ đi xa khỏi vị trí ban đầu) */}
@@ -376,10 +376,10 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
             onPress={handleSearchThisArea}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel="Tìm thiết bị ở khu vực này"
+            accessibilityLabel="Search devices in this area"
           >
             <Ionicons name="search" size={15} color={colors.light.primaryDark} />
-            <Text style={styles.searchAreaBtnText}>Tìm ở khu vực này</Text>
+            <Text style={styles.searchAreaBtnText}>Search this area</Text>
           </TouchableOpacity>
         ) : null}
 
@@ -390,13 +390,13 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
                 <Ionicons name="alert-circle-outline" size={44} color={colors.light.error} />
                 <Text style={styles.errorCenter}>{mapError}</Text>
                 <TouchableOpacity style={styles.button} onPress={reloadMap}>
-                  <Text style={styles.buttonText}>Tải lại bản đồ</Text>
+                  <Text style={styles.buttonText}>Reload Map</Text>
                 </TouchableOpacity>
               </>
             ) : (
               <>
                 <ActivityIndicator size="large" color={colors.light.primaryDark} />
-                <Text style={styles.body}>Đang tải bản đồ...</Text>
+                <Text style={styles.body}>Loading map...</Text>
               </>
             )}
           </View>
@@ -407,7 +407,7 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
           style={styles.locate}
           onPress={focusMyLocation}
           accessibilityRole="button"
-          accessibilityLabel="Vị trí của tôi"
+          accessibilityLabel="My Location"
         >
           <Ionicons
             name={userGps ? "navigate" : "locate"}
@@ -443,7 +443,7 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
                   ) : null}
                   <Text style={styles.ownerDistanceText} numberOfLines={1}>
                     {typeof selectedOwner.distanceMeters === 'number'
-                      ? `Cách ${(selectedOwner.distanceMeters / 1000).toFixed(1)} km`
+                      ? `${(selectedOwner.distanceMeters / 1000).toFixed(1)} km away`
                       : ''}
                     {selectedOwner.address ? ` · ${selectedOwner.address}` : ''}
                   </Text>
@@ -458,9 +458,9 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
                   style={styles.viewProfileBtn}
                   onPress={() => onNavigateToOwnerProfile(selectedOwner.id || selectedOwner._id)}
                   accessibilityRole="button"
-                  accessibilityLabel="Xem hồ sơ chủ sở hữu"
+                  accessibilityLabel="View owner profile"
                 >
-                  <Text style={styles.viewProfileBtnText}>Hồ sơ</Text>
+                  <Text style={styles.viewProfileBtnText}>Profile</Text>
                   <Ionicons name="chevron-forward" size={12} color={colors.light.primaryDark} />
                 </TouchableOpacity>
               ) : null}
@@ -469,7 +469,7 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
               <TouchableOpacity
                 style={styles.closeBtn}
                 onPress={() => setSelectedOwnerId(null)}
-                accessibilityLabel="Đóng thông tin chủ sở hữu"
+                accessibilityLabel="Close owner details"
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
                 <Ionicons name="close" size={18} color={colors.light.textSecondary} />
@@ -481,11 +481,11 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
           <View style={styles.devicesHeaderRow}>
             <View style={styles.devicesTitleGroup}>
               <Text style={styles.devicesSectionTitle}>
-                Thiết bị cho thuê ({filteredOwnerDevices.length})
+                Available Devices ({filteredOwnerDevices.length})
               </Text>
               {category !== 'all' ? (
                 <View style={styles.categoryBadge}>
-                  <Text style={styles.categoryBadgeText}>Lọc: {category}</Text>
+                  <Text style={styles.categoryBadgeText}>Filter: {category}</Text>
                 </View>
               ) : null}
             </View>
@@ -495,9 +495,9 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
               style={styles.toggleCollapseBtn}
               onPress={() => setIsCollapsed(!isCollapsed)}
               accessibilityRole="button"
-              accessibilityLabel={isCollapsed ? 'Mở rộng danh sách thiết bị' : 'Thu gọn danh sách thiết bị'}
+              accessibilityLabel={isCollapsed ? 'Expand device list' : 'Collapse device list'}
             >
-              <Text style={styles.toggleCollapseText}>{isCollapsed ? 'Mở rộng' : 'Thu gọn'}</Text>
+              <Text style={styles.toggleCollapseText}>{isCollapsed ? 'Expand' : 'Collapse'}</Text>
               <Ionicons
                 name={isCollapsed ? 'chevron-down' : 'chevron-up'}
                 size={15}
@@ -513,7 +513,7 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
                 <View style={styles.emptyDevicesBox}>
                   <Ionicons name="cube-outline" size={32} color={colors.light.textMuted} />
                   <Text style={styles.emptyDevicesText}>
-                    Chủ sở hữu này không có thiết bị thuộc danh mục "{category}".
+                    This owner has no devices in category "{category}".
                   </Text>
                 </View>
               ) : (
@@ -541,11 +541,11 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
                         <View style={styles.deviceItemInfo}>
                           <View style={styles.rowBetween}>
                             <Text style={styles.deviceItemCategory}>
-                              {device.category?.toUpperCase() || 'THIẾT BỊ'}
+                              {device.category?.toUpperCase() || 'DEVICE'}
                             </Text>
                             <View style={[styles.statusPill, isAvailable ? styles.statusAvailable : styles.statusOther]}>
                               <Text style={[styles.statusPillText, isAvailable ? styles.statusAvailableText : styles.statusOtherText]}>
-                                {isAvailable ? 'Sẵn sàng' : (device.status || 'Đang bận')}
+                                {isAvailable ? 'Available' : (device.status || 'Unavailable')}
                               </Text>
                             </View>
                           </View>
@@ -558,9 +558,9 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
                           <View style={styles.deviceLocationRow}>
                             <Ionicons name="location-outline" size={12} color={colors.light.primaryDark} />
                             <Text style={styles.deviceLocationText} numberOfLines={1}>
-                              {device.location?.addressText || device.addressText || selectedOwner.address || 'Việt Nam'}
+                              {device.location?.addressText || device.addressText || selectedOwner.address || 'Vietnam'}
                               {typeof device.distanceMeters === 'number'
-                                ? ` · Cách ${(device.distanceMeters / 1000).toFixed(1)} km`
+                                ? ` · ${(device.distanceMeters / 1000).toFixed(1)} km away`
                                 : ''}
                             </Text>
                           </View>
@@ -568,8 +568,8 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
                           <View style={styles.deviceItemFooter}>
                             <Text style={styles.deviceItemPrice}>
                               {typeof rate === 'number' && Number.isFinite(rate)
-                                ? `${rate.toLocaleString('vi-VN')} đ/ngày`
-                                : 'Liên hệ'}
+                                ? `${rate.toLocaleString('en-US')} VND/day`
+                                : 'Contact'}
                             </Text>
                             <View style={styles.deviceActionsRow}>
                               <TouchableOpacity
@@ -579,13 +579,13 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
                                   focusOnDevice(device);
                                 }}
                                 accessibilityRole="button"
-                                accessibilityLabel="Xem vị trí thiết bị trên bản đồ"
+                                accessibilityLabel="Focus device on map"
                               >
                                 <Ionicons name="map-outline" size={11} color={colors.light.primaryDark} />
-                                <Text style={styles.focusDevicePillText}>Vị trí</Text>
+                                <Text style={styles.focusDevicePillText}>Locate</Text>
                               </TouchableOpacity>
                               <View style={styles.viewDetailPill}>
-                                <Text style={styles.viewDetailPillText}>Xem chi tiết</Text>
+                                <Text style={styles.viewDetailPillText}>Details</Text>
                                 <Ionicons name="arrow-forward" size={12} color={colors.light.primaryDark} />
                               </View>
                             </View>

@@ -44,14 +44,8 @@ const userSchema = new mongoose.Schema({
   },
   wishlist: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Device' }],
 
-  referralCode: { type: String, unique: true, sparse: true },
-  referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
-
   rating: { type: Number, default: 5.0, min: 1.0, max: 5.0 },
   totalReviews: { type: Number, default: 0 },
-  isActive: { type: Boolean, default: true },
-  lockReason: { type: String, default: '' },
-  lockedAt: { type: Date, default: null },
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
