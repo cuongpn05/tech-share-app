@@ -689,6 +689,12 @@ exports.updateBookingStatus = async (req, res) => {
       }
     } else if (status === 'completed') {
       booking.paymentStatus = 'refunded';
+      if (devId) {
+        await Device.findByIdAndUpdate(devId, {
+          status: 'available',
+          $inc: { 'stats.rentalCount': 1 },
+        }).catch(() => {});
+      }
     }
 
     let actionText = 'Chủ máy cập nhật trạng thái đơn thuê';
@@ -712,10 +718,7 @@ exports.updateBookingStatus = async (req, res) => {
     await booking.save();
 
     if (status === 'completed' && devId) {
-      await Device.findByIdAndUpdate(devId, {
-        $set: { status: 'available' },
-        $inc: { 'stats.rentalCount': 1 },
-      }).catch(() => {});
+      await Device.findByIdAndUpdate(devId, { status: 'available' }).catch(() => {});
     }
 
     // Bắn thông báo tự động cho người thuê
@@ -725,51 +728,55 @@ exports.updateBookingStatus = async (req, res) => {
       if (status === 'approved') {
         await createAndSendNotification({
           userId: renterIdVal,
-          title: 'Rental Request Approved! 🎉',
-          body: `Owner ${ownerUser.name || 'Owner'} approved rental request for "${deviceName}" (#${booking.bookingCode}). Please prepare for handover.`,
+          title: 'Booking Request Approved! 🎉',
+          body: `Owner ${ownerUser.name || 'Owner'} approved your booking for "${deviceName}" (#${booking.bookingCode}). Please prepare for device handover.`,
           type: 'order',
           relatedId: booking._id,
           data: {
             bookingId: booking._id.toString(),
             status: 'approved',
+            bookingCode: booking.bookingCode,
           },
-        }).catch((err) => console.error('❌ Notification error on approval:', err.message));
+        }).catch((err) => console.error('❌ Error sending approval notification to renter:', err.message));
       } else if (status === 'rejected' || status === 'cancelled') {
         await createAndSendNotification({
           userId: renterIdVal,
-          title: 'Rental Request Declined ❌',
-          body: `Owner declined rental request for "${deviceName}" (#${booking.bookingCode}). Reason: ${reason || 'Owner unavailable during this period'}.`,
+          title: 'Booking Request Declined ❌',
+          body: `The owner was unable to accept your rental request for "${deviceName}" (#${booking.bookingCode}). Reason: ${reason || 'Owner unavailable during requested dates'}.`,
           type: 'order',
           relatedId: booking._id,
           data: {
             bookingId: booking._id.toString(),
             status: 'rejected',
+            bookingCode: booking.bookingCode,
           },
-        }).catch((err) => console.error('❌ Notification error on decline:', err.message));
+        }).catch((err) => console.error('❌ Error sending decline notification to renter:', err.message));
       } else if (status === 'active') {
         await createAndSendNotification({
           userId: renterIdVal,
           title: 'Device Handover Completed! 📱',
-          body: `Rental for "${deviceName}" (#${booking.bookingCode}) is now active. Enjoy your rental experience!`,
+          body: `Rental period for "${deviceName}" (#${booking.bookingCode}) has officially started. Enjoy your device!`,
           type: 'order',
           relatedId: booking._id,
           data: {
             bookingId: booking._id.toString(),
             status: 'active',
+            bookingCode: booking.bookingCode,
           },
-        }).catch((err) => console.error('❌ Notification error on handover:', err.message));
+        }).catch((err) => console.error('❌ Error sending handover notification to renter:', err.message));
       } else if (status === 'completed') {
         await createAndSendNotification({
           userId: renterIdVal,
           title: 'Rental Completed! 🎉',
-          body: `The owner confirmed receipt of "${deviceName}" (#${booking.bookingCode}). Please leave a review of your experience!`,
+          body: `The owner confirmed the return of "${deviceName}" (#${booking.bookingCode}). Your deposit has been released. Please leave a review!`,
           type: 'order',
           relatedId: booking._id,
           data: {
             bookingId: booking._id.toString(),
             status: 'completed',
+            bookingCode: booking.bookingCode,
           },
-        }).catch((err) => console.error('❌ Notification error on complete:', err.message));
+        }).catch((err) => console.error('❌ Error sending completion notification to renter:', err.message));
       }
     }
 

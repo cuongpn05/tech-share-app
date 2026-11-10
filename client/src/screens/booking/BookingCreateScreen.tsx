@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   StatusBar,
   ScrollView,
-  Alert,
   Modal,
   TextInput,
   Platform,
@@ -51,7 +50,7 @@ const formatTimeOnly = (d: Date) => {
 };
 
 const getDayOfWeekName = (d: Date) => {
-  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   return days[d.getDay()];
 };
 
@@ -85,6 +84,7 @@ export function BookingCreateScreen({
 
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
+  const [orderNote, setOrderNote] = useState('');
   const [busyRanges, setBusyRanges] = useState<
     { _id: string; startDate: string; endDate: string; status: string; bookingCode?: string }[]
   >([]);
@@ -106,9 +106,12 @@ export function BookingCreateScreen({
   const [verifyModalVisible, setVerifyModalVisible] = useState(false);
   const [resultModal, setResultModal] = useState<{
     visible: boolean;
-    type: 'success' | 'error';
+    type: 'success' | 'error' | 'warning' | 'info';
     title: string;
     message: string;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirmAction?: () => void;
   }>({
     visible: false,
     type: 'error',
@@ -117,11 +120,14 @@ export function BookingCreateScreen({
   });
 
   const showBookingResult = (
-    type: 'success' | 'error',
+    type: 'success' | 'error' | 'warning' | 'info',
     title: string,
-    message: string
+    message: string,
+    confirmText = 'OK',
+    cancelText?: string,
+    onConfirmAction?: () => void
   ) => {
-    setResultModal({ visible: true, type, title, message });
+    setResultModal({ visible: true, type, title, message, confirmText, cancelText, onConfirmAction });
   };
 
   useEffect(() => {
@@ -191,92 +197,115 @@ export function BookingCreateScreen({
     setPickerConfig({ visible: true, type });
   };
 
-  const handleConfirmPicker = (date: Date) => {
+  const handleConfirmPicker = (date: Date): { title: string; message: string } | null => {
     const now = new Date(Date.now() - 2 * 60 * 1000);
 
     if (pickerConfig.type === 'start') {
       if (date < now) {
-        Alert.alert(STRINGS.BOOKING_CREATE.INVALID_TIME_TITLE, STRINGS.BOOKING_CREATE.PAST_TIME_MSG);
-        return;
+        return {
+          title: STRINGS.BOOKING_CREATE.INVALID_TIME_TITLE,
+          message: STRINGS.BOOKING_CREATE.PAST_TIME_MSG,
+        };
       }
 
       const conflict = isDateInBusyRange(date);
       if (conflict) {
         const fromStr = formatDateOnly(new Date(conflict.startDate));
         const toStr = formatDateOnly(new Date(conflict.endDate));
-        Alert.alert(
-          STRINGS.BOOKING_CREATE.DATES_UNAVAILABLE_TITLE,
-          `The device is already booked (${fromStr} - ${toStr}). Please select a pickup date after ${toStr} or choose different dates!`
-        );
-        return;
-      }
-
-      if (endDate) {
-        const rangeConflict = checkOverlapWithBusy(date, endDate);
-        if (rangeConflict) {
-          const fromStr = formatDateOnly(new Date(rangeConflict.startDate));
-          const toStr = formatDateOnly(new Date(rangeConflict.endDate));
-          Alert.alert(
-            STRINGS.BOOKING_CREATE.SCHEDULE_CONFLICT_TITLE,
-            `The selected date range conflicts with another booking (${fromStr} - ${toStr}). Return date has been reset.`
-          );
-          setEndDate(null);
-        }
+        return {
+          title: STRINGS.BOOKING_CREATE.DATES_UNAVAILABLE_TITLE,
+          message: `The device is booked between ${fromStr} and ${toStr}. Please select another time!`,
+        };
       }
 
       setStartDate(date);
-      if (endDate && endDate < date) {
-        setEndDate(null);
+
+      // Tự động gán hoặc điều chỉnh endDate để đảm bảo tối thiểu 12 giờ
+      if (!endDate || endDate.getTime() - date.getTime() < 12 * 60 * 60 * 1000) {
+        const autoEnd = new Date(date.getTime() + 12 * 60 * 60 * 1000);
+        const rangeConflict = checkOverlapWithBusy(date, autoEnd);
+        if (!rangeConflict) {
+          setEndDate(autoEnd);
+        } else {
+          setEndDate(null);
+        }
+      } else {
+        const rangeConflict = checkOverlapWithBusy(date, endDate);
+        if (rangeConflict) {
+          setEndDate(null);
+        }
       }
     } else {
-      if (startDate && date <= startDate) {
-        Alert.alert(STRINGS.BOOKING_CREATE.INVALID_TIME_TITLE, STRINGS.BOOKING_CREATE.RETURN_BEFORE_PICKUP_MSG);
-        return;
+      if (!startDate) {
+        return {
+          title: STRINGS.BOOKING_CREATE.MISSING_INFO_TITLE,
+          message: STRINGS.BOOKING_CREATE.SELECT_PICKUP_FIRST,
+        };
       }
 
-      if (startDate) {
-        const rangeConflict = checkOverlapWithBusy(startDate, date);
-        if (rangeConflict) {
-          const fromStr = formatDateOnly(new Date(rangeConflict.startDate));
-          const toStr = formatDateOnly(new Date(rangeConflict.endDate));
-          Alert.alert(
-            STRINGS.BOOKING_CREATE.SCHEDULE_CONFLICT_TITLE,
-            `The device is already booked between (${fromStr} - ${toStr}). Please select a return time before ${fromStr} or choose different dates!`
-          );
-          return;
-        }
+      const minReturnTime = new Date(startDate.getTime() + 12 * 60 * 60 * 1000);
+      const minReturnStr = `${formatTimeOnly(minReturnTime)}, ${formatDateOnly(minReturnTime)} (${getDayOfWeekName(minReturnTime)})`;
+
+      if (date <= startDate) {
+        return {
+          title: STRINGS.BOOKING_CREATE.INVALID_TIME_TITLE,
+          message: 'Return time must be after pickup time.',
+        };
+      }
+
+      // Ràng buộc thời gian thuê tối thiểu 12 giờ
+      const diffMs = date.getTime() - startDate.getTime();
+      const diffHours = diffMs / (1000 * 60 * 60);
+      if (diffHours < 12) {
+        return {
+          title: STRINGS.BOOKING_CREATE.MIN_RENTAL_HOURS_TITLE,
+          message: STRINGS.BOOKING_CREATE.MIN_RENTAL_HOURS_DYNAMIC(minReturnStr),
+        };
+      }
+
+      const rangeConflict = checkOverlapWithBusy(startDate, date);
+      if (rangeConflict) {
+        const fromStr = formatDateOnly(new Date(rangeConflict.startDate));
+        const toStr = formatDateOnly(new Date(rangeConflict.endDate));
+        return {
+          title: STRINGS.BOOKING_CREATE.SCHEDULE_CONFLICT_TITLE,
+          message: `The device has an existing booking between ${fromStr} and ${toStr}. Please select another return time!`,
+        };
       }
 
       setEndDate(date);
     }
     setPickerConfig({ ...pickerConfig, visible: false });
+    return null;
   };
 
   const durationInfo = useMemo(() => {
     if (!startDate || !endDate) {
-      return { totalHours: 0, days: 0, hours: 0, billableDays: 0, displayText: '' };
+      return { totalHours: 0, days: 0, hours: 0, billableDays: 0, displayText: '', isBelowMin: false };
     }
     const diffMs = Math.abs(endDate.getTime() - startDate.getTime());
     const totalHours = Math.max(1, Math.round(diffMs / (1000 * 60 * 60)));
     const days = Math.floor(totalHours / 24);
     const hours = totalHours % 24;
     const billableDays = Math.max(1, Math.ceil(totalHours / 24));
+    const isBelowMin = totalHours < 12;
 
     let displayText = '';
     if (days > 0 && hours > 0) {
       displayText = `${days}d ${hours}h (${totalHours}h)`;
     } else if (days > 0) {
-      displayText = `${days} ${days === 1 ? 'day' : 'days'} (${totalHours}h)`;
+      displayText = `${days}d (${totalHours}h)`;
     } else {
-      displayText = `${totalHours} ${totalHours === 1 ? 'hour' : 'hours'}`;
+      displayText = `${totalHours} hours`;
     }
 
-    return { totalHours, days, hours, billableDays, displayText };
+    return { totalHours, days, hours, billableDays, displayText, isBelowMin };
   }, [startDate, endDate]);
 
   const calculateDays = () => durationInfo.billableDays;
 
-  const handleQuickSelectDuration = (days: number) => {
+  // Xử lý chọn nhanh thời lượng (Tối thiểu 12h, 24h, 2 ngày, 3 ngày, 1 tuần)
+  const handleQuickSelectDuration = (hours: number) => {
     let base = startDate;
     if (!base) {
       base = new Date();
@@ -284,14 +313,15 @@ export function BookingCreateScreen({
       base.setHours(base.getHours() + 1);
       setStartDate(base);
     }
-    const newEnd = new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
+    const newEnd = new Date(base.getTime() + hours * 60 * 60 * 1000);
     const rangeConflict = checkOverlapWithBusy(base, newEnd);
     if (rangeConflict) {
       const fromStr = formatDateOnly(new Date(rangeConflict.startDate));
       const toStr = formatDateOnly(new Date(rangeConflict.endDate));
-      Alert.alert(
+      showBookingResult(
+        'error',
         STRINGS.BOOKING_CREATE.SCHEDULE_CONFLICT_TITLE,
-        `The device is already booked between (${fromStr} - ${toStr}). Please choose a different duration or select specific dates!`
+        `The device has an existing booking between ${fromStr} and ${toStr}. Please select another duration!`
       );
       return;
     }
@@ -322,37 +352,48 @@ export function BookingCreateScreen({
   const deviceDailyRate = device.dailyRate || (device as any).pricePerDay || 0;
   const deviceDepositValue = device.depositValue || (device as any).depositAmount || 0;
   const rentalDays = calculateDays();
-  const baseRentalFee = rentalDays * deviceDailyRate;
+  const totalRentalHours = durationInfo.totalHours;
+  // Tính tiền chính xác theo giờ: (giá thuê 1 ngày / 24h) * số giờ thuê thực tế
+  const hourlyRate = deviceDailyRate / 24;
+  const baseRentalFee = Math.round(hourlyRate * totalRentalHours);
 
   let longTermDiscountPercent = 0;
-  if (rentalDays >= 7) longTermDiscountPercent = 20;
-  else if (rentalDays >= 3) longTermDiscountPercent = 10;
+  // 72h = 3 ngày: 10%, 168h = 7 ngày: 20%
+  if (totalRentalHours >= 168) longTermDiscountPercent = 20;
+  else if (totalRentalHours >= 72) longTermDiscountPercent = 10;
 
-  const longTermDiscountAmount = (baseRentalFee * longTermDiscountPercent) / 100;
+  const longTermDiscountAmount = Math.round((baseRentalFee * longTermDiscountPercent) / 100);
   const rentalFeeAfterLongTerm = baseRentalFee - longTermDiscountAmount;
   const totalAmount = rentalFeeAfterLongTerm + deviceDepositValue;
 
   const handleConfirm = async () => {
-    // 1. Check login if guest (Role Guest)
     if (!currentUser) {
-      Alert.alert(
+      showBookingResult(
+        'warning',
         STRINGS.AUTH_LOGIN_ALERT.TITLE,
         STRINGS.AUTH_LOGIN_ALERT.MSG,
-        [
-          { text: STRINGS.AUTH_LOGIN_ALERT.LATER, style: 'cancel' },
-          {
-            text: STRINGS.AUTH_LOGIN_ALERT.LOGIN_NOW,
-            onPress: () => {
-              if (onNavigateToLogin) onNavigateToLogin();
-            },
-          },
-        ]
+        STRINGS.AUTH_LOGIN_ALERT.LOGIN_NOW,
+        STRINGS.AUTH_LOGIN_ALERT.LATER,
+        () => {
+          setResultModal((prev) => ({ ...prev, visible: false }));
+          if (onNavigateToLogin) onNavigateToLogin();
+        }
       );
       return;
     }
 
     if (currentUser?.role === 'renter' && !currentUser.isVerified) {
-      setVerifyModalVisible(true);
+      showBookingResult(
+        'warning',
+        STRINGS.AUTH_VERIFY_ALERT.TITLE,
+        STRINGS.AUTH_VERIFY_ALERT.MSG,
+        STRINGS.AUTH_VERIFY_ALERT.VERIFY_NOW,
+        STRINGS.AUTH_VERIFY_ALERT.LATER,
+        () => {
+          setResultModal((prev) => ({ ...prev, visible: false }));
+          if (onNavigateToVerification) onNavigateToVerification();
+        }
+      );
       return;
     }
 
@@ -361,6 +402,19 @@ export function BookingCreateScreen({
         'error',
         STRINGS.BOOKING_CREATE.MISSING_INFO_TITLE,
         STRINGS.BOOKING_CREATE.MISSING_DATES_MSG
+      );
+      return;
+    }
+
+    // Kiểm tra thời lượng tối thiểu 12 giờ
+    const diffHours = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
+    if (diffHours < 12) {
+      const minReturn = new Date(startDate.getTime() + 12 * 60 * 60 * 1000);
+      const minReturnStr = `${formatTimeOnly(minReturn)}, ${formatDateOnly(minReturn)} (${getDayOfWeekName(minReturn)})`;
+      showBookingResult(
+        'error',
+        STRINGS.BOOKING_CREATE.MIN_RENTAL_HOURS_TITLE,
+        STRINGS.BOOKING_CREATE.MIN_RENTAL_HOURS_DYNAMIC(minReturnStr)
       );
       return;
     }
@@ -375,15 +429,13 @@ export function BookingCreateScreen({
     }
 
     const conflict = checkOverlapWithBusy(startDate, endDate);
-
     if (conflict) {
       const fromStr = formatDateOnly(new Date(conflict.startDate));
       const toStr = formatDateOnly(new Date(conflict.endDate));
-
       showBookingResult(
         'error',
         STRINGS.BOOKING_CREATE.DEVICE_RENTED_TITLE,
-        `The device is already booked between (${fromStr} - ${toStr}). Please select a different rental period!`
+        `The device is already booked between ${fromStr} and ${toStr}. Please select another schedule!`
       );
       return;
     }
@@ -400,6 +452,7 @@ export function BookingCreateScreen({
           deliveryMethod === 'delivery'
             ? deliveryAddress.trim()
             : device.addressText || (device.location?.address ?? ''),
+        note: orderNote.trim(),
       });
 
       setSuccessModalVisible(true);
@@ -407,12 +460,22 @@ export function BookingCreateScreen({
       const responseData = error.response?.data;
 
       if (responseData?.code === 'RENTER_EKYC_REQUIRED') {
-        setVerifyModalVisible(true);
+        showBookingResult(
+          'warning',
+          STRINGS.AUTH_VERIFY_ALERT.TITLE,
+          responseData.message || STRINGS.AUTH_VERIFY_ALERT.MSG,
+          STRINGS.AUTH_VERIFY_ALERT.VERIFY_NOW,
+          STRINGS.AUTH_VERIFY_ALERT.LATER,
+          () => {
+            setResultModal((prev) => ({ ...prev, visible: false }));
+            if (onNavigateToVerification) onNavigateToVerification();
+          }
+        );
       } else {
         showBookingResult(
           'error',
           'Booking Failed',
-          responseData?.message || 'Failed to submit booking request. Please try again later.'
+          responseData?.message || 'Unable to create booking request. Please try again.'
         );
       }
     } finally {
@@ -423,6 +486,7 @@ export function BookingCreateScreen({
   const isConfirmDisabled =
     !startDate ||
     !endDate ||
+    durationInfo.isBelowMin ||
     isSubmitting ||
     (deliveryMethod === 'delivery' && !deliveryAddress.trim());
 
@@ -430,231 +494,192 @@ export function BookingCreateScreen({
     <View style={styles.root}>
       <StatusBar barStyle="dark-content" />
 
-      {/* Top Header */}
+      {/* Top Header - E-commerce Clean Title */}
       <View style={[styles.header, { paddingTop: topInset + 8 }]}>
-        <TouchableOpacity style={styles.headerBtn} onPress={onBack}>
+        <TouchableOpacity style={styles.headerBtn} onPress={onBack} activeOpacity={0.7}>
           <Ionicons name="chevron-back" size={22} color={colors.light.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{STRINGS.BOOKING_CREATE.TITLE}</Text>
+        <Text style={styles.headerTitle}>{STRINGS.BOOKING_CREATE.CHECKOUT_TITLE}</Text>
         <View style={{ width: 36 }} />
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: 110 + bottomInset }]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 + bottomInset }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Device Summary */}
-        <View style={styles.deviceCard}>
-          <Image
-            source={{ uri: device.images?.[0] || 'https://via.placeholder.com/150' }}
-            style={styles.deviceThumb}
-            resizeMode="cover"
-          />
-          <View style={styles.deviceInfo}>
-            <View style={styles.deviceBadgeRow}>
-              <Text style={styles.deviceBrand}>{device.brand}</Text>
-              <Text style={styles.deviceCategoryBadge}>{device.category}</Text>
+        {/* ── 1. SẢN PHẨM (Product Item) ── */}
+        <View style={styles.checkoutCard}>
+          {/* Shop Row */}
+          <View style={styles.shopRow}>
+            <Ionicons name="storefront-outline" size={15} color={colors.light.textPrimary} style={{ marginRight: 6 }} />
+            <Text style={styles.shopName} numberOfLines={1}>
+              {(device.ownerId as any)?.name || 'Verified Tech Owner'}
+            </Text>
+            <View style={styles.verifiedBadge}>
+              <Ionicons name="shield-checkmark" size={11} color={colors.light.success} />
+              <Text style={styles.verifiedBadgeText}>{STRINGS.BOOKING_CREATE.VERIFIED_GENUINE}</Text>
             </View>
-            <Text style={styles.deviceTitle} numberOfLines={1}>
-              {device.title || (device as any).name}
-            </Text>
-            <Text style={styles.dailyRate}>
-              {formatPrice(deviceDailyRate)} <Text style={styles.dailyRateUnit}>/ day</Text>
-            </Text>
+          </View>
+
+          {/* Product Detail Row */}
+          <View style={styles.productRow}>
+            <Image
+              source={{ uri: device.images?.[0] || 'https://via.placeholder.com/150' }}
+              style={styles.productThumb}
+              resizeMode="cover"
+            />
+            <View style={styles.productInfo}>
+              <Text style={styles.productTitle} numberOfLines={2}>
+                {device.title || (device as any).name}
+              </Text>
+              <Text style={styles.productSpecs}>
+                {device.brand || 'Tech'} • {device.category || 'Device'} • Inspected
+              </Text>
+              <View style={styles.productPriceRow}>
+                <Text style={styles.productPrice}>
+                  {formatPrice(deviceDailyRate)}
+                  <Text style={styles.productPriceUnit}> / day</Text>
+                </Text>
+                {deviceDepositValue > 0 && (
+                  <View style={styles.depositPill}>
+                    <Text style={styles.depositPillText}>
+                      Deposit: {formatPrice(deviceDepositValue)}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
           </View>
         </View>
 
-        {/* Date Picker Section - Intuitive Rental Schedule (Select Rental Dates) */}
-        <View style={styles.sectionContainer}>
-          <View style={styles.sectionHeaderRow}>
-            <View style={styles.sectionHeaderLeft}>
-              <View style={styles.sectionHeaderIconBadge}>
-                <Ionicons name="calendar-outline" size={16} color={colors.light.primary} />
-              </View>
-              <View>
-                <Text style={styles.sectionTitle}>{STRINGS.BOOKING_CREATE.RENTAL_PERIOD}</Text>
-                <Text style={styles.sectionSubtitle}>{STRINGS.BOOKING_CREATE.PICKUP_RETURN_SCHEDULE}</Text>
-              </View>
+        {/* ── 2. THỜI GIAN THUÊ (Rental Schedule - Dễ nhìn & Nút chọn rõ ràng) ── */}
+        <View style={styles.checkoutCard}>
+          <View style={styles.cardHeaderWithBadge}>
+            <View style={styles.cardHeaderLeft}>
+              <Ionicons name="calendar-outline" size={16} color={colors.light.primaryDark} style={{ marginRight: 6 }} />
+              <Text style={styles.cardHeaderTitle}>{STRINGS.BOOKING_CREATE.RENTAL_SCHEDULE_TITLE}</Text>
             </View>
-            {durationInfo.totalHours > 0 && startDate && endDate && (
-              <View style={styles.durationPill}>
-                <Ionicons name="time-outline" size={12} color={colors.light.primary} />
-                <Text style={styles.durationPillText}>
-                  {durationInfo.displayText}
-                </Text>
-              </View>
-            )}
+            <View style={styles.minHoursBadge}>
+              <Ionicons name="alert-circle" size={11} color={colors.light.primaryDark} style={{ marginRight: 3 }} />
+              <Text style={styles.minHoursBadgeText}>{STRINGS.BOOKING_CREATE.MIN_RENTAL_BADGE}</Text>
+            </View>
           </View>
 
-          {/* Connected Step Cards */}
-          <View style={styles.scheduleCardsWrapper}>
-            {/* Step 1: Pickup */}
-            <TouchableOpacity
-              style={[
-                styles.scheduleCard,
-                startDate ? styles.scheduleCardActive : styles.scheduleCardEmpty,
-              ]}
-              onPress={() => openPicker('start')}
-              activeOpacity={0.7}
-            >
-              <View style={styles.scheduleCardHeader}>
-                <View style={styles.scheduleStepBadgeRow}>
-                  <View style={[styles.stepDot, { backgroundColor: colors.light.success }]} />
-                  <Text style={[styles.scheduleStepBadgeText, { color: colors.light.success }]}>
-                    {STRINGS.BOOKING_CREATE.STEP_PICKUP}
-                  </Text>
-                </View>
-                <View style={startDate ? styles.scheduleActionBadgeActive : styles.scheduleActionBadgeEmpty}>
-                  <Ionicons
-                    name={startDate ? 'create-outline' : 'add-circle-outline'}
-                    size={14}
-                    color={startDate ? colors.light.primary : colors.light.white}
-                  />
-                  <Text style={startDate ? styles.scheduleActionTextActive : styles.scheduleActionTextEmpty}>
-                    {startDate ? STRINGS.BOOKING_CREATE.CHANGE : STRINGS.BOOKING_CREATE.SELECT_DATE}
-                  </Text>
-                </View>
-              </View>
+          {/* Step 1: Pickup Action Card */}
+          <TouchableOpacity
+            style={[styles.scheduleActionCard, startDate && styles.scheduleActionCardActive]}
+            onPress={() => openPicker('start')}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.scheduleIconCircle, { backgroundColor: '#ECFDF5' }]}>
+              <Ionicons name="log-in-outline" size={20} color="#10B981" />
+            </View>
 
-              <View style={styles.scheduleCardBody}>
-                <View style={[styles.scheduleIconCircle, { backgroundColor: colors.light.successLight, borderColor: colors.light.successLight }]}>
-                  <Ionicons name="log-in" size={20} color={colors.light.success} />
-                </View>
-                <View style={styles.scheduleTextContent}>
-                  {startDate ? (
-                    <>
-                      <Text style={styles.scheduleDateHero}>
-                        {formatDateOnly(startDate)}{' '}
-                        <Text style={styles.scheduleDayName}>({getDayOfWeekName(startDate)})</Text>
-                      </Text>
-                      <View style={styles.scheduleTimeRow}>
-                        <Ionicons name="time-outline" size={13} color={colors.light.primary} />
-                        <Text style={styles.scheduleTimeBadge}>
-                          {STRINGS.BOOKING_CREATE.PICKUP_TIME_BADGE(formatTimeOnly(startDate))}
-                        </Text>
-                      </View>
-                    </>
-                  ) : (
-                    <>
-                      <Text style={styles.schedulePlaceholderTitle}>
-                        {STRINGS.BOOKING_CREATE.NO_PICKUP_SELECTED}
-                      </Text>
-                      <Text style={styles.schedulePlaceholderSub}>
-                        {STRINGS.BOOKING_CREATE.TAP_TO_SELECT_PICKUP}
-                      </Text>
-                    </>
-                  )}
-                </View>
-              </View>
-            </TouchableOpacity>
+            <View style={styles.scheduleInfoCol}>
+              <Text style={styles.scheduleStepLabel}>{STRINGS.BOOKING_CREATE.PICKUP_LABEL}</Text>
+              <Text
+                style={startDate ? styles.scheduleDateValue : styles.scheduleDatePlaceholder}
+                numberOfLines={1}
+              >
+                {startDate
+                  ? `${formatTimeOnly(startDate)} - ${formatDateOnly(startDate)} (${getDayOfWeekName(startDate)})`
+                  : STRINGS.BOOKING_CREATE.SELECT_PICKUP_HINT}
+              </Text>
+            </View>
 
-            {/* Timeline Connector & Duration */}
-            <View style={styles.scheduleTimelineRow}>
-              <View style={styles.scheduleTimelineLine} />
-              {startDate && endDate && rentalDays > 0 ? (
-                <View style={styles.scheduleDurationPill}>
-                  <Ionicons name="timer-outline" size={14} color={colors.light.primary} />
-                  <Text style={styles.scheduleDurationPillText}>
-                    Total: <Text style={{ fontWeight: '800' }}>{rentalDays} {rentalDays === 1 ? 'day' : 'days'}</Text> ({rentalDays * 24} hrs)
+            {startDate ? (
+              <View style={styles.actionPillBtnOutlined}>
+                <Ionicons name="create-outline" size={13} color={colors.light.primary} />
+                <Text style={styles.actionPillBtnTextOutlined}>Change</Text>
+              </View>
+            ) : (
+              <View style={styles.actionPillBtn}>
+                <Ionicons name="calendar" size={13} color="#FFFFFF" />
+                <Text style={styles.actionPillBtnText}>Select date</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {/* Step 2: Return Action Card */}
+          <TouchableOpacity
+            style={[styles.scheduleActionCard, endDate && styles.scheduleActionCardActive]}
+            onPress={() => openPicker('end')}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.scheduleIconCircle, { backgroundColor: '#FFFBEB' }]}>
+              <Ionicons name="log-out-outline" size={20} color="#F59E0B" />
+            </View>
+
+            <View style={styles.scheduleInfoCol}>
+              <Text style={styles.scheduleStepLabel}>{STRINGS.BOOKING_CREATE.RETURN_LABEL}</Text>
+              <Text
+                style={endDate ? styles.scheduleDateValue : styles.scheduleDatePlaceholder}
+                numberOfLines={1}
+              >
+                {endDate
+                  ? `${formatTimeOnly(endDate)} - ${formatDateOnly(endDate)} (${getDayOfWeekName(endDate)})`
+                  : STRINGS.BOOKING_CREATE.SELECT_RETURN_HINT}
+              </Text>
+            </View>
+
+            {endDate ? (
+              <View style={[styles.actionPillBtnOutlined, { borderColor: '#F59E0B' }]}>
+                <Ionicons name="create-outline" size={13} color="#F59E0B" />
+                <Text style={[styles.actionPillBtnTextOutlined, { color: '#F59E0B' }]}>Change</Text>
+              </View>
+            ) : (
+              <View style={[styles.actionPillBtn, { backgroundColor: '#F59E0B' }]}>
+                <Ionicons name="calendar" size={13} color="#FFFFFF" />
+                <Text style={styles.actionPillBtnText}>Select date</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {/* Row: Total duration */}
+          <View style={styles.scheduleSummaryRow}>
+            <View style={styles.scheduleSummaryLeft}>
+              <Ionicons name="timer-outline" size={16} color={colors.light.primaryDark} style={{ marginRight: 6 }} />
+              <Text style={styles.scheduleSummaryLabel}>{STRINGS.BOOKING_CREATE.TOTAL_DURATION}</Text>
+            </View>
+            <View style={styles.scheduleSummaryRight}>
+              {durationInfo.totalHours > 0 ? (
+                <View style={styles.durationHighlightRow}>
+                  <Text style={[styles.durationHighlightText, durationInfo.isBelowMin && { color: colors.light.error }]}>
+                    {durationInfo.displayText}
+                  </Text>
+                  <Text style={styles.billableDaysText}>
+                    {durationInfo.totalHours % 24 === 0
+                      ? `(${durationInfo.totalHours / 24} ${durationInfo.totalHours / 24 === 1 ? 'day' : 'days'})`
+                      : `(~${Math.round(deviceDailyRate / 24).toLocaleString('en-US')} VND/h)`}
                   </Text>
                 </View>
               ) : (
-                <View style={styles.scheduleArrowCircle}>
-                  <Ionicons name="arrow-down" size={13} color={colors.light.textSecondary} />
-                </View>
+                <Text style={styles.schedulePlaceholderText}>{STRINGS.BOOKING_CREATE.NOT_DETERMINED}</Text>
               )}
-              <View style={styles.scheduleTimelineLine} />
             </View>
-
-            {/* Step 2: Return */}
-            <TouchableOpacity
-              style={[
-                styles.scheduleCard,
-                endDate ? styles.scheduleCardActive : styles.scheduleCardEmpty,
-              ]}
-              onPress={() => openPicker('end')}
-              activeOpacity={0.7}
-            >
-              <View style={styles.scheduleCardHeader}>
-                <View style={styles.scheduleStepBadgeRow}>
-                  <View style={[styles.stepDot, { backgroundColor: colors.light.warning }]} />
-                  <Text style={[styles.scheduleStepBadgeText, { color: colors.light.warning }]}>
-                    {STRINGS.BOOKING_CREATE.STEP_RETURN}
-                  </Text>
-                </View>
-                <View style={endDate ? styles.scheduleActionBadgeActive : styles.scheduleActionBadgeEmpty}>
-                  <Ionicons
-                    name={endDate ? 'create-outline' : 'add-circle-outline'}
-                    size={14}
-                    color={endDate ? colors.light.primary : colors.light.white}
-                  />
-                  <Text style={endDate ? styles.scheduleActionTextActive : styles.scheduleActionTextEmpty}>
-                    {endDate ? STRINGS.BOOKING_CREATE.CHANGE : STRINGS.BOOKING_CREATE.SELECT_DATE}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.scheduleCardBody}>
-                <View style={[styles.scheduleIconCircle, { backgroundColor: colors.light.warningLight, borderColor: colors.light.warningLight }]}>
-                  <Ionicons name="log-out" size={20} color={colors.light.warning} />
-                </View>
-                <View style={styles.scheduleTextContent}>
-                  {endDate ? (
-                    <>
-                      <Text style={styles.scheduleDateHero}>
-                        {formatDateOnly(endDate)}{' '}
-                        <Text style={styles.scheduleDayName}>({getDayOfWeekName(endDate)})</Text>
-                      </Text>
-                      <View style={styles.scheduleTimeRow}>
-                        <Ionicons name="time-outline" size={13} color={colors.light.warning} />
-                        <Text style={[styles.scheduleTimeBadge, { color: colors.light.warning }]}>
-                          {STRINGS.BOOKING_CREATE.RETURN_TIME_BADGE(formatTimeOnly(endDate))}
-                        </Text>
-                      </View>
-                    </>
-                  ) : (
-                    <>
-                      <Text style={styles.schedulePlaceholderTitle}>
-                        {STRINGS.BOOKING_CREATE.NO_RETURN_SELECTED}
-                      </Text>
-                      <Text style={styles.schedulePlaceholderSub}>
-                        {startDate
-                          ? STRINGS.BOOKING_CREATE.CHOOSE_RETURN_TIME
-                          : STRINGS.BOOKING_CREATE.SELECT_PICKUP_FIRST}
-                      </Text>
-                    </>
-                  )}
-                </View>
-              </View>
-            </TouchableOpacity>
           </View>
 
-          {/* Quick Duration Shortcuts */}
-          <View style={styles.quickDurationBox}>
-            <View style={styles.quickDurationHeader}>
-              <Ionicons name="flash-outline" size={13} color={colors.light.primary} />
-              <Text style={styles.quickDurationTitle}>{STRINGS.BOOKING_CREATE.QUICK_DURATION_TITLE}</Text>
-            </View>
+          {/* Quick Preset Duration Chips */}
+          <View style={styles.quickDurationContainer}>
+            <Text style={styles.quickDurationTitle}>{STRINGS.BOOKING_CREATE.QUICK_PRESETS_LABEL}</Text>
             <View style={styles.quickChipsRow}>
               {[
-                { days: 1, label: '1 day' },
-                { days: 2, label: '2 days' },
-                { days: 3, label: '3 days' },
-                { days: 5, label: '5 days' },
-                { days: 7, label: '1 week' },
+                { hours: 12, label: STRINGS.BOOKING_CREATE.PRESET_12H },
+                { hours: 24, label: STRINGS.BOOKING_CREATE.PRESET_24H },
+                { hours: 48, label: STRINGS.BOOKING_CREATE.PRESET_2D },
+                { hours: 72, label: STRINGS.BOOKING_CREATE.PRESET_3D },
+                { hours: 168, label: STRINGS.BOOKING_CREATE.PRESET_1W },
               ].map((item) => {
-                const isSelected = rentalDays === item.days && endDate !== null;
+                const isSelected = durationInfo.totalHours === item.hours && endDate !== null;
                 return (
                   <TouchableOpacity
-                    key={item.days}
+                    key={item.hours}
                     style={[styles.quickChip, isSelected && styles.quickChipSelected]}
-                    onPress={() => handleQuickSelectDuration(item.days)}
+                    onPress={() => handleQuickSelectDuration(item.hours)}
                     activeOpacity={0.7}
                   >
-                    <Text
-                      style={[styles.quickChipText, isSelected && styles.quickChipTextSelected]}
-                    >
-                      +{item.label}
+                    <Text style={[styles.quickChipText, isSelected && styles.quickChipTextSelected]}>
+                      {item.label}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -663,159 +688,161 @@ export function BookingCreateScreen({
           </View>
         </View>
 
-        {/* ── Delivery Method Section ── */}
-        <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>{STRINGS.BOOKING_CREATE.DELIVERY_METHOD_TITLE}</Text>
+        {/* ── 3. CHI TIẾT THANH TOÁN (Payment Breakdown) ── */}
+        <PriceBreakdownCard
+          totalHours={durationInfo.totalHours > 0 ? durationInfo.totalHours : undefined}
+          rentalDays={rentalDays > 0 ? rentalDays : 1}
+          dailyRate={deviceDailyRate}
+          depositValue={deviceDepositValue}
+        />
 
-          <View style={styles.deliveryOptionsContainer}>
-            {/* Option 1: Pickup */}
+        {/* ── 4. HÌNH THỨC NHẬN HÀNG & ĐỊA CHỈ & GHI CHÚ (Handover & Address & Note) ── */}
+        <View style={styles.checkoutCard}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="location-outline" size={16} color={colors.light.primaryDark} style={{ marginRight: 6 }} />
+            <Text style={styles.cardHeaderTitle}>Handover Method & Address</Text>
+          </View>
+
+          {/* Segmented Switch: Nhận tại chỗ vs Giao tận nơi */}
+          <View style={styles.deliverySegmentWrapper}>
             <TouchableOpacity
               style={[
-                styles.deliveryOptionCard,
-                deliveryMethod === 'pickup' && styles.deliveryOptionCardSelected,
+                styles.deliverySegmentBtn,
+                deliveryMethod === 'pickup' && styles.deliverySegmentBtnActive,
               ]}
               onPress={() => setDeliveryMethod('pickup')}
-              activeOpacity={0.7}
+              activeOpacity={0.8}
             >
-              <View style={styles.deliveryOptionHeader}>
-                <View style={styles.deliveryIconTitleRow}>
-                  <View
-                    style={[
-                      styles.deliveryIconBox,
-                      deliveryMethod === 'pickup' && styles.deliveryIconBoxSelected,
-                    ]}
-                  >
-                    <Ionicons
-                      name="storefront-outline"
-                      size={20}
-                      color={deliveryMethod === 'pickup' ? colors.light.primary : colors.light.textSecondary}
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={[
-                        styles.deliveryOptionTitle,
-                        deliveryMethod === 'pickup' && styles.deliveryOptionTitleSelected,
-                      ]}
-                    >
-                      {STRINGS.BOOKING_CREATE.METHOD_PICKUP}
-                    </Text>
-                    <Text style={styles.deliveryOptionSubtitle}>
-                      {STRINGS.BOOKING_CREATE.METHOD_PICKUP_SUB}
-                    </Text>
-                  </View>
-                </View>
-                <View
-                  style={[
-                    styles.radioCircle,
-                    deliveryMethod === 'pickup' && styles.radioCircleSelected,
-                  ]}
-                >
-                  {deliveryMethod === 'pickup' && <View style={styles.radioInnerCircle} />}
-                </View>
+              <Ionicons
+                name="storefront"
+                size={14}
+                color={deliveryMethod === 'pickup' ? colors.light.primaryDark : colors.light.textSecondary}
+                style={{ marginRight: 6 }}
+              />
+              <Text
+                style={[
+                  styles.deliverySegmentText,
+                  deliveryMethod === 'pickup' && styles.deliverySegmentTextActive,
+                ]}
+              >
+                {STRINGS.BOOKING_CREATE.SELF_PICKUP_LABEL}
+              </Text>
+              <View style={styles.freeChip}>
+                <Text style={styles.freeChipText}>{STRINGS.BOOKING_CREATE.DELIVERY_FREE}</Text>
               </View>
-
-              {deliveryMethod === 'pickup' && (
-                <View style={styles.pickupAddressBox}>
-                  <Ionicons name="location-outline" size={16} color={colors.light.primary} />
-                  <Text style={styles.pickupAddressText}>
-                    {STRINGS.BOOKING_CREATE.PICKUP_ADDRESS_LABEL}{' '}
-                    {device.addressText || device.location?.address || STRINGS.BOOKING_CREATE.METHOD_PICKUP_FALLBACK}
-                  </Text>
-                </View>
-              )}
             </TouchableOpacity>
 
-            {/* Option 2: Delivery */}
             <TouchableOpacity
               style={[
-                styles.deliveryOptionCard,
-                deliveryMethod === 'delivery' && styles.deliveryOptionCardSelected,
+                styles.deliverySegmentBtn,
+                deliveryMethod === 'delivery' && styles.deliverySegmentBtnActive,
               ]}
               onPress={() => setDeliveryMethod('delivery')}
-              activeOpacity={0.7}
+              activeOpacity={0.8}
             >
-              <View style={styles.deliveryOptionHeader}>
-                <View style={styles.deliveryIconTitleRow}>
-                  <View
-                    style={[
-                      styles.deliveryIconBox,
-                      deliveryMethod === 'delivery' && styles.deliveryIconBoxSelected,
-                    ]}
-                  >
-                    <Ionicons
-                      name="bicycle-outline"
-                      size={20}
-                      color={deliveryMethod === 'delivery' ? colors.light.primary : colors.light.textSecondary}
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={[
-                        styles.deliveryOptionTitle,
-                        deliveryMethod === 'delivery' && styles.deliveryOptionTitleSelected,
-                      ]}
-                    >
-                      {STRINGS.BOOKING_CREATE.METHOD_DELIVERY}
-                    </Text>
-                    <Text style={styles.deliveryOptionSubtitle}>
-                      {STRINGS.BOOKING_CREATE.METHOD_DELIVERY_SUB}
-                    </Text>
-                  </View>
-                </View>
-                <View
-                  style={[
-                    styles.radioCircle,
-                    deliveryMethod === 'delivery' && styles.radioCircleSelected,
-                  ]}
-                >
-                  {deliveryMethod === 'delivery' && <View style={styles.radioInnerCircle} />}
-                </View>
-              </View>
-
-              {deliveryMethod === 'delivery' && (
-                <View style={styles.deliveryInputBox}>
-                  <Text style={styles.deliveryInputLabel}>
-                    {STRINGS.BOOKING_CREATE.DELIVERY_ADDRESS_LABEL} <Text style={{ color: colors.light.error }}>*</Text>:
-                  </Text>
-                  <View style={styles.deliveryInputWrapper}>
-                    <Ionicons name="location" size={18} color={colors.light.primary} style={{ marginTop: 2 }} />
-                    <TextInput
-                      style={styles.deliveryAddressInput}
-                      placeholder={STRINGS.BOOKING_CREATE.DELIVERY_ADDRESS_PLACEHOLDER}
-                      placeholderTextColor={colors.light.textSecondary}
-                      value={deliveryAddress}
-                      onChangeText={(text: string) => setDeliveryAddress(text)}
-                      multiline
-                      numberOfLines={2}
-                    />
-                  </View>
-                </View>
-              )}
+              <Ionicons
+                name="bicycle"
+                size={14}
+                color={deliveryMethod === 'delivery' ? colors.light.primaryDark : colors.light.textSecondary}
+                style={{ marginRight: 6 }}
+              />
+              <Text
+                style={[
+                  styles.deliverySegmentText,
+                  deliveryMethod === 'delivery' && styles.deliverySegmentTextActive,
+                ]}
+              >
+                {STRINGS.BOOKING_CREATE.DOORSTEP_DELIVERY_LABEL}
+              </Text>
             </TouchableOpacity>
           </View>
-        </View>
 
-        {rentalDays > 0 && (
-          <PriceBreakdownCard
-            rentalDays={rentalDays}
-            dailyRate={deviceDailyRate}
-            depositValue={deviceDepositValue}
-          />
-        )}
+          {/* Contact & Handover Address */}
+          <View style={styles.addressInfoBox}>
+            <View style={styles.addressHeaderRow}>
+              <View style={styles.addressIconWrap}>
+                <Ionicons
+                  name={deliveryMethod === 'pickup' ? 'storefront-outline' : 'location'}
+                  size={18}
+                  color={deliveryMethod === 'pickup' ? colors.light.primaryDark : '#EF4444'}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.recipientName}>
+                  {currentUser?.name || 'Customer'}
+                  <Text style={styles.recipientPhone}>
+                    {'  '}({currentUser?.phone || (currentUser as any)?.phoneNumber || 'No phone number'})
+                  </Text>
+                </Text>
+
+                {deliveryMethod === 'pickup' ? (
+                  <View style={{ marginTop: 4 }}>
+                    <Text style={styles.addressDetailText}>
+                      {device.addressText || device.location?.address || 'Owner will provide meeting location after booking is approved'}
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={{ marginTop: 6 }}>
+                    <View style={styles.deliveryInputRow}>
+                      <TextInput
+                        style={styles.deliveryTextInput}
+                        placeholder={STRINGS.BOOKING_CREATE.DELIVERY_PLACEHOLDER}
+                        placeholderTextColor={colors.light.textMuted}
+                        value={deliveryAddress}
+                        onChangeText={setDeliveryAddress}
+                        multiline
+                      />
+                    </View>
+                    {userAddressText && deliveryAddress !== userAddressText && (
+                      <TouchableOpacity
+                        style={styles.fillProfileAddressBtn}
+                        onPress={() => setDeliveryAddress(userAddressText)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="bookmark-outline" size={12} color={colors.light.primaryDark} />
+                        <Text style={styles.fillProfileAddressText}>{STRINGS.BOOKING_CREATE.USE_SAVED_ADDRESS}</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.sectionDivider} />
+
+          {/* Integrated Note Row */}
+          <View style={styles.noteRow}>
+            <Ionicons name="chatbox-ellipses-outline" size={16} color={colors.light.textSecondary} style={{ marginRight: 8 }} />
+            <Text style={styles.noteLabel}>{STRINGS.BOOKING_CREATE.NOTE_LABEL}</Text>
+            <TextInput
+              style={styles.noteInput}
+              placeholder={STRINGS.BOOKING_CREATE.NOTE_PLACEHOLDER}
+              placeholderTextColor={colors.light.textMuted}
+              value={orderNote}
+              onChangeText={setOrderNote}
+              maxLength={200}
+            />
+          </View>
+        </View>
       </ScrollView>
 
-      {/* Bottom Sticky Action Bar */}
-      <View style={[styles.bottomBar, { paddingBottom: bottomInset + 10 }]}>
-        <View>
-          <Text style={styles.bottomPriceSub}>{STRINGS.BOOKING_CREATE.TOTAL_PAYMENT}</Text>
-          <Text style={styles.bottomPriceMain}>
-            {rentalDays > 0 ? formatPrice(totalAmount) : '---'}
+      {/* ── 6. THANH ĐẶT HÀNG DƯỚI CÙNG (Shopee Sticky Bottom Bar) ── */}
+      <View style={[styles.bottomBar, { paddingBottom: bottomInset + 8 }]}>
+        <View style={styles.bottomBarLeft}>
+          <Text style={styles.bottomPriceLabel}>{STRINGS.BOOKING_CREATE.TOTAL_PAYMENT_LABEL}</Text>
+          <Text style={styles.bottomPriceValue}>
+            {durationInfo.totalHours >= 12 ? formatPrice(totalAmount) : '---'}
+          </Text>
+          <Text style={styles.bottomDepositSub}>
+            {durationInfo.totalHours >= 12
+              ? STRINGS.BOOKING_CREATE.INCLUDES_REFUNDABLE_DEPOSIT
+              : STRINGS.BOOKING_CREATE.MIN_RENTAL_FOOTER_NOTE}
           </Text>
         </View>
 
         <TouchableOpacity
-          style={[styles.confirmBtn, isConfirmDisabled && styles.confirmBtnDisabled]}
+          style={[styles.checkoutBtn, isConfirmDisabled && styles.checkoutBtnDisabled]}
           onPress={handleConfirm}
           disabled={isConfirmDisabled}
           activeOpacity={0.8}
@@ -823,8 +850,8 @@ export function BookingCreateScreen({
           {isSubmitting ? (
             <ActivityIndicator size="small" color={colors.light.white} />
           ) : (
-            <Text style={[styles.confirmBtnText, isConfirmDisabled && styles.confirmBtnTextDisabled]}>
-              {STRINGS.BOOKING_CREATE.CONFIRM_BOOKING}
+            <Text style={[styles.checkoutBtnText, isConfirmDisabled && styles.checkoutBtnTextDisabled]}>
+              {STRINGS.BOOKING_CREATE.PLACE_ORDER}
             </Text>
           )}
         </TouchableOpacity>
@@ -833,8 +860,16 @@ export function BookingCreateScreen({
       <CustomDateTimePicker
         visible={pickerConfig.visible}
         type={pickerConfig.type}
-        initialDate={pickerConfig.type === 'start' ? startDate : endDate}
-        minDate={pickerConfig.type === 'end' ? startDate : new Date()}
+        initialDate={
+          pickerConfig.type === 'start'
+            ? (startDate || new Date())
+            : (endDate || (startDate ? new Date(startDate.getTime() + 12 * 60 * 60 * 1000) : new Date()))
+        }
+        minDate={
+          pickerConfig.type === 'end'
+            ? (startDate || new Date())
+            : new Date()
+        }
         busyRanges={busyRanges}
         onClose={() => setPickerConfig({ ...pickerConfig, visible: false })}
         onConfirm={handleConfirmPicker}
@@ -870,6 +905,9 @@ export function BookingCreateScreen({
         type={resultModal.type}
         title={resultModal.title}
         message={resultModal.message}
+        confirmText={resultModal.confirmText}
+        cancelText={resultModal.cancelText}
+        onConfirm={resultModal.onConfirmAction}
         onClose={() => {
           setResultModal({ ...resultModal, visible: false });
         }}
@@ -919,72 +957,79 @@ const TimeScrollPicker = React.memo(({ items, selectedValue, onValueChange, visi
   const scrollViewRef = useRef<any>(null);
 
   useEffect(() => {
-    if (visible && scrollViewRef.current) {
-      const targetIndex = items.indexOf(selectedValue);
-      if (targetIndex >= 0) {
-        setTimeout(() => {
-          scrollViewRef.current?.scrollTo({ y: targetIndex * ITEM_HEIGHT, animated: false });
-        }, 50);
-      }
+    if (!visible) return;
+    const index = items.indexOf(selectedValue);
+    if (index !== -1 && scrollViewRef.current) {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({
+          y: index * ITEM_HEIGHT,
+          animated: false,
+        });
+      }, 50);
     }
-  }, [visible, items, selectedValue]);
+  }, [visible, selectedValue]);
 
-  const handleScroll = (e: any) => {
+  const handleScrollEnd = (e: any) => {
     const y = e.nativeEvent.contentOffset.y;
-    const index = Math.max(0, Math.min(items.length - 1, Math.round(y / ITEM_HEIGHT)));
-    const actualItem = items[index];
-    if (actualItem && actualItem !== selectedValue) {
-      onValueChange(actualItem);
+    const index = Math.round(y / ITEM_HEIGHT);
+    const clampedIndex = Math.max(0, Math.min(items.length - 1, index));
+    if (items[clampedIndex] !== selectedValue) {
+      onValueChange(items[clampedIndex]);
     }
   };
 
   return (
-    <View style={{ height: ITEM_HEIGHT * 3, width: 70 }}>
-      {/* Selection Highlight */}
+    <View style={{ height: ITEM_HEIGHT * 3, width: 70, overflow: 'hidden' }}>
       <View
+        pointerEvents="none"
         style={{
           position: 'absolute',
           top: ITEM_HEIGHT,
-          width: '100%',
+          left: 0,
+          right: 0,
           height: ITEM_HEIGHT,
-          backgroundColor: colors.light.primaryLight,
-          borderRadius: 8,
-          borderWidth: 1.5,
+          borderTopWidth: 1.5,
+          borderBottomWidth: 1.5,
           borderColor: colors.light.primary,
+          backgroundColor: colors.light.primaryLight + '40',
+          borderRadius: 8,
+          zIndex: 1,
         }}
-        pointerEvents="none"
       />
-
-      <View style={{ flex: 1, overflow: 'hidden' }}>
-        <ScrollView
-          ref={scrollViewRef}
-          nestedScrollEnabled={true}
-          showsVerticalScrollIndicator={false}
-          snapToInterval={ITEM_HEIGHT}
-          decelerationRate="fast"
-          onMomentumScrollEnd={handleScroll}
-          onScrollEndDrag={handleScroll}
-          scrollEventThrottle={16}
-          contentContainerStyle={{ paddingVertical: ITEM_HEIGHT }}
-        >
-          {items.map((item: string) => {
-            const isSelected = item === selectedValue;
-            return (
-              <View key={item} style={{ height: ITEM_HEIGHT, justifyContent: 'center', alignItems: 'center' }}>
-                <Text
-                  style={{
-                    fontSize: isSelected ? 22 : 15,
-                    color: isSelected ? colors.light.primary : colors.light.textSecondary,
-                    fontWeight: isSelected ? '800' : '500',
-                  }}
-                >
-                  {item}
-                </Text>
-              </View>
-            );
-          })}
-        </ScrollView>
-      </View>
+      <ScrollView
+        ref={scrollViewRef}
+        showsVerticalScrollIndicator={false}
+        snapToInterval={ITEM_HEIGHT}
+        decelerationRate="fast"
+        onMomentumScrollEnd={handleScrollEnd}
+        contentContainerStyle={{ paddingVertical: ITEM_HEIGHT }}
+      >
+        {items.map((item: string) => {
+          const isSelected = item === selectedValue;
+          return (
+            <TouchableOpacity
+              key={item}
+              style={{
+                height: ITEM_HEIGHT,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              onPress={() => onValueChange(item)}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={{
+                  fontSize: isSelected ? 18 : 14,
+                  fontWeight: isSelected ? '800' : '500',
+                  color: isSelected ? colors.light.primaryDark : colors.light.textSecondary,
+                }}
+              >
+                {item}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
     </View>
   );
 });
@@ -1001,6 +1046,7 @@ const CustomDateTimePicker = ({
   const [date, setDate] = useState(initialDate || new Date());
   const [hours, setHours] = useState((initialDate || new Date()).getHours().toString().padStart(2, '0'));
   const [minutes, setMinutes] = useState((initialDate || new Date()).getMinutes().toString().padStart(2, '0'));
+  const [pickerAlert, setPickerAlert] = useState<{ title: string; message: string } | null>(null);
 
   useEffect(() => {
     if (visible) {
@@ -1008,6 +1054,7 @@ const CustomDateTimePicker = ({
       setDate(d);
       setHours(d.getHours().toString().padStart(2, '0'));
       setMinutes(d.getMinutes().toString().padStart(2, '0'));
+      setPickerAlert(null);
     }
   }, [visible, initialDate]);
 
@@ -1058,14 +1105,18 @@ const CustomDateTimePicker = ({
 
     const ymd = getLocalYMD(finalDate);
     if (markedDates[ymd]?.disabled) {
-      Alert.alert(
-        STRINGS.BOOKING_CREATE.DATE_UNAVAILABLE_TITLE,
-        STRINGS.BOOKING_CREATE.DATE_UNAVAILABLE_MSG
-      );
+      setPickerAlert({
+        title: STRINGS.BOOKING_CREATE.DATE_UNAVAILABLE_TITLE,
+        message: STRINGS.BOOKING_CREATE.DATE_UNAVAILABLE_MSG,
+      });
       return;
     }
 
-    onConfirm(finalDate);
+    const err = onConfirm(finalDate);
+    if (err && err.message) {
+      setPickerAlert(err);
+      return;
+    }
   };
 
   return (
@@ -1091,7 +1142,7 @@ const CustomDateTimePicker = ({
                 <Text style={styles.modalSubtitle}>
                   {type === 'start'
                     ? STRINGS.BOOKING_CREATE.PICKUP_TIME_SUB
-                    : STRINGS.BOOKING_CREATE.RETURN_TIME_SUB}
+                    : 'Minimum 12 hours rental duration from pickup time'}
                 </Text>
               </View>
             </View>
@@ -1136,10 +1187,10 @@ const CustomDateTimePicker = ({
                 minDate={minDateStr}
                 onDayPress={(day: any) => {
                   if (markedDates[day.dateString]?.disabled) {
-                    Alert.alert(
-                      STRINGS.BOOKING_CREATE.DATE_UNAVAILABLE_TITLE,
-                      STRINGS.BOOKING_CREATE.DATE_UNAVAILABLE_MSG
-                    );
+                    setPickerAlert({
+                      title: STRINGS.BOOKING_CREATE.DATE_UNAVAILABLE_TITLE,
+                      message: STRINGS.BOOKING_CREATE.DATE_UNAVAILABLE_MSG,
+                    });
                     return;
                   }
                   const [y, m, d] = day.dateString.split('-').map(Number);
@@ -1167,30 +1218,8 @@ const CustomDateTimePicker = ({
               />
             </View>
 
-            {/* Calendar Legend */}
-            <View style={styles.calendarLegendRow}>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: colors.light.primary }]} />
-                <Text style={styles.legendText}>{STRINGS.BOOKING_CREATE.SELECTED_DATE}</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: colors.light.error }]} />
-                <Text style={styles.legendText}>{STRINGS.BOOKING_CREATE.ALREADY_BOOKED}</Text>
-              </View>
-            </View>
-
-            {/* Time Picker Section */}
+            {/* Quick Preset Time Buttons */}
             <View style={styles.timeSection}>
-              <View style={styles.timeSectionHeaderRow}>
-                <Ionicons name="time-outline" size={16} color={colors.light.primary} />
-                <Text style={styles.timeSectionTitle}>
-                  {type === 'start'
-                    ? STRINGS.BOOKING_CREATE.PICKUP_TIME_TITLE
-                    : STRINGS.BOOKING_CREATE.RETURN_TIME_TITLE}
-                </Text>
-              </View>
-
-              {/* Quick Preset Buttons */}
               <View style={styles.presetContainer}>
                 <Text style={styles.presetLabel}>{STRINGS.BOOKING_CREATE.TIME_SUGGESTIONS}</Text>
                 <View style={styles.presetChipsRow}>
@@ -1200,22 +1229,14 @@ const CustomDateTimePicker = ({
                     return (
                       <TouchableOpacity
                         key={preset}
-                        style={[
-                          styles.presetChip,
-                          isSelected ? styles.presetChipSelected : undefined,
-                        ]}
+                        style={[styles.presetChip, isSelected && styles.presetChipSelected]}
                         onPress={() => {
                           setHours(h);
                           setMinutes(m);
                         }}
                         activeOpacity={0.7}
                       >
-                        <Text
-                          style={[
-                            styles.presetChipText,
-                            isSelected ? styles.presetChipTextSelected : undefined,
-                          ]}
-                        >
+                        <Text style={[styles.presetChipText, isSelected && styles.presetChipTextSelected]}>
                           {preset}
                         </Text>
                       </TouchableOpacity>
@@ -1261,6 +1282,37 @@ const CustomDateTimePicker = ({
               <Text style={styles.modalBtnTextConfirm}>{STRINGS.BOOKING_CREATE.CONFIRM_BTN}</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Unified In-Picker Alert Dialog */}
+          {pickerAlert && (
+            <View style={styles.pickerAlertOverlay}>
+              <View style={styles.pickerAlertCard}>
+                <TouchableOpacity
+                  style={styles.pickerAlertCloseBtn}
+                  onPress={() => setPickerAlert(null)}
+                  activeOpacity={0.6}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons name="close" size={20} color={colors.light.textMuted} />
+                </TouchableOpacity>
+
+                <View style={styles.pickerAlertIconCircle}>
+                  <Ionicons name="alert-circle-outline" size={26} color={colors.light.error} />
+                </View>
+
+                <Text style={styles.pickerAlertTitle}>{pickerAlert.title}</Text>
+                <Text style={styles.pickerAlertMessage}>{pickerAlert.message}</Text>
+
+                <TouchableOpacity
+                  style={styles.pickerAlertBtn}
+                  onPress={() => setPickerAlert(null)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.pickerAlertBtnText}>OK</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         </View>
       </View>
     </Modal>
@@ -1270,7 +1322,7 @@ const CustomDateTimePicker = ({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.light.background,
+    backgroundColor: '#F3F4F6', // Light gray e-commerce background
   },
   centerContainer: {
     flex: 1,
@@ -1295,7 +1347,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.light.primary,
     paddingHorizontal: 18,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: 8,
   },
   backBtnText: {
     color: colors.light.white,
@@ -1306,333 +1358,404 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 44 : 14,
-    paddingBottom: 14,
+    paddingBottom: 12,
     backgroundColor: colors.light.surface,
     borderBottomWidth: 1,
-    borderBottomColor: colors.light.border,
+    borderBottomColor: colors.light.borderSubtle,
   },
   headerBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.light.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.light.border,
   },
   headerTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '700',
     color: colors.light.textPrimary,
   },
   scrollContent: {
+    paddingTop: 10,
     paddingBottom: 110,
-    paddingTop: 14,
-  },
-  deviceCard: {
-    marginHorizontal: 16,
-    marginBottom: 14,
-    padding: 12,
-    backgroundColor: colors.light.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.light.border,
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: 12,
+  },
+  checkoutCard: {
+    backgroundColor: colors.light.surface,
+    marginHorizontal: 12,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.light.borderSubtle,
     shadowColor: colors.light.shadow,
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
-    shadowRadius: 4,
+    shadowRadius: 6,
     elevation: 2,
+    overflow: 'hidden',
   },
-  deviceThumb: {
-    width: 68,
-    height: 68,
-    borderRadius: 10,
-    backgroundColor: colors.light.borderSubtle,
+  sectionDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 12,
   },
-  deviceInfo: {
+  deliverySegmentWrapper: {
+    flexDirection: 'row',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+    padding: 3,
+    marginBottom: 12,
+  },
+  deliverySegmentBtn: {
     flex: 1,
-  },
-  deviceBadgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 4,
+    justifyContent: 'center',
+    paddingVertical: 7,
+    borderRadius: 6,
   },
-  deviceBrand: {
-    color: colors.light.primary,
-    fontSize: 11,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-  },
-  deviceCategoryBadge: {
-    fontSize: 11,
-    color: colors.light.textSecondary,
+  deliverySegmentBtnActive: {
     backgroundColor: colors.light.surface,
-    paddingHorizontal: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  deliverySegmentText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: colors.light.textSecondary,
+  },
+  deliverySegmentTextActive: {
+    color: colors.light.primaryDark,
+    fontWeight: '700',
+  },
+  freeChip: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: 4,
-    borderWidth: 1,
-    borderColor: colors.light.border,
-    fontWeight: '500',
+    marginLeft: 4,
   },
-  deviceTitle: {
-    color: colors.light.textPrimary,
-    fontSize: 15,
+  freeChipText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: colors.light.success,
+  },
+  addressInfoBox: {
+    paddingTop: 2,
+  },
+  addressHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  addressIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.light.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  recipientName: {
+    fontSize: 14,
     fontWeight: '700',
+    color: colors.light.textPrimary,
+  },
+  recipientPhone: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.light.textSecondary,
+  },
+  addressDetailText: {
+    fontSize: 12.5,
+    color: colors.light.textPrimary,
+    lineHeight: 18,
+    marginTop: 2,
+  },
+  deliveryInputRow: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: colors.light.borderDefault,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    minHeight: 50,
+  },
+  deliveryTextInput: {
+    fontSize: 12.5,
+    color: colors.light.textPrimary,
+    padding: 0,
+    lineHeight: 18,
+  },
+  fillProfileAddressBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 6,
+    alignSelf: 'flex-start',
+  },
+  fillProfileAddressText: {
+    fontSize: 11.5,
+    color: colors.light.primaryDark,
+    fontWeight: '600',
+  },
+  shopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 10,
+    marginBottom: 10,
+  },
+  shopName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.light.textPrimary,
+    flex: 1,
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  verifiedBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.light.success,
+  },
+  productRow: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+  },
+  productThumb: {
+    width: 68,
+    height: 68,
+    borderRadius: 8,
+    backgroundColor: colors.light.borderSubtle,
+  },
+  productInfo: {
+    flex: 1,
+  },
+  productTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.light.textPrimary,
+    lineHeight: 19,
+    marginBottom: 3,
+  },
+  productSpecs: {
+    fontSize: 11.5,
+    color: colors.light.textSecondary,
     marginBottom: 4,
   },
-  dailyRate: {
-    color: colors.light.primary,
-    fontSize: 15,
-    fontWeight: '800',
+  productPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
+    flexWrap: 'wrap',
   },
-  dailyRateUnit: {
-    fontSize: 12,
+  productPrice: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: colors.light.primaryDark,
+  },
+  productPriceUnit: {
+    fontSize: 11.5,
     fontWeight: '400',
     color: colors.light.textSecondary,
   },
-  sectionContainer: {
-    marginHorizontal: 16,
-    marginBottom: 14,
-    padding: 16,
-    backgroundColor: colors.light.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.light.border,
-    shadowColor: colors.light.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  sectionHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  sectionHeaderIconBadge: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    backgroundColor: colors.light.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.light.textPrimary,
-  },
-  sectionSubtitle: {
-    fontSize: 11,
-    color: colors.light.textSecondary,
-    marginTop: 1,
-  },
-  durationPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.light.primaryLight,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.light.primaryLight,
-  },
-  durationPillText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.light.primary,
-  },
-  scheduleCardsWrapper: {
-    gap: 0,
-    marginTop: 4,
-  },
-  scheduleCard: {
-    backgroundColor: colors.light.surface,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    padding: 12,
-  },
-  scheduleCardActive: {
-    borderColor: colors.light.primary,
-    backgroundColor: colors.light.surface,
-    shadowColor: colors.light.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  scheduleCardEmpty: {
-    borderColor: colors.light.border,
-    backgroundColor: colors.light.borderSubtle + '25',
-  },
-  scheduleCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  scheduleStepBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  stepDot: {
-    width: 7,
-    height: 7,
+  depositPill: {
+    backgroundColor: colors.light.primaryBg,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     borderRadius: 4,
   },
-  scheduleStepBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.3,
+  depositPillText: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: colors.light.primaryDark,
   },
-  scheduleActionBadgeActive: {
+  cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 8,
+    marginBottom: 10,
+  },
+  cardHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cardHeaderTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: colors.light.textPrimary,
+  },
+  cardHeaderWithBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 8,
+    marginBottom: 12,
+  },
+  minHoursBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.light.primaryLight,
-  },
-  scheduleActionTextActive: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.light.primary,
-  },
-  scheduleActionBadgeEmpty: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
     borderRadius: 6,
-    backgroundColor: colors.light.primary,
   },
-  scheduleActionTextEmpty: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.light.white,
+  minHoursBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: colors.light.primaryDark,
   },
-  scheduleCardBody: {
+  scheduleActionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    marginBottom: 10,
+  },
+  scheduleActionCardActive: {
+    borderColor: colors.light.primary,
+    backgroundColor: '#F0FDFA',
   },
   scheduleIconCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
+    marginRight: 10,
   },
-  scheduleTextContent: {
+  scheduleInfoCol: {
     flex: 1,
+    marginRight: 8,
   },
-  scheduleDateHero: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: colors.light.textPrimary,
-    marginBottom: 3,
-  },
-  scheduleDayName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.light.textSecondary,
-  },
-  scheduleTimeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  scheduleTimeBadge: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.light.primary,
-  },
-  schedulePlaceholderTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.light.textPrimary,
-    marginBottom: 2,
-  },
-  schedulePlaceholderSub: {
-    fontSize: 11,
-    color: colors.light.textSecondary,
-    lineHeight: 15,
-  },
-  scheduleTimelineRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 6,
-  },
-  scheduleTimelineLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.light.border,
-  },
-  scheduleDurationPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: colors.light.primaryLight,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.light.primaryLight,
-    marginHorizontal: 8,
-  },
-  scheduleDurationPillText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.light.primary,
-  },
-  scheduleArrowCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.light.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.light.border,
-    marginHorizontal: 8,
-  },
-  quickDurationBox: {
-    marginTop: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: colors.light.border,
-  },
-  quickDurationHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginBottom: 8,
-  },
-  quickDurationTitle: {
+  scheduleStepLabel: {
     fontSize: 11,
     fontWeight: '700',
     color: colors.light.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
+    marginBottom: 3,
+  },
+  scheduleDateValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.light.textPrimary,
+  },
+  scheduleDatePlaceholder: {
+    fontSize: 12.5,
+    fontWeight: '500',
+    color: colors.light.primaryDark,
+  },
+  actionPillBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.light.primary,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 8,
+    shadowColor: colors.light.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  actionPillBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  actionPillBtnOutlined: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: colors.light.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  actionPillBtnTextOutlined: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.light.primary,
+  },
+  scheduleSummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    marginTop: 4,
+  },
+  scheduleSummaryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  scheduleSummaryLabel: {
+    fontSize: 12.5,
+    color: colors.light.textSecondary,
+    fontWeight: '500',
+  },
+  scheduleSummaryRight: {
+    alignItems: 'flex-end',
+  },
+  schedulePlaceholderText: {
+    fontSize: 12.5,
+    color: colors.light.textMuted,
+    fontWeight: '500',
+  },
+  durationHighlightRow: {
+    alignItems: 'flex-end',
+  },
+  durationHighlightText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.light.primaryDark,
+  },
+  billableDaysText: {
+    fontSize: 11,
+    color: colors.light.textMuted,
+  },
+  subtleDivider: {
+    height: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  quickDurationContainer: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  quickDurationTitle: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: colors.light.textSecondary,
+    marginBottom: 8,
   },
   quickChipsRow: {
     flexDirection: 'row',
@@ -1640,146 +1763,41 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   quickChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: colors.light.surface,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 6,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: colors.light.border,
+    borderColor: colors.light.borderDefault,
   },
   quickChipSelected: {
-    backgroundColor: colors.light.primary,
+    backgroundColor: colors.light.primaryLight,
     borderColor: colors.light.primary,
   },
   quickChipText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '600',
-    color: colors.light.textPrimary,
+    color: colors.light.textSecondary,
   },
   quickChipTextSelected: {
-    color: colors.light.white,
+    color: colors.light.primaryDark,
     fontWeight: '700',
   },
-  deliveryOptionsContainer: {
-    gap: 12,
-  },
-  deliveryOptionCard: {
-    backgroundColor: colors.light.surface,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: colors.light.border,
-    padding: 14,
-  },
-  deliveryOptionCardSelected: {
-    borderColor: colors.light.primary,
-    backgroundColor: colors.light.primaryLight,
-  },
-  deliveryOptionHeader: {
+  noteRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
   },
-  deliveryIconTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
+  noteLabel: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: colors.light.textSecondary,
     marginRight: 8,
   },
-  deliveryIconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.light.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.light.border,
-  },
-  deliveryIconBoxSelected: {
-    borderColor: colors.light.primaryLight,
-    backgroundColor: colors.light.primaryLight + '60',
-  },
-  deliveryOptionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.light.textPrimary,
-    marginBottom: 2,
-  },
-  deliveryOptionTitleSelected: {
-    color: colors.light.primary,
-  },
-  deliveryOptionSubtitle: {
-    fontSize: 12,
-    color: colors.light.textSecondary,
-    lineHeight: 16,
-  },
-  radioCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: colors.light.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.light.surface,
-  },
-  radioCircleSelected: {
-    borderColor: colors.light.primary,
-  },
-  radioInnerCircle: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.light.primary,
-  },
-  pickupAddressBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.light.surface,
-    padding: 10,
-    borderRadius: 8,
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: colors.light.border,
-  },
-  pickupAddressText: {
-    fontSize: 12,
-    color: colors.light.textSecondary,
+  noteInput: {
     flex: 1,
-    lineHeight: 16,
-  },
-  deliveryInputBox: {
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: colors.light.border,
-  },
-  deliveryInputLabel: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 12.5,
     color: colors.light.textPrimary,
-    marginBottom: 6,
-  },
-  deliveryInputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: colors.light.surface,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.light.border,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    gap: 8,
-  },
-  deliveryAddressInput: {
-    flex: 1,
-    fontSize: 13,
-    color: colors.light.textPrimary,
-    minHeight: 40,
-    paddingTop: 0,
-    paddingBottom: 0,
+    padding: 0,
   },
   bottomBar: {
     position: 'absolute',
@@ -1788,43 +1806,58 @@ const styles = StyleSheet.create({
     right: 0,
     backgroundColor: colors.light.surface,
     borderTopWidth: 1,
-    borderTopColor: colors.light.border,
+    borderTopColor: colors.light.borderSubtle,
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
+    paddingTop: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    shadowColor: colors.light.shadow,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 6,
+    shadowRadius: 6,
+    elevation: 8,
   },
-  bottomPriceSub: {
-    fontSize: 12,
+  bottomBarLeft: {
+    flex: 1,
+    marginRight: 12,
+  },
+  bottomPriceLabel: {
+    fontSize: 11,
     color: colors.light.textSecondary,
   },
-  bottomPriceMain: {
+  bottomPriceValue: {
     fontSize: 18,
     fontWeight: '800',
-    color: colors.light.primary,
+    color: colors.light.primaryDark,
   },
-  confirmBtn: {
+  bottomDepositSub: {
+    fontSize: 10,
+    color: colors.light.textMuted,
+    marginTop: 1,
+  },
+  checkoutBtn: {
     backgroundColor: colors.light.primary,
     paddingVertical: 12,
     paddingHorizontal: 22,
-    borderRadius: 10,
+    borderRadius: 8, // E-commerce button radius
+    shadowColor: colors.light.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  confirmBtnDisabled: {
+  checkoutBtnDisabled: {
     backgroundColor: colors.light.borderDefault,
+    shadowOpacity: 0,
+    elevation: 0,
   },
-  confirmBtnText: {
+  checkoutBtnText: {
     color: colors.light.white,
     fontSize: 14,
     fontWeight: '700',
   },
-  confirmBtnTextDisabled: {
+  checkoutBtnTextDisabled: {
     color: colors.light.textMuted,
   },
   modalOverlay: {
@@ -1835,7 +1868,7 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: colors.light.surface,
-    borderRadius: 20,
+    borderRadius: 16,
     padding: 16,
     maxHeight: '90%',
     shadowColor: colors.light.shadow,
@@ -1851,7 +1884,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     paddingBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: colors.light.border,
+    borderBottomColor: colors.light.borderSubtle,
   },
   modalHeaderTitleRow: {
     flexDirection: 'row',
@@ -1861,15 +1894,15 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   modalHeaderIconBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 34,
+    height: 34,
+    borderRadius: 8,
     backgroundColor: colors.light.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
   modalTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: colors.light.textPrimary,
   },
@@ -1882,11 +1915,8 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: colors.light.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.light.border,
   },
   modalScrollBody: {
     flexGrow: 0,
@@ -1895,18 +1925,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.light.primaryLight,
-    borderRadius: 10,
+    borderRadius: 8,
     padding: 10,
     marginBottom: 10,
-    borderWidth: 1,
-    borderColor: colors.light.primaryLight,
   },
   modalPreviewCol: {
     flex: 1,
     alignItems: 'center',
   },
   modalPreviewLabel: {
-    fontSize: 11,
+    fontSize: 10.5,
     color: colors.light.textSecondary,
     marginBottom: 2,
     fontWeight: '500',
@@ -1917,70 +1945,37 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   modalPreviewValText: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '700',
     color: colors.light.textPrimary,
   },
   modalPreviewValTime: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
-    color: colors.light.primary,
+    color: colors.light.primaryDark,
   },
   modalPreviewDivider: {
     width: 1,
-    height: 26,
+    height: 24,
     backgroundColor: colors.light.borderDefault,
   },
   calendarContainer: {
-    borderRadius: 12,
+    borderRadius: 10,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: colors.light.border,
+    borderColor: colors.light.borderSubtle,
     marginBottom: 6,
-  },
-  calendarLegendRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 18,
-    paddingVertical: 6,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  legendDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  legendText: {
-    fontSize: 11,
-    color: colors.light.textSecondary,
-    fontWeight: '500',
   },
   timeSection: {
     backgroundColor: colors.light.surface,
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: 10,
+    padding: 10,
     marginTop: 6,
     borderWidth: 1,
-    borderColor: colors.light.border,
-  },
-  timeSectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
-  },
-  timeSectionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.light.textPrimary,
+    borderColor: colors.light.borderSubtle,
   },
   presetContainer: {
-    marginBottom: 10,
+    marginBottom: 8,
   },
   presetLabel: {
     fontSize: 11,
@@ -1994,24 +1989,24 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   presetChip: {
-    paddingHorizontal: 9,
-    paddingVertical: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 6,
     backgroundColor: colors.light.surface,
     borderWidth: 1,
-    borderColor: colors.light.border,
+    borderColor: colors.light.borderDefault,
   },
   presetChipSelected: {
-    backgroundColor: colors.light.primary,
+    backgroundColor: colors.light.primaryLight,
     borderColor: colors.light.primary,
   },
   presetChipText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '600',
-    color: colors.light.textPrimary,
+    color: colors.light.textSecondary,
   },
   presetChipTextSelected: {
-    color: colors.light.white,
+    color: colors.light.primaryDark,
     fontWeight: '700',
   },
   timePickerCard: {
@@ -2019,10 +2014,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.light.surface,
-    borderRadius: 10,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: colors.light.border,
+    borderRadius: 8,
+    paddingVertical: 4,
   },
   timePickerCol: {
     alignItems: 'center',
@@ -2031,14 +2024,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: colors.light.textSecondary,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   timeColon: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
-    color: colors.light.primary,
-    marginHorizontal: 10,
-    marginTop: 16,
+    color: colors.light.primaryDark,
+    marginHorizontal: 8,
+    marginTop: 14,
   },
   modalActions: {
     flexDirection: 'row',
@@ -2048,21 +2041,21 @@ const styles = StyleSheet.create({
     marginTop: 10,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: colors.light.border,
+    borderTopColor: colors.light.borderSubtle,
   },
   modalBtnCancel: {
     flex: 1,
     backgroundColor: colors.light.surface,
     borderWidth: 1,
-    borderColor: colors.light.border,
-    paddingVertical: 12,
-    borderRadius: 10,
+    borderColor: colors.light.borderDefault,
+    paddingVertical: 10,
+    borderRadius: 8,
     alignItems: 'center',
   },
   modalBtnTextCancel: {
     color: colors.light.textSecondary,
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: 13.5,
   },
   modalBtnConfirm: {
     flex: 1,
@@ -2070,12 +2063,89 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.light.primary,
-    paddingVertical: 12,
-    borderRadius: 10,
+    paddingVertical: 10,
+    borderRadius: 8,
   },
   modalBtnTextConfirm: {
     color: colors.light.white,
     fontWeight: '700',
+    fontSize: 13.5,
+  },
+  pickerAlertOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    zIndex: 999,
+    borderRadius: 24,
+  },
+  pickerAlertCard: {
+    width: '100%',
+    maxWidth: 320,
+    backgroundColor: colors.light.surface,
+    borderRadius: 20,
+    paddingTop: 24,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.light.borderDefault,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  pickerAlertCloseBtn: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+  },
+  pickerAlertIconCircle: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: colors.light.dangerLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  pickerAlertTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.light.textPrimary,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  pickerAlertMessage: {
+    fontSize: 13.5,
+    color: colors.light.textSecondary,
+    textAlign: 'center',
+    lineHeight: 19,
+    marginBottom: 18,
+    paddingHorizontal: 4,
+  },
+  pickerAlertBtn: {
+    width: '100%',
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: colors.light.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickerAlertBtnText: {
     fontSize: 14,
+    fontWeight: '600',
+    color: colors.light.white,
   },
 });

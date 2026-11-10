@@ -1,25 +1,26 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   StyleSheet,
   View,
   Text,
   TouchableOpacity,
   FlatList,
+  ScrollView,
   RefreshControl,
   ActivityIndicator,
-  Alert,
   Platform,
   StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../../theme/colors';
+import { theme } from '../../theme/tokens';
 import { STRINGS } from '../../constants/strings';
 import { BookingItemCard } from '../../components/booking/BookingItemCard';
 import { ExtensionModal } from '../../components/booking/ExtensionModal';
 import { ReviewModal } from '../../components/booking/ReviewModal';
 import { BookingCancelModal } from '../../components/booking/BookingCancelModal';
+import BookingResultModal from './components/BookingResultModal';
 import { bookingService, Booking } from '../../services/bookingService';
 import { useAppSelector } from '../../store';
 
@@ -32,13 +33,15 @@ export interface MyBookingsScreenProps {
   navigation?: any;
 }
 
-const TABS = [
-  { id: 'all', label: STRINGS.MY_BOOKINGS.TABS.ALL, status: '' },
-  { id: 'pending', label: STRINGS.MY_BOOKINGS.TABS.PENDING, status: 'pending' },
-  { id: 'approved', label: STRINGS.MY_BOOKINGS.TABS.APPROVED, status: 'approved' },
-  { id: 'active', label: STRINGS.MY_BOOKINGS.TABS.ACTIVE, status: 'active' },
-  { id: 'completed', label: STRINGS.MY_BOOKINGS.TABS.COMPLETED, status: 'completed' },
-  { id: 'cancelled', label: STRINGS.MY_BOOKINGS.TABS.CANCELLED, status: 'cancelled' },
+type TabType = 'all' | 'pending' | 'approved' | 'active' | 'completed' | 'cancelled';
+
+const TABS: { id: TabType; label: string; status: string }[] = [
+  { id: 'all', label: 'All', status: '' },
+  { id: 'pending', label: 'Pending', status: 'pending' },
+  { id: 'approved', label: 'Approved', status: 'approved' },
+  { id: 'active', label: 'Active', status: 'active' },
+  { id: 'completed', label: 'Completed', status: 'completed' },
+  { id: 'cancelled', label: 'Cancelled', status: 'cancelled' },
 ];
 
 export function MyBookingsScreen({
@@ -55,8 +58,9 @@ export function MyBookingsScreen({
     insets.top,
     Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 20
   );
-  const [activeTab, setActiveTab] = useState('all');
-  const [bookings, setBookings] = useState<Booking[]>([]);
+
+  const [activeTab, setActiveTab] = useState<TabType>('all');
+  const [allBookings, setAllBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -70,6 +74,18 @@ export function MyBookingsScreen({
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
   const [selectedBookingToReview, setSelectedBookingToReview] = useState<Booking | null>(null);
 
+  const [resultModal, setResultModal] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    type?: 'error' | 'warning' | 'success';
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'error',
+  });
+
   const openExtendModal = (booking: Booking) => {
     setSelectedBookingToExtend(booking);
     setExtensionModalVisible(true);
@@ -80,13 +96,11 @@ export function MyBookingsScreen({
     setReviewModalVisible(true);
   };
 
-  const fetchBookings = useCallback(async (tabId: string) => {
+  const fetchBookings = useCallback(async () => {
     try {
       setLoading(true);
-      const tab = TABS.find((t) => t.id === tabId);
-      const status = tab?.status || '';
-      const data = await bookingService.getMyBookings(status);
-      setBookings(data || []);
+      const data = await bookingService.getMyBookings('');
+      setAllBookings(Array.isArray(data) ? data : []);
     } catch (error) {
       console.warn('Error loading bookings list:', error);
     } finally {
@@ -97,25 +111,33 @@ export function MyBookingsScreen({
   useFocusEffect(
     useCallback(() => {
       if (isAuthenticated) {
-        fetchBookings(activeTab);
+        fetchBookings();
       }
-    }, [activeTab, fetchBookings, isAuthenticated])
+    }, [fetchBookings, isAuthenticated])
   );
 
-  useEffect(() => bookingService.onBookingsUpdated(() => fetchBookings(activeTab)), [activeTab, fetchBookings]);
+  useEffect(() => bookingService.onBookingsUpdated(() => fetchBookings()), [fetchBookings]);
 
   const onRefresh = async () => {
     if (!isAuthenticated) return;
     setRefreshing(true);
-    await fetchBookings(activeTab);
+    await fetchBookings();
     setRefreshing(false);
   };
 
   const handlePressBooking = (booking: Booking) => {
     if (onNavigateToBookingDetail) {
       onNavigateToBookingDetail(booking._id);
+    } else if (navigation?.navigate) {
+      navigation.navigate('BookingDetail', { bookingId: booking._id });
     } else if (onNavigateToDeviceDetail && booking.deviceId?._id) {
       onNavigateToDeviceDetail(booking.deviceId._id);
+    }
+  };
+
+  const handleChat = (booking: Booking) => {
+    if (navigation?.navigate) {
+      navigation.navigate('ChatDetail', { bookingId: booking._id });
     }
   };
 
@@ -145,35 +167,55 @@ export function MyBookingsScreen({
         STRINGS.BOOKING_DETAIL.CANCEL_REASON_DEFAULT
       );
       setCancelModalVisible(false);
-      fetchBookings(activeTab);
+      fetchBookings();
     } catch (error: any) {
-      Alert.alert(
-        STRINGS.BOOKING_DETAIL.ALERT_ERROR_TITLE,
-        error.response?.data?.message || STRINGS.BOOKING_DETAIL.CANCEL_ERROR
-      );
+      setResultModal({
+        visible: true,
+        type: 'error',
+        title: STRINGS.BOOKING_DETAIL.ALERT_ERROR_TITLE,
+        message: error.response?.data?.message || STRINGS.BOOKING_DETAIL.CANCEL_ERROR,
+      });
     } finally {
       setIsSubmittingCancel(false);
     }
   };
 
+  // Filter list simply by active tab
+  const filteredBookings = useMemo(() => {
+    if (activeTab === 'pending') {
+      return allBookings.filter((b) => b.status === 'pending');
+    }
+    if (activeTab === 'approved') {
+      return allBookings.filter((b) => b.status === 'approved');
+    }
+    if (activeTab === 'active') {
+      return allBookings.filter((b) => b.status === 'active');
+    }
+    if (activeTab === 'completed') {
+      return allBookings.filter((b) => b.status === 'completed');
+    }
+    if (activeTab === 'cancelled') {
+      return allBookings.filter((b) => b.status === 'cancelled' || b.status === 'rejected');
+    }
+    return allBookings;
+  }, [allBookings, activeTab]);
+
   const renderEmpty = () => {
     if (loading) return null;
     return (
       <View style={styles.emptyContainer}>
-        <View style={styles.iconCircle}>
-          <Ionicons name="receipt-outline" size={54} color={colors.light.primary} />
+        <View style={styles.emptyIconCircle}>
+          <Ionicons name="receipt-outline" size={36} color={theme.colors.brand[500]} />
         </View>
-        <Text style={styles.title}>{STRINGS.MY_BOOKINGS.EMPTY_TITLE}</Text>
-        <Text style={styles.description}>
-          {STRINGS.MY_BOOKINGS.EMPTY_DESC}
-        </Text>
+        <Text style={styles.emptyTitle}>{STRINGS.MY_BOOKINGS.EMPTY_TITLE}</Text>
+        <Text style={styles.emptySubtitle}>{STRINGS.MY_BOOKINGS.EMPTY_DESC}</Text>
         {onNavigateToHome && activeTab === 'all' && (
           <TouchableOpacity
             style={styles.actionButton}
             onPress={onNavigateToHome}
             activeOpacity={0.8}
           >
-            <Ionicons name="sparkles" size={18} color={colors.light.white} />
+            <Ionicons name="sparkles" size={15} color={theme.colors.white} />
             <Text style={styles.actionButtonText}>{STRINGS.MY_BOOKINGS.EXPLORE_DEVICES}</Text>
           </TouchableOpacity>
         )}
@@ -183,21 +225,28 @@ export function MyBookingsScreen({
 
   if (!isAuthenticated) {
     return (
-      <View style={styles.container}>
-        <View style={[styles.header, { paddingTop: topInset + 8 }]}>
-          <View style={styles.headerTitleRow}>
-            <Ionicons name="receipt" size={24} color={colors.light.primary} />
-            <Text style={styles.headerTitle}>{STRINGS.MY_BOOKINGS.TITLE}</Text>
-          </View>
+      <View style={[styles.container, { paddingTop: topInset }]}>
+        <StatusBar barStyle="dark-content" backgroundColor={theme.colors.background} />
+        <View style={styles.headerBar}>
+          <TouchableOpacity
+            style={styles.headerIconButton}
+            onPress={() => {
+              if (navigation?.canGoBack?.()) navigation.goBack();
+              else if (onNavigateToHome) onNavigateToHome();
+            }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="chevron-back" size={22} color={theme.colors.text.primary} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{STRINGS.MY_BOOKINGS.TITLE}</Text>
+          <View style={{ width: 36 }} />
         </View>
         <View style={styles.emptyContainer}>
-          <View style={styles.iconCircle}>
-            <Ionicons name="receipt-outline" size={54} color={colors.light.primary} />
+          <View style={styles.emptyIconCircle}>
+            <Ionicons name="receipt-outline" size={36} color={theme.colors.brand[500]} />
           </View>
-          <Text style={styles.title}>{STRINGS.MY_BOOKINGS.GUEST_TITLE}</Text>
-          <Text style={styles.description}>
-            {STRINGS.MY_BOOKINGS.GUEST_SUBTITLE}
-          </Text>
+          <Text style={styles.emptyTitle}>{STRINGS.MY_BOOKINGS.GUEST_TITLE}</Text>
+          <Text style={styles.emptySubtitle}>{STRINGS.MY_BOOKINGS.GUEST_SUBTITLE}</Text>
           <TouchableOpacity
             style={styles.actionButton}
             onPress={() => {
@@ -209,7 +258,7 @@ export function MyBookingsScreen({
             }}
             activeOpacity={0.8}
           >
-            <Ionicons name="log-in-outline" size={18} color={colors.light.white} />
+            <Ionicons name="log-in-outline" size={16} color={theme.colors.white} />
             <Text style={styles.actionButtonText}>
               {STRINGS.MY_BOOKINGS.GUEST_LOGIN_BUTTON}
             </Text>
@@ -220,49 +269,72 @@ export function MyBookingsScreen({
   }
 
   return (
-    <View style={styles.container}>
-      {/* HEADER */}
-      <View style={[styles.header, { paddingTop: topInset + 8 }]}>
-        <View style={styles.headerTitleRow}>
-          <Ionicons name="receipt" size={24} color={colors.light.primary} />
-          <Text style={styles.headerTitle}>{STRINGS.MY_BOOKINGS.TITLE}</Text>
-        </View>
+    <View style={[styles.container, { paddingTop: topInset }]}>
+      <StatusBar barStyle="dark-content" backgroundColor={theme.colors.background} />
+
+      {/* 1. Clean Header (No subtitle, no bell clutter) */}
+      <View style={styles.headerBar}>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          style={styles.headerIconButton}
+          onPress={() => {
+            if (navigation?.openDrawer) {
+              navigation.openDrawer();
+            } else if (navigation?.canGoBack?.()) {
+              navigation.goBack();
+            } else if (onNavigateToHome) {
+              onNavigateToHome();
+            }
+          }}
+          activeOpacity={0.7}
+        >
+          <Ionicons
+            name={navigation?.openDrawer ? 'menu-outline' : 'chevron-back'}
+            size={22}
+            color={theme.colors.text.primary}
+          />
+        </TouchableOpacity>
+
+        <Text style={styles.headerTitle}>{STRINGS.MY_BOOKINGS.TITLE}</Text>
+        <View style={{ width: 36 }} />
       </View>
 
-      {/* TABS */}
-      <View style={styles.tabsContainer}>
-        <FlatList
-          data={TABS}
+      {/* 2. Simplified Clean Tabs (No counter bubbles cluttering the pills) */}
+      <View style={styles.tabsWrapper}>
+        <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.tabsContent}
-          renderItem={({ item }) => {
-            const isActive = activeTab === item.id;
+          contentContainerStyle={styles.tabsContainer}
+        >
+          {TABS.map((tab) => {
+            const isTabActive = activeTab === tab.id;
             return (
               <TouchableOpacity
-                style={[styles.tabButton, isActive && styles.tabButtonActive]}
-                onPress={() => setActiveTab(item.id)}
+                key={tab.id}
+                style={[styles.tabButton, isTabActive && styles.tabButtonActive]}
+                onPress={() => setActiveTab(tab.id)}
+                activeOpacity={0.8}
               >
-                <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
-                  {item.label}
+                <Text style={[styles.tabButtonText, isTabActive && styles.tabButtonTextActive]}>
+                  {tab.label}
                 </Text>
               </TouchableOpacity>
             );
-          }}
-        />
+          })}
+        </ScrollView>
       </View>
 
-      {/* CONTENT */}
+      {/* 3. Bookings List */}
       {loading && !refreshing ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.light.primary} />
+          <ActivityIndicator size="large" color={theme.colors.brand[500]} />
         </View>
       ) : (
         <FlatList
-          data={bookings}
+          data={filteredBookings}
           keyExtractor={(item: Booking) => item._id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 20 }]}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }: { item: Booking }) => (
             <BookingItemCard
@@ -272,6 +344,7 @@ export function MyBookingsScreen({
               onExtend={() => openExtendModal(item)}
               onReview={() => openReviewModal(item)}
               onReRent={() => handleReRent(item)}
+              onChat={() => handleChat(item)}
             />
           )}
           ListEmptyComponent={renderEmpty}
@@ -279,8 +352,7 @@ export function MyBookingsScreen({
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={[colors.light.primary]}
-              tintColor={colors.light.primary}
+              colors={[theme.colors.brand[500]]}
             />
           }
         />
@@ -291,7 +363,7 @@ export function MyBookingsScreen({
         visible={extensionModalVisible}
         booking={selectedBookingToExtend}
         onClose={() => setExtensionModalVisible(false)}
-        onSuccess={() => fetchBookings(activeTab)}
+        onSuccess={() => fetchBookings()}
       />
 
       {/* REVIEW MODAL */}
@@ -301,13 +373,13 @@ export function MyBookingsScreen({
         onClose={() => setReviewModalVisible(false)}
         onSuccess={() => {
           if (selectedBookingToReview) {
-            setBookings((prev) =>
+            setAllBookings((prev) =>
               prev.map((b) =>
                 b._id === selectedBookingToReview._id ? { ...b, isReviewed: true } : b
               )
             );
           }
-          fetchBookings(activeTab);
+          fetchBookings();
         }}
       />
 
@@ -319,6 +391,15 @@ export function MyBookingsScreen({
         onClose={() => setCancelModalVisible(false)}
         onConfirm={handleConfirmCancel}
       />
+
+      {/* UNIFIED RESULT / ERROR MODAL */}
+      <BookingResultModal
+        visible={resultModal.visible}
+        type={resultModal.type || 'error'}
+        title={resultModal.title}
+        message={resultModal.message}
+        onClose={() => setResultModal({ ...resultModal, visible: false })}
+      />
     </View>
   );
 }
@@ -326,101 +407,110 @@ export function MyBookingsScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.light.background,
+    backgroundColor: theme.colors.background,
   },
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
-    backgroundColor: colors.light.surface,
-  },
-  headerTitleRow: {
+  headerBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: theme.colors.surface,
+  },
+  headerIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.colors.surfaceMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '800',
-    color: colors.light.textPrimary,
+    color: theme.colors.text.primary,
+  },
+  tabsWrapper: {
+    backgroundColor: theme.colors.surface,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border.divider,
   },
   tabsContainer: {
-    backgroundColor: colors.light.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.light.borderSubtle,
-  },
-  tabsContent: {
-    paddingHorizontal: 12,
-    paddingBottom: 12,
+    paddingHorizontal: 16,
+    gap: 8,
   },
   tabButton: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: colors.light.background,
-    marginRight: 8,
+    backgroundColor: theme.colors.surfaceMuted,
   },
   tabButtonActive: {
-    backgroundColor: colors.light.primary,
+    backgroundColor: theme.colors.brand[600],
   },
-  tabText: {
-    fontSize: 14,
+  tabButtonText: {
+    fontSize: 13,
     fontWeight: '600',
-    color: colors.light.textSecondary,
+    color: theme.colors.text.secondary,
   },
-  tabTextActive: {
-    color: colors.light.white,
+  tabButtonTextActive: {
+    color: theme.colors.white,
+    fontWeight: '700',
   },
   listContent: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingTop: 12,
     flexGrow: 1,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 24,
   },
   emptyContainer: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 32,
-    gap: 12,
-    marginTop: 60,
+    paddingVertical: 48,
+    paddingHorizontal: 24,
   },
-  iconCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: colors.light.primaryLight,
+  emptyIconCircle: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: theme.colors.brand[100],
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
-  title: {
-    fontSize: 18,
+  emptyTitle: {
+    fontSize: 16,
     fontWeight: '700',
-    color: colors.light.textPrimary,
-  },
-  description: {
-    fontSize: 13,
-    color: colors.light.textSecondary,
+    color: theme.colors.text.primary,
     textAlign: 'center',
-    lineHeight: 20,
+    marginBottom: 4,
+  },
+  emptySubtitle: {
+    fontSize: 12.5,
+    color: theme.colors.text.muted,
+    textAlign: 'center',
+    lineHeight: 18,
+    maxWidth: 280,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: colors.light.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 11,
+    gap: 6,
+    backgroundColor: theme.colors.brand[600],
+    paddingHorizontal: 16,
+    paddingVertical: 9,
     borderRadius: 12,
-    marginTop: 12,
+    marginTop: 14,
   },
   actionButtonText: {
-    color: colors.light.white,
-    fontSize: 14,
+    color: theme.colors.white,
+    fontSize: 13,
     fontWeight: '700',
   },
 });

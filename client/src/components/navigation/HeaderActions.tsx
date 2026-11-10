@@ -9,6 +9,7 @@ import { View, TouchableOpacity, StyleSheet, Text, Animated } from 'react-native
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../constants/theme';
 import { notificationService } from '../../services/notificationService';
+import { useAppSelector } from '../../store';
 
 interface HeaderActionsProps {
   /** Số tin nhắn chưa đọc — hiện chấm đỏ nếu > 0 */
@@ -27,6 +28,7 @@ export function HeaderActions({
   onPressChat,
   onPressNotifications,
 }: HeaderActionsProps) {
+  const wishlistCount = useAppSelector((state) => state.wishlist?.items?.length || 0);
   const [internalUnread, setInternalUnread] = useState(
     notificationService.getUnreadCountCached()
   );
@@ -69,22 +71,29 @@ export function HeaderActions({
   return (
     <View style={styles.container}>
       {/* Nút Yêu thích (Wishlist) */}
-      {(
-        <TouchableOpacity
-          style={styles.iconButton}
-          onPress={onPressWishlist}
-          disabled={!onPressWishlist}
-          accessibilityState={{ disabled: !onPressWishlist }}
-          activeOpacity={0.7}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Ionicons
-            name="heart-outline"
-            size={22}
-            color={theme.textPrimary}
-          />
-        </TouchableOpacity>
-      )}
+      <TouchableOpacity
+        style={styles.iconButton}
+        onPress={onPressWishlist}
+        disabled={!onPressWishlist}
+        accessibilityState={{ disabled: !onPressWishlist }}
+        accessibilityRole="button"
+        accessibilityLabel="Wishlist"
+        activeOpacity={0.7}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
+        <Ionicons
+          name={wishlistCount > 0 ? 'heart' : 'heart-outline'}
+          size={20}
+          color={wishlistCount > 0 ? theme.colors.danger[500] : theme.textPrimary}
+        />
+        {wishlistCount > 0 && (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>
+              {wishlistCount > 99 ? '99+' : String(wishlistCount)}
+            </Text>
+          </View>
+        )}
+      </TouchableOpacity>
 
       {/* Nút Tin nhắn */}
       <TouchableOpacity

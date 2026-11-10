@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../../theme/colors';
+import { theme } from '../../theme/tokens';
 import { STRINGS } from '../../constants/strings';
 import { RentalCountdownTimer } from './RentalCountdownTimer';
 import { Booking } from '../../services/bookingService';
@@ -13,15 +13,70 @@ export interface BookingItemCardProps {
   onExtend?: () => void;
   onReview?: () => void;
   onReRent?: () => void;
+  onChat?: () => void;
 }
 
-const STATUS_CONFIG = {
-  pending: { label: STRINGS.BOOKING_DETAIL.STATUS.pending, color: colors.light.warning, icon: 'time-outline' },
-  approved: { label: STRINGS.BOOKING_DETAIL.STATUS.approved, color: colors.light.primary, icon: 'checkmark-circle-outline' },
-  active: { label: STRINGS.BOOKING_DETAIL.STATUS.active, color: colors.light.primary, icon: 'play-circle-outline' },
-  completed: { label: STRINGS.BOOKING_DETAIL.STATUS.completed, color: colors.light.success, icon: 'star-outline' },
-  cancelled: { label: STRINGS.BOOKING_DETAIL.STATUS.cancelled, color: colors.light.error, icon: 'close-circle-outline' },
-  rejected: { label: STRINGS.BOOKING_DETAIL.STATUS.rejected, color: colors.light.error, icon: 'close-circle-outline' },
+const getStatusMeta = (status?: string) => {
+  switch (status) {
+    case 'pending':
+      return {
+        label: 'Pending',
+        icon: 'time-outline' as const,
+        color: theme.colors.amber,
+        bgColor: theme.colors.amberLight,
+      };
+    case 'approved':
+      return {
+        label: 'Approved',
+        icon: 'checkmark-circle-outline' as const,
+        color: theme.colors.brand[600],
+        bgColor: theme.colors.brand[50],
+      };
+    case 'active':
+      return {
+        label: 'Active',
+        icon: 'play-circle-outline' as const,
+        color: theme.colors.blue,
+        bgColor: theme.colors.blueLight,
+      };
+    case 'completed':
+      return {
+        label: 'Completed',
+        icon: 'checkmark-done-circle-outline' as const,
+        color: theme.colors.green,
+        bgColor: theme.colors.greenLight,
+      };
+    case 'cancelled':
+      return {
+        label: 'Cancelled',
+        icon: 'close-circle-outline' as const,
+        color: theme.colors.red,
+        bgColor: theme.colors.redLight,
+      };
+    case 'rejected':
+      return {
+        label: 'Declined',
+        icon: 'close-circle-outline' as const,
+        color: theme.colors.red,
+        bgColor: theme.colors.redLight,
+      };
+    default:
+      return {
+        label: status || 'Pending',
+        icon: 'time-outline' as const,
+        color: theme.colors.text.secondary,
+        bgColor: theme.colors.surfaceMuted,
+      };
+  }
+};
+
+const formatShortDate = (dateStr?: string) => {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  return `${day}/${month}`;
 };
 
 export function BookingItemCard({
@@ -31,68 +86,140 @@ export function BookingItemCard({
   onExtend,
   onReview,
   onReRent,
+  onChat,
 }: BookingItemCardProps) {
-  const statusConfig = STATUS_CONFIG[booking.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.pending;
-  const deviceName = booking.deviceId?.name || 'Device';
-  const deviceImage = booking.deviceId?.images?.[0] || 'https://via.placeholder.com/150';
+  const statusMeta = getStatusMeta(booking.status);
+  const device = booking.deviceId || {};
+  const deviceName = device.name || device.title || 'Device';
+  const deviceImage =
+    (Array.isArray(device.images) && device.images.length > 0 ? device.images[0] : null) ||
+    device.image ||
+    'https://via.placeholder.com/150';
+
+  const owner =
+    booking.ownerId?._id || booking.ownerId?.name
+      ? booking.ownerId
+      : (device as any)?.ownerId || {};
+  const ownerName = owner.name || owner.username || 'Device Owner';
+  const ownerAvatar = owner.avatar;
+  const isOwnerVerified = Boolean(owner.isVerified || owner.trust?.isVerified);
+
   const isActive = booking.status === 'active';
   const isPendingExtension = booking.extensionRequest?.status === 'pending';
   const isApprovedExtension = booking.extensionRequest?.status === 'approved';
 
-  const rentalDurationText = React.useMemo(() => {
+  const totalAmount =
+    booking.totalAmount ||
+    booking.rentalFee ||
+    (booking as any).pricing?.totalAmount ||
+    0;
+
+  const totalDays =
+    booking.totalDays ||
+    (booking.startDate && booking.endDate
+      ? Math.max(
+          1,
+          Math.ceil(
+            (new Date(booking.endDate).getTime() - new Date(booking.startDate).getTime()) /
+              (1000 * 60 * 60 * 24)
+          )
+        )
+      : 1);
+
+  const formatDurationText = () => {
     if (!booking.startDate || !booking.endDate) {
-      return `${booking.totalDays} ${booking.totalDays === 1 ? STRINGS.BOOKING_ITEM_CARD.DAY_UNIT : STRINGS.BOOKING_ITEM_CARD.DAYS_UNIT}`;
+      return `${totalDays} ${totalDays === 1 ? 'day' : 'days'}`;
     }
     const diffMs = Math.abs(new Date(booking.endDate).getTime() - new Date(booking.startDate).getTime());
     const totalHours = Math.round(diffMs / (1000 * 60 * 60));
-    const days = Math.floor(totalHours / 24);
-    const remHours = totalHours % 24;
+    if (totalHours < 24) {
+      return `${totalHours}h`;
+    }
+    const days = Math.round(totalHours / 24);
+    return `${days} ${days === 1 ? 'day' : 'days'}`;
+  };
 
-    if (days > 0 && remHours > 0) {
-      return `${days}d ${remHours}h (${totalHours}h)`;
-    }
-    if (days > 0) {
-      return `${days} ${days === 1 ? STRINGS.BOOKING_ITEM_CARD.DAY_UNIT : STRINGS.BOOKING_ITEM_CARD.DAYS_UNIT}`;
-    }
-    return `${totalHours}h`;
-  }, [booking.startDate, booking.endDate, booking.totalDays]);
+  const startDateStr = formatShortDate(booking.startDate);
+  const endDateStr = formatShortDate(booking.endDate);
+  const dateDisplay =
+    startDateStr && endDateStr
+      ? `${startDateStr} - ${endDateStr} (${formatDurationText()})`
+      : `${formatDurationText()}`;
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Ionicons name="receipt-outline" size={16} color={colors.light.textSecondary} />
-          <Text style={styles.bookingCode}>#{booking.bookingCode}</Text>
+    <TouchableOpacity
+      style={styles.cardContainer}
+      onPress={onPress}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+    >
+      {/* 1. Header: Mã đơn hàng bên trái & Badge trạng thái bên phải */}
+      <View style={styles.headerRow}>
+        <View style={styles.codeContainer}>
+          <Ionicons name="receipt-outline" size={13} color={theme.colors.text.subtle} />
+          <Text style={styles.bookingCodeText}>
+            #{booking.bookingCode || booking._id?.slice(-8)}
+          </Text>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: statusConfig.color + '20' }]}>
-          <Ionicons name={statusConfig.icon as any} size={14} color={statusConfig.color} />
-          <Text style={[styles.statusText, { color: statusConfig.color }]}>{statusConfig.label}</Text>
+
+        <View style={[styles.statusBadge, { backgroundColor: statusMeta.bgColor }]}>
+          <Ionicons name={statusMeta.icon} size={12} color={statusMeta.color} />
+          <Text style={[styles.statusBadgeText, { color: statusMeta.color }]}>
+            {statusMeta.label}
+          </Text>
         </View>
       </View>
 
-      {/* Body: Image & Info */}
-      <View style={styles.body}>
-        <Image source={{ uri: deviceImage }} style={styles.image} />
-        <View style={styles.info}>
-          <Text style={styles.deviceName} numberOfLines={2}>
+      {/* 2. Main Content Row: 2 cột Thumbnail (72x72) + Thông tin tóm tắt */}
+      <View style={styles.mainContentRow}>
+        <View style={styles.thumbnailContainer}>
+          {deviceImage ? (
+            <Image
+              source={{ uri: deviceImage }}
+              style={styles.thumbnailImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.thumbnailPlaceholder}>
+              <Ionicons
+                name="hardware-chip-outline"
+                size={26}
+                color={theme.colors.text.subtle}
+              />
+            </View>
+          )}
+        </View>
+
+        <View style={styles.summaryContainer}>
+          <Text style={styles.deviceNameText} numberOfLines={1}>
             {deviceName}
           </Text>
-          <Text style={styles.dateText}>
-            {STRINGS.BOOKING_ITEM_CARD.FROM_PREFIX}{new Date(booking.startDate).toLocaleDateString('en-US')}
-          </Text>
-          <Text style={styles.dateText}>
-            {STRINGS.BOOKING_ITEM_CARD.TO_PREFIX}{new Date(booking.endDate).toLocaleDateString('en-US')} ({rentalDurationText})
-          </Text>
+
+          <View style={styles.dateRow}>
+            <Ionicons
+              name="calendar-outline"
+              size={13}
+              color={theme.colors.text.muted}
+            />
+            <Text style={styles.dateText}>{dateDisplay}</Text>
+          </View>
+
+          <View style={styles.priceRow}>
+            <Text style={styles.priceLabel}>Total: </Text>
+            <Text style={styles.priceValue}>
+              {totalAmount.toLocaleString('en-US')} VND
+            </Text>
+          </View>
         </View>
       </View>
 
-      {/* Countdown Timer for active rentals */}
+      {/* 3. Compact Active Countdown Timer */}
       {isActive && (
-        <View style={styles.timerWrapper}>
+        <View style={styles.activeTimerWrap}>
           <RentalCountdownTimer
             startDate={booking.startDate}
             endDate={booking.endDate}
+            compact={true}
           />
         </View>
       )}
@@ -100,318 +227,406 @@ export function BookingItemCard({
       {/* Extension status indicator */}
       {isPendingExtension && (
         <View style={styles.extensionPendingTag}>
-          <Ionicons name="hourglass" size={14} color={colors.light.warning} />
+          <Ionicons name="hourglass-outline" size={12} color={theme.colors.amber} />
           <Text style={styles.extensionPendingText}>
-            {STRINGS.BOOKING_ITEM_CARD.EXTENSION_PENDING_TAG(
-              booking.extensionRequest?.requestedDays || 0,
-              booking.extensionRequest?.additionalFee?.toLocaleString('en-US') || '0'
-            )}
+            Extension requested (+{booking.extensionRequest?.requestedDays || 0}d)
           </Text>
         </View>
       )}
 
       {isApprovedExtension && (
         <View style={styles.extensionApprovedTag}>
-          <Ionicons name="checkmark-circle" size={14} color={colors.light.success} />
+          <Ionicons name="checkmark-circle-outline" size={12} color={theme.colors.green} />
           <Text style={styles.extensionApprovedText}>
-            {STRINGS.BOOKING_ITEM_CARD.EXTENSION_APPROVED_TAG(
-              booking.extensionRequest?.requestedDays || 0
-            )}
+            Extension approved (+{booking.extensionRequest?.requestedDays || 0}d)
           </Text>
         </View>
       )}
 
-      {/* Footer Total */}
-      <View style={styles.footer}>
-        <Text style={styles.totalLabel}>{STRINGS.BOOKING_ITEM_CARD.TOTAL_LABEL}</Text>
-        <Text style={styles.totalAmount}>
-          {booking.totalAmount?.toLocaleString('en-US')} VND
-        </Text>
-      </View>
+      {/* 4. Footer: Chủ thiết bị & Nút thao tác nhanh */}
+      <View style={styles.footerRow}>
+        <View style={styles.ownerContainer}>
+          {ownerAvatar ? (
+            <Image source={{ uri: ownerAvatar }} style={styles.ownerAvatar} />
+          ) : (
+            <View style={styles.ownerAvatarPlaceholder}>
+              <Ionicons name="storefront-outline" size={11} color={theme.colors.text.subtle} />
+            </View>
+          )}
+          <Text style={styles.ownerNameText} numberOfLines={1}>
+            {ownerName}
+          </Text>
+          {isOwnerVerified && (
+            <Ionicons
+              name="checkmark-circle"
+              size={12}
+              color={theme.colors.green}
+              style={{ marginLeft: 3 }}
+            />
+          )}
+        </View>
 
-      {/* Action Row */}
-      {(booking.status === 'pending' || isActive || booking.status === 'completed') && (
-        <View style={styles.actionRow}>
+        <View style={styles.footerActions}>
+          {onChat && (
+            <TouchableOpacity
+              style={styles.chatIconButton}
+              onPress={(e) => {
+                e.stopPropagation?.();
+                onChat();
+              }}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="chatbubble-ellipses-outline" size={14} color={theme.colors.brand[600]} />
+            </TouchableOpacity>
+          )}
+
           {booking.status === 'pending' && onCancel && (
-            <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
-              <Ionicons name="close-circle-outline" size={15} color={colors.light.error} />
-              <Text style={styles.cancelButtonText}>{STRINGS.BOOKING_ITEM_CARD.CANCEL_BOOKING}</Text>
+            <TouchableOpacity
+              style={styles.cancelActionBtn}
+              onPress={(e) => {
+                e.stopPropagation?.();
+                onCancel();
+              }}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.cancelActionText}>{STRINGS.BOOKING_ITEM_CARD.CANCEL_BOOKING || 'Cancel'}</Text>
             </TouchableOpacity>
           )}
 
           {isActive && onExtend && (
             <TouchableOpacity
-              style={[
-                styles.extendButton,
-                isPendingExtension && styles.extendButtonDisabled,
-              ]}
-              onPress={onExtend}
+              style={[styles.extendActionBtn, isPendingExtension && styles.actionBtnDisabled]}
+              onPress={(e) => {
+                e.stopPropagation?.();
+                onExtend();
+              }}
               disabled={isPendingExtension}
+              activeOpacity={0.8}
             >
               <Ionicons
-                name={isPendingExtension ? 'time-outline' : 'calendar-outline'}
-                size={15}
-                color={isPendingExtension ? colors.light.textSecondary : colors.light.primary}
+                name="calendar-outline"
+                size={12}
+                color={isPendingExtension ? theme.colors.text.subtle : theme.colors.brand[600]}
               />
-              <Text
-                style={[
-                  styles.extendButtonText,
-                  isPendingExtension && styles.extendButtonTextDisabled,
-                ]}
-              >
-                {isPendingExtension ? STRINGS.BOOKING_ITEM_CARD.EXTENSION_PENDING : STRINGS.BOOKING_ITEM_CARD.EXTEND_RENTAL}
+              <Text style={[styles.extendActionText, isPendingExtension && styles.actionTextDisabled]}>
+                {isPendingExtension ? 'Pending' : 'Extend'}
               </Text>
             </TouchableOpacity>
           )}
 
           {booking.status === 'completed' && (
             booking.isReviewed ? (
-              <View style={styles.completedActions}>
+              <View style={styles.inlineActionGroup}>
                 <View style={styles.reviewedBadge}>
-                  <Ionicons name="checkmark-done-circle" size={15} color={colors.light.success} />
-                  <Text style={styles.reviewedBadgeText}>{STRINGS.BOOKING_ITEM_CARD.REVIEWED}</Text>
+                  <Ionicons name="checkmark-done" size={12} color={theme.colors.green} />
+                  <Text style={styles.reviewedBadgeText}>Reviewed</Text>
                 </View>
                 {onReRent && (
-                  <TouchableOpacity style={styles.reRentButton} onPress={onReRent} activeOpacity={0.8}>
-                    <Ionicons name="repeat" size={15} color={colors.light.white} />
-                    <Text style={styles.reRentButtonText}>{STRINGS.BOOKING_ITEM_CARD.RENT_AGAIN}</Text>
+                  <TouchableOpacity
+                    style={styles.reRentActionBtn}
+                    onPress={(e) => {
+                      e.stopPropagation?.();
+                      onReRent();
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="repeat" size={12} color={theme.colors.white} />
+                    <Text style={styles.reRentActionText}>Rent Again</Text>
                   </TouchableOpacity>
                 )}
               </View>
             ) : onReview ? (
-              <TouchableOpacity style={styles.reviewButton} onPress={onReview}>
-                <Ionicons name="star" size={14} color={colors.light.white} />
-                <Text style={styles.reviewButtonText}>{STRINGS.BOOKING_ITEM_CARD.REVIEW_SERVICE}</Text>
+              <TouchableOpacity
+                style={styles.reviewActionBtn}
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  onReview();
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="star" size={12} color={theme.colors.amber} />
+                <Text style={styles.reviewActionText}>Review</Text>
               </TouchableOpacity>
             ) : null
           )}
+
+          <Ionicons
+            name="chevron-forward"
+            size={16}
+            color={theme.colors.text.subtle}
+          />
         </View>
-      )}
+      </View>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.light.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 14,
+  cardContainer: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.lg,
     borderWidth: 1,
-    borderColor: colors.light.borderSubtle,
-    shadowColor: colors.light.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
+    borderColor: theme.colors.border.light,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 12,
+    ...theme.shadows.card,
   },
-  header: {
+  headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.light.borderSubtle,
-    paddingBottom: 8,
+    marginBottom: 10,
   },
-  headerLeft: {
+  codeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
   },
-  bookingCode: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.light.textPrimary,
+  bookingCodeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.text.subtle,
+    letterSpacing: 0.2,
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    borderRadius: theme.radii.full,
     gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
   },
-  statusText: {
-    fontSize: 12,
+  statusBadgeText: {
+    fontSize: 11.5,
     fontWeight: '600',
   },
-  body: {
+  mainContentRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 8,
+    alignItems: 'center',
+    marginBottom: 10,
   },
-  image: {
-    width: 76,
-    height: 76,
+  thumbnailContainer: {
+    width: 72,
+    height: 72,
     borderRadius: 12,
-    backgroundColor: colors.light.background,
+    overflow: 'hidden',
+    backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.border.divider,
   },
-  info: {
+  thumbnailImage: {
+    width: '100%',
+    height: '100%',
+  },
+  thumbnailPlaceholder: {
     flex: 1,
     justifyContent: 'center',
+    alignItems: 'center',
   },
-  deviceName: {
+  summaryContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    marginLeft: 14,
+  },
+  deviceNameText: {
     fontSize: 15,
     fontWeight: '700',
-    color: colors.light.textPrimary,
-    marginBottom: 6,
+    color: theme.colors.text.primary,
+    lineHeight: 20,
+  },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 5,
   },
   dateText: {
-    fontSize: 12,
-    color: colors.light.textSecondary,
-    marginBottom: 2,
+    fontSize: 12.5,
+    color: theme.colors.text.secondary,
+    fontWeight: '500',
   },
-  timerWrapper: {
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
     marginTop: 4,
-    marginBottom: 4,
+  },
+  priceLabel: {
+    fontSize: 12.5,
+    color: theme.colors.text.muted,
+    fontWeight: '400',
+  },
+  priceValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: theme.colors.brand[600],
+  },
+  activeTimerWrap: {
+    marginBottom: 8,
   },
   extensionPendingTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.light.warningLight,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    gap: 5,
+    backgroundColor: theme.colors.amberLight,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
     borderRadius: 8,
-    marginTop: 6,
-    marginBottom: 4,
+    marginBottom: 8,
   },
   extensionPendingText: {
-    fontSize: 12,
-    color: colors.light.warning,
+    fontSize: 11.5,
+    color: theme.colors.amber,
     fontWeight: '600',
-    flex: 1,
   },
   extensionApprovedTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.light.successLight,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    gap: 5,
+    backgroundColor: theme.colors.greenLight,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
     borderRadius: 8,
-    marginTop: 6,
-    marginBottom: 4,
+    marginBottom: 8,
   },
   extensionApprovedText: {
-    fontSize: 12,
-    color: colors.light.success,
+    fontSize: 11.5,
+    color: theme.colors.green,
     fontWeight: '600',
-    flex: 1,
   },
-  footer: {
+  footerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: colors.light.borderSubtle,
     paddingTop: 10,
-    marginTop: 6,
-  },
-  totalLabel: {
-    fontSize: 13,
-    color: colors.light.textSecondary,
-  },
-  totalAmount: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.light.primaryDark,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    gap: 8,
     borderTopWidth: 1,
-    borderTopColor: colors.light.borderSubtle,
-    paddingTop: 10,
-    marginTop: 10,
+    borderTopColor: theme.colors.border.divider,
   },
-  cancelButton: {
+  ownerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.light.error,
+    flex: 1,
+    marginRight: 8,
   },
-  cancelButtonText: {
-    fontSize: 13,
+  ownerAvatar: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: theme.colors.surfaceMuted,
+  },
+  ownerAvatarPlaceholder: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: theme.colors.surfaceMuted,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  ownerNameText: {
+    fontSize: 12.5,
     fontWeight: '600',
-    color: colors.light.error,
+    color: theme.colors.text.secondary,
+    marginLeft: 6,
+    maxWidth: 130,
   },
-  extendButton: {
+  footerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 8,
+    gap: 6,
+  },
+  inlineActionGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  chatIconButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: theme.colors.surfaceMuted,
     borderWidth: 1,
-    borderColor: colors.light.primary,
-    backgroundColor: colors.light.primaryLight,
+    borderColor: theme.colors.border.divider,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  extendButtonDisabled: {
-    borderColor: colors.light.borderDefault,
-    backgroundColor: colors.light.surface,
+  cancelActionBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: theme.colors.redLight,
+    borderWidth: 1,
+    borderColor: theme.colors.redBorder,
   },
-  extendButtonText: {
-    fontSize: 13,
+  cancelActionText: {
+    fontSize: 11.5,
     fontWeight: '700',
-    color: colors.light.primary,
+    color: theme.colors.red,
   },
-  extendButtonTextDisabled: {
-    color: colors.light.textSecondary,
-    fontWeight: '600',
-  },
-  reviewButton: {
+  extendActionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+    gap: 3,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 8,
-    backgroundColor: colors.light.warning,
+    backgroundColor: theme.colors.brand[50],
+    borderWidth: 1,
+    borderColor: theme.colors.brand[200],
   },
-  reviewButtonText: {
-    fontSize: 13,
+  extendActionText: {
+    fontSize: 11.5,
     fontWeight: '700',
-    color: colors.light.white,
+    color: theme.colors.brand[600],
+  },
+  actionBtnDisabled: {
+    backgroundColor: theme.colors.surfaceMuted,
+    borderColor: theme.colors.border.light,
+  },
+  actionTextDisabled: {
+    color: theme.colors.text.subtle,
+  },
+  reviewActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: theme.colors.amberLight,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  reviewActionText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: theme.colors.amber,
   },
   reviewedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: colors.light.successLight,
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: theme.colors.greenLight,
   },
   reviewedBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.light.success,
+    fontSize: 11,
+    fontWeight: '600',
+    color: theme.colors.green,
   },
-  completedActions: {
+  reRentActionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-  },
-  reRentButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    gap: 3,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 8,
-    backgroundColor: colors.light.primary,
+    backgroundColor: theme.colors.brand[600],
   },
-  reRentButtonText: {
-    fontSize: 13,
+  reRentActionText: {
+    fontSize: 11.5,
     fontWeight: '700',
-    color: colors.light.white,
+    color: theme.colors.white,
   },
 });

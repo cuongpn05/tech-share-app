@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../../theme/tokens';
 import { socketService } from '../../services/socketService';
 import { useAppSelector } from '../../store';
 import { ChatMessage } from '../../types';
@@ -25,6 +24,9 @@ interface BannerData {
   senderName: string;
   senderAvatar: string;
   text: string;
+  type?: 'message' | 'booking';
+  status?: string;
+  bookingCode?: string;
 }
 
 export const InAppNotificationBanner: React.FC = () => {
@@ -76,7 +78,6 @@ export const InAppNotificationBanner: React.FC = () => {
 
     setActiveBanner(data);
 
-    // Rung nhẹ thông báo
     try {
       Vibration.vibrate(150);
     } catch {}
@@ -95,40 +96,39 @@ export const InAppNotificationBanner: React.FC = () => {
       }),
     ]).start();
 
-    // Tự động ẩn sau 4.5 giây
+    // Tự động ẩn sau 5 giây
     timerRef.current = setTimeout(() => {
       dismissBanner();
-    }, 4500);
+    }, 5000);
   };
 
   useEffect(() => {
     // 1. Lắng nghe tin nhắn mới từ socket
     const unsubMsg = socketService.onNewMessage((msg: ChatMessage) => {
-      // Bỏ qua nếu là tin do chính mình gửi
       if (currentUserId && String(msg.senderId) === String(currentUserId)) return;
 
-      // Bỏ qua nếu người dùng đang ở trong chính phòng chat này
       const currentActiveBooking = socketService.getActiveBookingId();
       if (currentActiveBooking && currentActiveBooking === msg.bookingId) return;
 
       const snippet =
         msg.text ||
         (msg.messageType === 'image'
-          ? 'Sent a photo'
+          ? 'Đã gửi một hình ảnh'
           : msg.messageType === 'location'
-          ? 'Shared a GPS location'
-          : 'New message');
+          ? 'Đã chia sẻ vị trí GPS'
+          : 'Tin nhắn mới');
 
       showBanner({
         id: msg._id,
         bookingId: msg.bookingId,
-        senderName: msg.senderName || 'New Message',
+        senderName: msg.senderName || 'Tin nhắn mới',
         senderAvatar: msg.senderAvatar || '',
         text: snippet,
+        type: 'message',
       });
     });
 
-    // 2. Listen to push notification events
+    // 2. Lắng nghe thông báo đẩy dạng booking notification event
     const unsubNotif = socketService.onNotification((notif) => {
       if (!notif) return;
       const bId = notif.data?.bookingId || notif.relatedId;
@@ -137,12 +137,17 @@ export const InAppNotificationBanner: React.FC = () => {
       const currentActiveBooking = socketService.getActiveBookingId();
       if (currentActiveBooking && currentActiveBooking === bId) return;
 
+      const isBooking = notif.type === 'order' || notif.type === 'booking' || Boolean(bId);
+
       showBanner({
         id: notif._id || `notif_${Date.now()}`,
         bookingId: bId,
-        senderName: notif.data?.senderName || notif.title || 'TechShare',
+        senderName: notif.title || 'TechShare Booking Update',
         senderAvatar: notif.data?.senderAvatar || '',
-        text: notif.body || 'You have a new message',
+        text: notif.body || 'You have a new update regarding your rental order',
+        type: isBooking ? 'booking' : 'message',
+        status: (notif.data as any)?.status,
+        bookingCode: (notif.data as any)?.bookingCode,
       });
     });
 
@@ -179,9 +184,18 @@ export const InAppNotificationBanner: React.FC = () => {
   if (!activeBanner) return null;
 
   const handlePress = () => {
-    const bookingId = activeBanner.bookingId;
+    if (!activeBanner) return;
+    const { bookingId, type, status } = activeBanner;
     dismissBanner();
-    if (bookingId) {
+    if (!bookingId) return;
+
+    if (type === 'booking') {
+      if (currentUser?.role === 'owner' && status === 'pending') {
+        navigate('OwnerPendingBookings');
+      } else {
+        navigate('BookingDetail', { bookingId });
+      }
+    } else {
       navigate('ChatDetail', { bookingId });
     }
   };
@@ -190,6 +204,8 @@ export const InAppNotificationBanner: React.FC = () => {
     insets.top,
     Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 36
   );
+
+  const isBookingBanner = activeBanner.type === 'booking';
 
   return (
     <Animated.View
@@ -204,30 +220,49 @@ export const InAppNotificationBanner: React.FC = () => {
       {...panResponder.panHandlers}
     >
       <TouchableOpacity
-        style={styles.card}
+        style={[styles.card, isBookingBanner ? styles.cardBooking : styles.cardMessage]}
         onPress={handlePress}
         activeOpacity={0.9}
       >
-        {activeBanner.senderAvatar ? (
+        {/* Leading Avatar / Icon */}
+        {isBookingBanner ? (
+          <View style={[styles.avatar, styles.iconBadgeBooking]}>
+            <Ionicons name="receipt" size={20} color="#2DD4BF" />
+          </View>
+        ) : activeBanner.senderAvatar ? (
           <Image
             source={{ uri: activeBanner.senderAvatar }}
             style={styles.avatar}
           />
         ) : (
           <View style={[styles.avatar, styles.avatarPlaceholder]}>
-            <Ionicons name="chatbubble-ellipses" size={20} color={theme.colors.brand[500]} />
+            <Ionicons name="chatbubble-ellipses" size={20} color="#0D9488" />
           </View>
         )}
 
         <View style={styles.content}>
           <View style={styles.topRow}>
-            <Text style={styles.appName}>TechShare • Just now</Text>
+            <View style={styles.tagGroup}>
+              <View style={[styles.typePill, isBookingBanner ? styles.typePillBooking : styles.typePillMessage]}>
+                <Ionicons
+                  name={isBookingBanner ? 'receipt-outline' : 'chatbubble-outline'}
+                  size={10}
+                  color={isBookingBanner ? '#2DD4BF' : '#60A5FA'}
+                  style={{ marginRight: 3 }}
+                />
+                <Text style={[styles.typeText, isBookingBanner ? styles.typeTextBooking : styles.typeTextMessage]}>
+                  {isBookingBanner ? 'BOOKING' : 'MESSAGE'}
+                </Text>
+              </View>
+              <Text style={styles.timeTag}>Just now</Text>
+            </View>
+
             <TouchableOpacity
               onPress={dismissBanner}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               style={styles.closeBtn}
             >
-              <Ionicons name="close" size={14} color={theme.colors.text.subtle} />
+              <Ionicons name="close" size={14} color="#94A3B8" />
             </TouchableOpacity>
           </View>
 
@@ -235,13 +270,13 @@ export const InAppNotificationBanner: React.FC = () => {
             {activeBanner.senderName}
           </Text>
 
-          <Text style={styles.messageText} numberOfLines={1}>
+          <Text style={styles.messageText} numberOfLines={2}>
             {activeBanner.text}
           </Text>
         </View>
 
         <View style={styles.actionIconBox}>
-          <Ionicons name="chevron-forward" size={18} color={theme.colors.brand[400]} />
+          <Ionicons name="chevron-forward" size={18} color="#2DD4BF" />
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -259,29 +294,45 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.text.primary,
-    borderRadius: 18,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.text.primary,
-    shadowColor: theme.colors.black,
+    borderRadius: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
-    shadowRadius: 10,
+    shadowRadius: 12,
     elevation: 10,
+    borderWidth: 1,
+  },
+  cardBooking: {
+    backgroundColor: '#0F172A',
+    borderColor: '#1E293B',
+    borderLeftWidth: 4,
+    borderLeftColor: '#2DD4BF',
+  },
+  cardMessage: {
+    backgroundColor: '#0F172A',
+    borderColor: '#1E293B',
+    borderLeftWidth: 4,
+    borderLeftColor: '#3B82F6',
   },
   avatar: {
     width: 42,
     height: 42,
-    borderRadius: 21,
-    backgroundColor: theme.colors.text.secondary,
+    borderRadius: 14,
     marginRight: 12,
+  },
+  iconBadgeBooking: {
+    backgroundColor: 'rgba(13, 148, 136, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(45, 212, 191, 0.3)',
   },
   avatarPlaceholder: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.colors.text.primary,
+    backgroundColor: '#1E293B',
   },
   content: {
     flex: 1,
@@ -291,27 +342,53 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 2,
+    marginBottom: 4,
   },
-  appName: {
+  tagGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  typePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 6,
+  },
+  typePillBooking: {
+    backgroundColor: 'rgba(13, 148, 136, 0.25)',
+  },
+  typePillMessage: {
+    backgroundColor: 'rgba(59, 130, 246, 0.25)',
+  },
+  typeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  typeTextBooking: {
+    color: '#2DD4BF',
+  },
+  typeTextMessage: {
+    color: '#93C5FD',
+  },
+  timeTag: {
     fontSize: 10.5,
-    fontWeight: '600',
-    color: theme.colors.brand[400],
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    color: '#94A3B8',
   },
   closeBtn: {
     padding: 2,
   },
   senderName: {
-    fontSize: 14.5,
+    fontSize: 14,
     fontWeight: '700',
-    color: theme.colors.white,
+    color: '#F8FAFC',
     marginBottom: 2,
   },
   messageText: {
     fontSize: 12.5,
-    color: theme.colors.border.default,
+    color: '#CBD5E1',
     lineHeight: 16,
   },
   actionIconBox: {
