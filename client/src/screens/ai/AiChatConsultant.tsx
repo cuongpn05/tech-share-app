@@ -237,10 +237,10 @@ export function AiChatConsultant({
           {isLoading && (
             <View style={styles.loadingRow}>
               <View style={styles.messageAvatar}>
-                <Ionicons name="sparkles" size={15} color={colors.light.ai} />
+                <Ionicons name="sparkles" size={15} color={colors.light.primary} />
               </View>
               <View style={styles.loadingBubble}>
-                <ActivityIndicator size="small" color={colors.light.ai} />
+                <ActivityIndicator size="small" color={colors.light.primary} />
                 <Text style={styles.loadingText}>
                   {STRINGS.AI_CHAT.THINKING}
                 </Text>

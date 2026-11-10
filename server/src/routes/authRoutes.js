@@ -17,6 +17,9 @@ router.post('/register/resend-otp', authController.resendRegisterOtp);
 // Endpoint lấy thông tin profile từ token
 router.get('/me', requireAuth, authController.getMe);
 
+// Public unsigned Cloudinary config (read from server/.env) for fast 1-hop direct upload
+router.get('/cloudinary-config', requireAuth, authController.getCloudinaryConfig);
+
 // Update user personal profile
 router.put('/me', requireAuth, authController.updateMe);
 

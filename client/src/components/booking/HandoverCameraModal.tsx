@@ -16,7 +16,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../theme/colors';
 import { STRINGS } from '../../constants/strings';
-import { bookingService, Booking } from '../../services/bookingService';
+import { bookingService, Booking, REQUIRED_RETURN_PHOTOS } from '../../services/bookingService';
 import { uploadImage } from '../../services/uploadService';
 
 interface HandoverCameraModalProps {
@@ -126,12 +126,15 @@ export function HandoverCameraModal({
       setErrorMessage(lockedMessage);
       return;
     }
-    setPickerSlotIndex(index);
+    if (isOwnerAfter) {
+      void handleLaunchCamera(index);
+    } else {
+      setPickerSlotIndex(index);
+    }
   };
 
-  const handleLaunchCamera = async () => {
-    if (pickerSlotIndex === null) return;
-    const targetIndex = pickerSlotIndex;
+  const handleLaunchCamera = async (targetIndex = pickerSlotIndex) => {
+    if (targetIndex === null) return;
     setPickerSlotIndex(null);
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -191,6 +194,10 @@ export function HandoverCameraModal({
     }
 
     const validPhotos = photos.filter((p: string) => Boolean(p && p.trim()));
+    if (isOwnerAfter && validPhotos.length < REQUIRED_RETURN_PHOTOS) {
+      setErrorMessage(STRINGS.BOOKING_DETAIL.RETURN_PHOTOS_REQUIRED);
+      return;
+    }
     if (validPhotos.length === 0) {
       setErrorMessage(STRINGS.HANDOVER_CAMERA.MISSING_PHOTOS_MSG);
       return;
@@ -233,6 +240,7 @@ export function HandoverCameraModal({
   };
 
   const countTaken = photos.filter(Boolean).length;
+  const saveDisabled = submitting || countTaken < (isOwnerAfter ? REQUIRED_RETURN_PHOTOS : 1);
   const progressPercent = Math.round((countTaken / 4) * 100);
 
   return (
@@ -240,7 +248,9 @@ export function HandoverCameraModal({
       visible={visible}
       transparent
       animationType="slide"
-      onRequestClose={onClose}
+      onRequestClose={() => {
+        if (!submitting) onClose();
+      }}
     >
       <View style={styles.backdrop}>
         <View style={styles.sheetContainer}>
@@ -427,7 +437,7 @@ export function HandoverCameraModal({
               </View>
               <Text style={styles.adviceText}>
                 {isOwnerAfter
-                  ? STRINGS.HANDOVER_CAMERA.OWNER_ADVICE_TEXT
+                  ? STRINGS.BOOKING_DETAIL.RETURN_PHOTOS_REQUIRED
                   : STRINGS.HANDOVER_CAMERA.ADVICE_TEXT}
               </Text>
             </View>
@@ -447,10 +457,10 @@ export function HandoverCameraModal({
               <TouchableOpacity
                 style={[
                   styles.saveBtn,
-                  (submitting || countTaken === 0) && styles.saveBtnDisabled,
+                  saveDisabled && styles.saveBtnDisabled,
                 ]}
                 onPress={handleSave}
-                disabled={submitting || countTaken === 0}
+                disabled={saveDisabled}
               >
                 {submitting ? (
                   <ActivityIndicator size="small" color={colors.light.white} />
@@ -493,7 +503,7 @@ export function HandoverCameraModal({
                 {/* Option 1: Camera */}
                 <TouchableOpacity
                   style={styles.pickerOptionCard}
-                  onPress={handleLaunchCamera}
+                  onPress={() => void handleLaunchCamera()}
                   activeOpacity={0.8}
                 >
                   <View style={styles.pickerOptionIconCircle}>

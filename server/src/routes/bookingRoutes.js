@@ -19,6 +19,9 @@ const {
 const { requireAuth, requireRole } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
+const { issueToken, verifyQr, limitHandover } = require('../controllers/handoverController');
+router.post('/verify-qr', requireAuth, limitHandover, verifyQr);
+router.post('/:id/handover-token', requireAuth, limitHandover, issueToken);
 const extensionAction = (action) => (req, res, next) => {
   req.params.action = action;
   return respondToExtensionRequest(req, res, next);

@@ -32,13 +32,18 @@ import {
   StatusBar,
   ScrollView,
   Platform,
-  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DrawerActions, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../theme/tokens';
 import { STRINGS } from '../../constants/strings';
+import { optimizeCloudinaryUrl } from '../../services/cloudinaryUploadService';
+import {
+  EkycConfirmModal,
+  EkycModalSummaryItem,
+  EkycResultModal,
+} from '../../components/ekyc/EkycFeedbackModals';
 import {
   getAdminEkycList,
   getAdminOwnerEkycList,
@@ -79,6 +84,105 @@ const PAGE_LIMIT = 15;
 
 const DEFAULT_EKYC_REJECT_REASONS = S.REJECT_MODAL.DEFAULT_REASONS;
 
+function isValidRemoteUrl(url?: string | null): url is string {
+  return Boolean(url && /^https?:\/\//i.test(url.trim()));
+}
+
+function AdminEkycAvatar({ uri }: { uri?: string | null }) {
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [uri]);
+
+  if (!isValidRemoteUrl(uri) || failed) {
+    return (
+      <View style={[styles.userAvatar, styles.userAvatarPlaceholder]}>
+        <Ionicons name="person" size={20} color={theme.colors.brand[500]} />
+      </View>
+    );
+  }
+
+  return (
+    <Image
+      source={{ uri: optimizeCloudinaryUrl(uri, 160) }}
+      style={styles.userAvatar}
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+function AdminEkycPhotoTile({
+  uri,
+  label,
+  onPress,
+}: {
+  uri: string;
+  label: string;
+  onPress: () => void;
+}) {
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [uri]);
+
+  return (
+    <TouchableOpacity
+      style={styles.photoBox}
+      activeOpacity={0.8}
+      onPress={onPress}
+    >
+      {isValidRemoteUrl(uri) && !failed ? (
+        <Image
+          source={{ uri: optimizeCloudinaryUrl(uri, 720) }}
+          style={styles.idCardImage}
+          resizeMode="cover"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <View style={styles.photoFallback}>
+          <Ionicons name="image-outline" size={24} color={theme.colors.text.subtle} />
+        </View>
+      )}
+      <View style={styles.photoLabelBar}>
+        <Ionicons name="scan-outline" size={13} color="#FFFFFF" />
+        <Text style={styles.photoLabelText} numberOfLines={1}>
+          {label}
+        </Text>
+      </View>
+      <View style={styles.zoomHintIcon}>
+        <Ionicons name="expand-outline" size={14} color="#FFFFFF" />
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function AdminEkycPortraitThumb({ uri }: { uri: string }) {
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [uri]);
+
+  if (!isValidRemoteUrl(uri) || failed) {
+    return (
+      <View style={[styles.portraitThumb, styles.portraitThumbFallback]}>
+        <Ionicons name="person-outline" size={20} color={theme.colors.text.subtle} />
+      </View>
+    );
+  }
+
+  return (
+    <Image
+      source={{ uri: optimizeCloudinaryUrl(uri, 240) }}
+      style={styles.portraitThumb}
+      resizeMode="cover"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 export function AdminEkycListScreen({
   navigation,
   initialCategory = 'renter',
@@ -115,11 +219,27 @@ export function AdminEkycListScreen({
 
   // Actions: Approve / Reject
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [submissionToApprove, setSubmissionToApprove] = useState<AdminEkycItem | null>(null);
+  const [isSubmittingApprove, setIsSubmittingApprove] = useState(false);
   const [rejectModalVisible, setRejectModalVisible] = useState(false);
   const [submissionToReject, setSubmissionToReject] = useState<AdminEkycItem | null>(null);
   const [selectedRejectReason, setSelectedRejectReason] = useState<string>(DEFAULT_EKYC_REJECT_REASONS[0]);
   const [customRejectReason, setCustomRejectReason] = useState('');
   const [isSubmittingReject, setIsSubmittingReject] = useState(false);
+
+  // Result notification modal (Approve / Reject / Validation)
+  const [resultModal, setResultModal] = useState<{
+    visible: boolean;
+    type: 'success' | 'error' | 'warning' | 'info' | 'rejected';
+    title: string;
+    message: string;
+    summaryItems?: EkycModalSummaryItem[];
+  }>({
+    visible: false,
+    type: 'success',
+    title: '',
+    message: '',
+  });
 
   // Debounce search query
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -247,70 +367,105 @@ export function AdminEkycListScreen({
 
   // ── Handle Approve Submission ───────────────────────────────
   const handleApprovePress = useCallback((item: AdminEkycItem) => {
+    setSubmissionToApprove(item);
+  }, []);
+
+  const handleCloseApproveModal = useCallback(() => {
+    if (isSubmittingApprove) return;
+    setSubmissionToApprove(null);
+  }, [isSubmittingApprove]);
+
+  const handleConfirmApprove = useCallback(async () => {
+    if (!submissionToApprove) return;
+    const item = submissionToApprove;
     const isOwnerCategory = activeCategory === 'owner';
-    Alert.alert(
-      isOwnerCategory ? S.ALERTS.CONFIRM_APPROVE_OWNER_TITLE : S.ALERTS.CONFIRM_APPROVE_TITLE,
-      (isOwnerCategory ? S.ALERTS.CONFIRM_APPROVE_OWNER_MSG : S.ALERTS.CONFIRM_APPROVE_MSG)(
-        item.user.name,
-        item.idCardNumber || S.CARD.ID_NUMBER_EMPTY
-      ),
-      [
-        { text: S.ALERTS.CANCEL, style: 'cancel' },
-        {
-          text: isOwnerCategory ? S.ACTIONS.APPROVE_OWNER : S.ACTIONS.APPROVE,
-          onPress: async () => {
-            try {
-              setActionLoadingId(item._id);
-              const res = isOwnerCategory
-                ? await approveAdminOwnerEkyc(item._id)
-                : await approveAdminEkyc(item._id);
-              if (res.success) {
-                // Update local list
-                if (activeTab === 'pending') {
-                  setSubmissions((prev) => prev.filter((s) => s._id !== item._id));
-                } else {
-                  setSubmissions((prev) =>
-                    prev.map((s) =>
-                      s._id === item._id
-                        ? { ...s, status: 'approved' as const, rejectReason: '' }
-                        : s
-                    )
-                  );
-                }
 
-                // Update tab counters
-                setCounts((prev) => ({
-                  ...prev,
-                  totalPending: item.status === 'pending' ? Math.max(0, prev.totalPending - 1) : prev.totalPending,
-                  totalApproved: item.status !== 'approved' ? prev.totalApproved + 1 : prev.totalApproved,
-                  totalRejected: item.status === 'rejected' ? Math.max(0, prev.totalRejected - 1) : prev.totalRejected,
-                }));
-                if (item.status === 'pending') {
-                  if (isOwnerCategory) {
-                    setOwnerPendingCount((c) => Math.max(0, c - 1));
-                  } else {
-                    setRenterPendingCount((c) => Math.max(0, c - 1));
-                  }
-                }
+    try {
+      setIsSubmittingApprove(true);
+      setActionLoadingId(item._id);
+      const res = isOwnerCategory
+        ? await approveAdminOwnerEkyc(item._id)
+        : await approveAdminEkyc(item._id);
+      if (res.success) {
+        if (activeTab === 'pending') {
+          setSubmissions((prev) => prev.filter((s) => s._id !== item._id));
+        } else {
+          setSubmissions((prev) =>
+            prev.map((s) =>
+              s._id === item._id
+                ? { ...s, status: 'approved' as const, rejectReason: '' }
+                : s
+            )
+          );
+        }
 
-                Alert.alert(
-                  S.ALERTS.APPROVE_SUCCESS_TITLE,
-                  isOwnerCategory ? S.ALERTS.APPROVE_OWNER_SUCCESS_MSG : S.ALERTS.APPROVE_SUCCESS_MSG
-                );
-              } else {
-                Alert.alert(S.ALERTS.ERROR_TITLE, res.message || S.ALERTS.APPROVE_ERROR_DEFAULT);
-              }
-            } catch (err: any) {
-              console.error('[AdminEkycListScreen] Approve error:', err);
-              Alert.alert(S.ALERTS.ERROR_TITLE, err.response?.data?.message || S.ALERTS.NETWORK_ERROR);
-            } finally {
-              setActionLoadingId(null);
-            }
-          },
-        },
-      ]
-    );
-  }, [activeCategory, activeTab]);
+        setCounts((prev) => ({
+          ...prev,
+          totalPending: item.status === 'pending' ? Math.max(0, prev.totalPending - 1) : prev.totalPending,
+          totalApproved: item.status !== 'approved' ? prev.totalApproved + 1 : prev.totalApproved,
+          totalRejected: item.status === 'rejected' ? Math.max(0, prev.totalRejected - 1) : prev.totalRejected,
+        }));
+        if (item.status === 'pending') {
+          if (isOwnerCategory) {
+            setOwnerPendingCount((c) => Math.max(0, c - 1));
+          } else {
+            setRenterPendingCount((c) => Math.max(0, c - 1));
+          }
+        }
+
+        setSubmissionToApprove(null);
+        setResultModal({
+          visible: true,
+          type: 'success',
+          title: isOwnerCategory
+            ? S.ALERTS.APPROVE_OWNER_SUCCESS_TITLE
+            : S.ALERTS.APPROVE_SUCCESS_TITLE,
+          message: isOwnerCategory
+            ? S.ALERTS.APPROVE_OWNER_SUCCESS_MSG
+            : S.ALERTS.APPROVE_SUCCESS_MSG,
+          summaryItems: [
+            {
+              icon: 'person-outline',
+              label: S.ALERTS.SUMMARY_APPLICANT,
+              value: item.user.name,
+            },
+            {
+              icon: 'barcode-outline',
+              label: S.ALERTS.SUMMARY_ID_NUMBER,
+              value: item.idCardNumber || S.CARD.ID_NUMBER_EMPTY,
+            },
+            {
+              icon: isOwnerCategory ? 'ribbon-outline' : 'shield-checkmark-outline',
+              label: S.ALERTS.SUMMARY_RESULT,
+              value: isOwnerCategory
+                ? S.ALERTS.SUMMARY_STATUS_OWNER
+                : S.ALERTS.SUMMARY_STATUS_VERIFIED,
+            },
+          ],
+        });
+      } else {
+        setSubmissionToApprove(null);
+        setResultModal({
+          visible: true,
+          type: 'error',
+          title: S.ALERTS.ERROR_TITLE,
+          message: res.message || S.ALERTS.APPROVE_ERROR_DEFAULT,
+        });
+      }
+    } catch (err: any) {
+      console.error('[AdminEkycListScreen] Approve error:', err);
+      setSubmissionToApprove(null);
+      setResultModal({
+        visible: true,
+        type: 'error',
+        title: S.ALERTS.ERROR_TITLE,
+        message: err.response?.data?.message || S.ALERTS.NETWORK_ERROR,
+      });
+    } finally {
+      setIsSubmittingApprove(false);
+      setActionLoadingId(null);
+    }
+  }, [submissionToApprove, activeCategory, activeTab]);
 
   // ── Open Reject Modal ───────────────────────────────────────
   const handleOpenRejectModal = useCallback((item: AdminEkycItem) => {
@@ -333,24 +488,31 @@ export function AdminEkycListScreen({
     if (!submissionToReject) return;
     const finalReason = customRejectReason.trim() || selectedRejectReason;
     if (!finalReason) {
-      Alert.alert(S.ALERTS.REASON_REQUIRED_TITLE, S.ALERTS.REASON_REQUIRED_MSG);
+      setRejectModalVisible(false);
+      setResultModal({
+        visible: true,
+        type: 'warning',
+        title: S.ALERTS.REASON_REQUIRED_TITLE,
+        message: S.ALERTS.REASON_REQUIRED_MSG,
+      });
       return;
     }
 
+    const rejectedItem = submissionToReject;
     const isOwnerCategory = activeCategory === 'owner';
 
     try {
       setIsSubmittingReject(true);
       const res = isOwnerCategory
-        ? await rejectAdminOwnerEkyc(submissionToReject._id, finalReason)
-        : await rejectAdminEkyc(submissionToReject._id, finalReason);
+        ? await rejectAdminOwnerEkyc(rejectedItem._id, finalReason)
+        : await rejectAdminEkyc(rejectedItem._id, finalReason);
       if (res.success) {
         if (activeTab === 'pending') {
-          setSubmissions((prev) => prev.filter((s) => s._id !== submissionToReject._id));
+          setSubmissions((prev) => prev.filter((s) => s._id !== rejectedItem._id));
         } else {
           setSubmissions((prev) =>
             prev.map((s) =>
-              s._id === submissionToReject._id
+              s._id === rejectedItem._id
                 ? { ...s, status: 'rejected' as const, rejectReason: finalReason }
                 : s
             )
@@ -359,11 +521,11 @@ export function AdminEkycListScreen({
 
         setCounts((prev) => ({
           ...prev,
-          totalPending: submissionToReject.status === 'pending' ? Math.max(0, prev.totalPending - 1) : prev.totalPending,
-          totalApproved: submissionToReject.status === 'approved' ? Math.max(0, prev.totalApproved - 1) : prev.totalApproved,
-          totalRejected: submissionToReject.status !== 'rejected' ? prev.totalRejected + 1 : prev.totalRejected,
+          totalPending: rejectedItem.status === 'pending' ? Math.max(0, prev.totalPending - 1) : prev.totalPending,
+          totalApproved: rejectedItem.status === 'approved' ? Math.max(0, prev.totalApproved - 1) : prev.totalApproved,
+          totalRejected: rejectedItem.status !== 'rejected' ? prev.totalRejected + 1 : prev.totalRejected,
         }));
-        if (submissionToReject.status === 'pending') {
+        if (rejectedItem.status === 'pending') {
           if (isOwnerCategory) {
             setOwnerPendingCount((c) => Math.max(0, c - 1));
           } else {
@@ -374,16 +536,48 @@ export function AdminEkycListScreen({
         setRejectModalVisible(false);
         setSubmissionToReject(null);
         setCustomRejectReason('');
-        Alert.alert(
-          S.ALERTS.REJECT_SUCCESS_TITLE,
-          isOwnerCategory ? S.ALERTS.REJECT_OWNER_SUCCESS_MSG : S.ALERTS.REJECT_SUCCESS_MSG
-        );
+        setResultModal({
+          visible: true,
+          type: 'rejected',
+          title: isOwnerCategory
+            ? S.ALERTS.REJECT_OWNER_SUCCESS_TITLE
+            : S.ALERTS.REJECT_SUCCESS_TITLE,
+          message: isOwnerCategory
+            ? S.ALERTS.REJECT_OWNER_SUCCESS_MSG
+            : S.ALERTS.REJECT_SUCCESS_MSG,
+          summaryItems: [
+            {
+              icon: 'person-outline',
+              label: S.ALERTS.SUMMARY_APPLICANT,
+              value: rejectedItem.user.name,
+            },
+            {
+              icon: 'close-circle-outline',
+              label: S.ALERTS.SUMMARY_RESULT,
+              value: S.ALERTS.SUMMARY_STATUS_REJECTED,
+            },
+          ],
+        });
       } else {
-        Alert.alert(S.ALERTS.ERROR_TITLE, res.message || S.ALERTS.REJECT_ERROR_DEFAULT);
+        setRejectModalVisible(false);
+        setSubmissionToReject(null);
+        setResultModal({
+          visible: true,
+          type: 'error',
+          title: S.ALERTS.ERROR_TITLE,
+          message: res.message || S.ALERTS.REJECT_ERROR_DEFAULT,
+        });
       }
     } catch (err: any) {
       console.error('[AdminEkycListScreen] Reject error:', err);
-      Alert.alert(S.ALERTS.ERROR_TITLE, err.response?.data?.message || S.ALERTS.NETWORK_ERROR);
+      setRejectModalVisible(false);
+      setSubmissionToReject(null);
+      setResultModal({
+        visible: true,
+        type: 'error',
+        title: S.ALERTS.ERROR_TITLE,
+        message: err.response?.data?.message || S.ALERTS.NETWORK_ERROR,
+      });
     } finally {
       setIsSubmittingReject(false);
     }
@@ -452,13 +646,7 @@ export function AdminEkycListScreen({
         {/* Row 1: User avatar + Name + Status badge */}
         <View style={styles.cardTopRow}>
           <View style={styles.userAvatarContainer}>
-            {u.avatar ? (
-              <Image source={{ uri: u.avatar }} style={styles.userAvatar} />
-            ) : (
-              <View style={[styles.userAvatar, styles.userAvatarPlaceholder]}>
-                <Ionicons name="person" size={20} color={theme.colors.brand[500]} />
-              </View>
-            )}
+            <AdminEkycAvatar uri={u.avatar} />
           </View>
 
           <View style={styles.userMainInfo}>
@@ -466,8 +654,8 @@ export function AdminEkycListScreen({
               <Text style={styles.userNameText} numberOfLines={1}>
                 {u.name}
               </Text>
-              <View style={[styles.roleTag, isOwnerCategory && styles.roleTagOwnerUpgrade]}>
-                <Text style={[styles.roleTagText, isOwnerCategory && styles.roleTagOwnerUpgradeText]}>
+              <View style={styles.roleTag}>
+                <Text style={styles.roleTagText}>
                   {isOwnerCategory ? S.CARD.ROLE_UPGRADE_OWNER : S.CARD.ROLE_RENTER}
                 </Text>
               </View>
@@ -518,52 +706,32 @@ export function AdminEkycListScreen({
             {isOwnerCategory ? S.CARD.OWNER_PHOTOS_TITLE : S.CARD.PHOTOS_TITLE}
           </Text>
           <View style={styles.photosRow}>
-            {/* Front Photo */}
-            <TouchableOpacity
-              style={styles.photoBox}
-              activeOpacity={0.8}
+            <AdminEkycPhotoTile
+              uri={item.idCardFrontUrl}
+              label={S.CARD.FRONT_PHOTO}
               onPress={() =>
                 handleViewImage(
                   item.idCardFrontUrl,
                   S.CARD.IMAGE_TITLE(S.CARD.FRONT_PHOTO, u.name)
                 )
               }
-            >
-              <Image source={{ uri: item.idCardFrontUrl }} style={styles.idCardImage} resizeMode="cover" />
-              <View style={styles.photoLabelBar}>
-                <Ionicons name="scan-outline" size={13} color="#FFFFFF" />
-                <Text style={styles.photoLabelText}>{S.CARD.FRONT_PHOTO}</Text>
-              </View>
-              <View style={styles.zoomHintIcon}>
-                <Ionicons name="expand-outline" size={14} color="#FFFFFF" />
-              </View>
-            </TouchableOpacity>
+            />
 
-            {/* Back Photo */}
-            <TouchableOpacity
-              style={styles.photoBox}
-              activeOpacity={0.8}
+            <AdminEkycPhotoTile
+              uri={item.idCardBackUrl}
+              label={S.CARD.BACK_PHOTO}
               onPress={() =>
                 handleViewImage(
                   item.idCardBackUrl,
                   S.CARD.IMAGE_TITLE(S.CARD.BACK_PHOTO, u.name)
                 )
               }
-            >
-              <Image source={{ uri: item.idCardBackUrl }} style={styles.idCardImage} resizeMode="cover" />
-              <View style={styles.photoLabelBar}>
-                <Ionicons name="scan-outline" size={13} color="#FFFFFF" />
-                <Text style={styles.photoLabelText}>{S.CARD.BACK_PHOTO}</Text>
-              </View>
-              <View style={styles.zoomHintIcon}>
-                <Ionicons name="expand-outline" size={14} color="#FFFFFF" />
-              </View>
-            </TouchableOpacity>
+            />
           </View>
 
           {isOwnerCategory && selfieUrl ? (
             <TouchableOpacity
-              style={styles.selfiePhotoBox}
+              style={styles.portraitEvidenceCard}
               activeOpacity={0.8}
               onPress={() =>
                 handleViewImage(
@@ -572,13 +740,20 @@ export function AdminEkycListScreen({
                 )
               }
             >
-              <Image source={{ uri: selfieUrl }} style={styles.idCardImage} resizeMode="cover" />
-              <View style={styles.photoLabelBar}>
-                <Ionicons name="person-circle-outline" size={14} color="#FFFFFF" />
-                <Text style={styles.photoLabelText}>{S.CARD.SELFIE_WITH_ID_PHOTO}</Text>
+              <AdminEkycPortraitThumb uri={selfieUrl} />
+              <View style={styles.portraitInfo}>
+                <View style={styles.portraitTitleRow}>
+                  <Ionicons
+                    name="person-circle-outline"
+                    size={16}
+                    color={theme.colors.brand[600]}
+                  />
+                  <Text style={styles.portraitTitle}>{S.CARD.SELFIE_WITH_ID_PHOTO}</Text>
+                </View>
+                <Text style={styles.portraitHint}>{S.CARD.SELFIE_WITH_ID_HINT}</Text>
               </View>
-              <View style={styles.zoomHintIcon}>
-                <Ionicons name="expand-outline" size={14} color="#FFFFFF" />
+              <View style={styles.portraitZoomBtn}>
+                <Ionicons name="expand-outline" size={16} color={theme.colors.brand[600]} />
               </View>
             </TouchableOpacity>
           ) : null}
@@ -594,15 +769,11 @@ export function AdminEkycListScreen({
           </View>
         ) : null}
 
-        {/* Row 5: Action Buttons (Approve / Reject) */}
-        <View style={styles.cardActionsRow}>
-          {/* Reject Button (when not rejected) */}
-          {item.status !== 'rejected' && (
+        {/* Row 5: Pending -> Action Buttons; Reviewed (Approved/Rejected) -> Status Only */}
+        {item.status === 'pending' ? (
+          <View style={styles.cardActionsRow}>
             <TouchableOpacity
-              style={[
-                styles.rejectButton,
-                item.status === 'approved' && styles.reRejectButton,
-              ]}
+              style={styles.rejectButton}
               activeOpacity={0.7}
               onPress={() => handleOpenRejectModal(item)}
               disabled={actionLoadingId === item._id}
@@ -612,22 +783,14 @@ export function AdminEkycListScreen({
               <Ionicons
                 name="close-circle-outline"
                 size={16}
-                color="#DC2626"
+                color={theme.colors.red}
                 style={{ marginRight: 6 }}
               />
-              <Text style={styles.rejectButtonText}>
-                {item.status === 'approved' ? S.ACTIONS.REVOKE_APPROVAL : S.ACTIONS.REJECT}
-              </Text>
+              <Text style={styles.rejectButtonText}>{S.ACTIONS.REJECT}</Text>
             </TouchableOpacity>
-          )}
 
-          {/* Approve Button (when not approved) */}
-          {item.status !== 'approved' && (
             <TouchableOpacity
-              style={[
-                styles.approveButton,
-                item.status === 'rejected' && styles.reApproveButton,
-              ]}
+              style={styles.approveButton}
               activeOpacity={0.7}
               onPress={() => handleApprovePress(item)}
               disabled={actionLoadingId === item._id}
@@ -645,29 +808,24 @@ export function AdminEkycListScreen({
                     style={{ marginRight: 6 }}
                   />
                   <Text style={styles.approveButtonText}>
-                    {isOwnerCategory
-                      ? item.status === 'rejected'
-                        ? S.ACTIONS.RE_APPROVE_OWNER
-                        : S.ACTIONS.APPROVE_OWNER
-                      : item.status === 'rejected'
-                      ? S.ACTIONS.RE_APPROVE
-                      : S.ACTIONS.APPROVE}
+                    {isOwnerCategory ? S.ACTIONS.APPROVE_OWNER : S.ACTIONS.APPROVE}
                   </Text>
                 </>
               )}
             </TouchableOpacity>
-          )}
-
-          {/* Identity Verified Badge when approved */}
-          {item.status === 'approved' && (
-            <View style={styles.approvedNoticeBadge}>
-              <Ionicons name="checkmark-circle" size={15} color="#047857" style={{ marginRight: 5 }} />
-              <Text style={styles.approvedNoticeText}>
-                {isOwnerCategory ? S.ACTIONS.OWNER_UPGRADED_NOTICE : S.ACTIONS.VERIFIED_NOTICE}
-              </Text>
-            </View>
-          )}
-        </View>
+          </View>
+        ) : (
+          <View style={styles.reviewedStatusRow}>
+            <Ionicons
+              name={item.status === 'approved' ? 'checkmark-circle' : 'close-circle'}
+              size={16}
+              color={badge.text}
+            />
+            <Text style={[styles.reviewedStatusText, { color: badge.text }]}>
+              {badge.label}
+            </Text>
+          </View>
+        )}
       </View>
     );
   };
@@ -742,7 +900,7 @@ export function AdminEkycListScreen({
           <Ionicons
             name="shield-checkmark-outline"
             size={15}
-            color={activeCategory === 'renter' ? theme.colors.brand[600] : '#64748B'}
+            color={activeCategory === 'renter' ? theme.colors.white : theme.colors.text.muted}
           />
           <Text
             style={[
@@ -782,7 +940,7 @@ export function AdminEkycListScreen({
           <Ionicons
             name="ribbon-outline"
             size={15}
-            color={activeCategory === 'owner' ? theme.colors.brand[600] : '#64748B'}
+            color={activeCategory === 'owner' ? theme.colors.white : theme.colors.text.muted}
           />
           <Text
             style={[
@@ -1067,6 +1225,75 @@ export function AdminEkycListScreen({
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      {/* ─── APPROVE EKYC CONFIRMATION MODAL (RENTER & OWNER UPGRADE) ─── */}
+      <EkycConfirmModal
+        visible={Boolean(submissionToApprove)}
+        title={
+          activeCategory === 'owner'
+            ? S.ALERTS.CONFIRM_APPROVE_OWNER_TITLE
+            : S.ALERTS.CONFIRM_APPROVE_TITLE
+        }
+        message={
+          submissionToApprove
+            ? (activeCategory === 'owner'
+                ? S.ALERTS.CONFIRM_APPROVE_OWNER_MSG
+                : S.ALERTS.CONFIRM_APPROVE_MSG)(
+                submissionToApprove.user.name,
+                submissionToApprove.idCardNumber || S.CARD.ID_NUMBER_EMPTY
+              )
+            : ''
+        }
+        icon={activeCategory === 'owner' ? 'ribbon-outline' : 'shield-checkmark-outline'}
+        tone="brand"
+        summaryItems={
+          submissionToApprove
+            ? [
+                {
+                  icon: 'person-outline',
+                  label: S.ALERTS.SUMMARY_APPLICANT,
+                  value: submissionToApprove.user.name,
+                },
+                {
+                  icon: 'barcode-outline',
+                  label: S.ALERTS.SUMMARY_ID_NUMBER,
+                  value: submissionToApprove.idCardNumber || S.CARD.ID_NUMBER_EMPTY,
+                },
+                {
+                  icon: activeCategory === 'owner' ? 'ribbon-outline' : 'checkmark-circle-outline',
+                  label: S.ALERTS.SUMMARY_RESULT,
+                  value:
+                    activeCategory === 'owner'
+                      ? S.ALERTS.SUMMARY_RESULT_OWNER
+                      : S.ALERTS.SUMMARY_RESULT_RENTER,
+                },
+              ]
+            : []
+        }
+        noticeText={
+          activeCategory === 'owner'
+            ? S.ALERTS.CONFIRM_APPROVE_OWNER_NOTICE
+            : S.ALERTS.CONFIRM_APPROVE_NOTICE
+        }
+        confirmText={
+          activeCategory === 'owner' ? S.ACTIONS.APPROVE_OWNER : S.ACTIONS.APPROVE
+        }
+        cancelText={S.ALERTS.CANCEL}
+        loading={isSubmittingApprove}
+        onCancel={handleCloseApproveModal}
+        onConfirm={handleConfirmApprove}
+      />
+
+      {/* ─── ADMIN ACTION RESULT NOTIFICATION MODAL ─── */}
+      <EkycResultModal
+        visible={resultModal.visible}
+        type={resultModal.type}
+        title={resultModal.title}
+        message={resultModal.message}
+        summaryItems={resultModal.summaryItems}
+        buttonText={S.ALERTS.DONE_BTN}
+        onClose={() => setResultModal((prev) => ({ ...prev, visible: false }))}
+      />
     </View>
   );
 }
@@ -1131,38 +1358,41 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 9,
     paddingHorizontal: 10,
-    borderRadius: 9999,
-    backgroundColor: '#F1F5F9',
+    borderRadius: theme.radii.full,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
     gap: 6,
   },
   categoryTabBtnActive: {
-    backgroundColor: theme.colors.brand[100],
+    backgroundColor: theme.colors.brand[500],
+    borderColor: theme.colors.brand[500],
   },
   categoryTabText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#64748B',
+    color: theme.colors.text.secondary,
   },
   categoryTabTextActive: {
-    color: theme.colors.brand[600],
+    color: theme.colors.white,
     fontWeight: '700',
   },
   categoryBadge: {
-    backgroundColor: '#CBD5E1',
+    backgroundColor: theme.colors.border.light,
     borderRadius: 10,
     paddingHorizontal: 6,
     paddingVertical: 1,
   },
   categoryBadgeActive: {
-    backgroundColor: theme.colors.brand[500],
+    backgroundColor: 'rgba(255,255,255,0.25)',
   },
   categoryBadgeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#334155',
+    color: theme.colors.text.secondary,
   },
   categoryBadgeTextActive: {
-    color: '#FFFFFF',
+    color: theme.colors.white,
   },
 
   // Search
@@ -1202,25 +1432,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: '#F1F5F9',
+    borderRadius: theme.radii.full,
+    backgroundColor: theme.colors.surfaceMuted,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border.light,
   },
   tabButtonActive: {
-    backgroundColor: '#0D9488',
-    borderColor: '#0D9488',
+    backgroundColor: theme.colors.brand[500],
+    borderColor: theme.colors.brand[500],
   },
   tabText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#475569',
+    color: theme.colors.text.secondary,
   },
   tabTextActive: {
-    color: '#FFFFFF',
+    color: theme.colors.white,
   },
   tabBadge: {
-    backgroundColor: '#E2E8F0',
+    backgroundColor: theme.colors.border.light,
     borderRadius: 10,
     paddingHorizontal: 6,
     paddingVertical: 1,
@@ -1232,10 +1462,10 @@ const styles = StyleSheet.create({
   tabBadgeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#475569',
+    color: theme.colors.text.secondary,
   },
   tabBadgeTextActive: {
-    color: '#FFFFFF',
+    color: theme.colors.white,
   },
 
   // Error Banner
@@ -1288,17 +1518,13 @@ const styles = StyleSheet.create({
 
   // Card
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.lg,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
+    borderColor: theme.colors.border.light,
+    ...theme.shadows.card,
   },
   cardTopRow: {
     flexDirection: 'row',
@@ -1311,41 +1537,39 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
+    backgroundColor: theme.colors.brand[100],
   },
   userAvatarPlaceholder: {
-    backgroundColor: '#CCFBF1',
+    backgroundColor: theme.colors.brand[100],
     justifyContent: 'center',
     alignItems: 'center',
   },
   userMainInfo: {
     flex: 1,
+    marginRight: 8,
   },
   userNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
   },
   userNameText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#0F172A',
-    marginRight: 6,
+    color: theme.colors.text.primary,
+    flexShrink: 1,
   },
   roleTag: {
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 6,
+    backgroundColor: theme.colors.brand[100],
+    paddingHorizontal: 7,
     paddingVertical: 2,
-    borderRadius: 4,
-  },
-  roleTagOwnerUpgrade: {
-    backgroundColor: '#E6F7F7',
+    borderRadius: 6,
   },
   roleTagText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#4F46E5',
-  },
-  roleTagOwnerUpgradeText: {
-    color: '#0F766E',
+    color: theme.colors.brand[700],
   },
   timeText: {
     fontSize: 12,
@@ -1438,16 +1662,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#CBD5E1',
   },
-  selfiePhotoBox: {
-    marginTop: 10,
+  photoFallback: {
     width: '100%',
-    height: 170,
-    borderRadius: 10,
-    overflow: 'hidden',
-    backgroundColor: '#F1F5F9',
-    position: 'relative',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surfaceMuted,
   },
   idCardImage: {
     width: '100%',
@@ -1460,6 +1680,7 @@ const styles = StyleSheet.create({
     right: 0,
     backgroundColor: 'rgba(15, 23, 42, 0.75)',
     paddingVertical: 4,
+    paddingHorizontal: 6,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1469,6 +1690,54 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '600',
+    flexShrink: 1,
+  },
+  portraitEvidenceCard: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: theme.colors.border.default,
+    borderRadius: 10,
+    padding: 8,
+    gap: 10,
+  },
+  portraitThumb: {
+    width: 78,
+    height: 58,
+    borderRadius: 8,
+    backgroundColor: theme.colors.surfaceMuted,
+  },
+  portraitThumbFallback: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  portraitInfo: {
+    flex: 1,
+  },
+  portraitTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  portraitTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
+  },
+  portraitHint: {
+    fontSize: 11.5,
+    color: theme.colors.text.muted,
+    marginTop: 2,
+  },
+  portraitZoomBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.colors.brand[100],
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   zoomHintIcon: {
     position: 'absolute',
@@ -1509,68 +1778,58 @@ const styles = StyleSheet.create({
     marginTop: 14,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: theme.colors.border.divider,
   },
   rejectButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FEF2F2',
+    backgroundColor: theme.colors.redLight,
     borderWidth: 1,
     borderColor: '#FECACA',
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
   },
-  reRejectButton: {
-    flex: undefined,
-    paddingHorizontal: 14,
-  },
   rejectButtonText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#DC2626',
+    color: theme.colors.red,
   },
   approveButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0D9488',
+    backgroundColor: theme.colors.brand[500],
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    shadowColor: '#0D9488',
+    shadowColor: theme.colors.brand[500],
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 3,
     elevation: 2,
   },
-  reApproveButton: {
-    backgroundColor: '#059669',
-  },
   approveButtonText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: theme.colors.white,
   },
-  approvedNoticeBadge: {
-    flex: 1,
+  reviewedStatusRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-    borderRadius: 10,
-    paddingVertical: 9,
-    paddingHorizontal: 12,
+    gap: 6,
+    marginTop: 14,
+    paddingTop: 11,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border.divider,
   },
-  approvedNoticeText: {
+  reviewedStatusText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#047857',
+    fontWeight: '700',
   },
 
   // Empty

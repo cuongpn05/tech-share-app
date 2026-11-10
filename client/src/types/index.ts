@@ -41,6 +41,16 @@ export interface ChatBookingInfo {
   } | null;
 }
 
+export interface ChatDetailParams {
+  bookingId?: string;
+  otherBookings?: {
+    bookingId: string;
+    deviceName: string;
+    status: string;
+    statusLabel?: string;
+  }[];
+}
+
 export interface ChatOtherUser {
   _id: string;
   name: string;
@@ -134,8 +144,6 @@ export interface User {
   pushConfig?: UserPushConfig;
   biometricEnabled?: boolean;
   wishlist?: string[];
-  referralCode?: string;
-  referredBy?: string | null;
   favoriteDevices?: string[];
   rating?: number;
   ownerRating?: number;

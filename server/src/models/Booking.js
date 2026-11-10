@@ -43,7 +43,10 @@ const bookingSchema = new mongoose.Schema({
 
   // 5. Nhóm Bàn giao QR & Ảnh đối soát Trước/Sau
   handover: {
-    qrToken: { type: String },
+    qrToken: { type: String, select: false },
+    tokenHash: { type: String, select: false },
+    expiresAt: Date,
+    handoverAt: Date,
     beforePhotos: [{ type: String }],
     afterPhotos: [{ type: String }],
     beforeNote: { type: String, default: '' },
@@ -77,6 +80,7 @@ const bookingSchema = new mongoose.Schema({
   renterReviewId: { type: mongoose.Schema.Types.ObjectId, ref: 'Review' },
 }, {
   timestamps: true,
+  optimisticConcurrency: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true },
 });

@@ -232,6 +232,7 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,
+    marginTop : 10
   },
   content: {
     padding: 16,

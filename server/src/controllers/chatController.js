@@ -7,6 +7,39 @@ const { createAndSendNotification } = require('../services/notificationService')
 const { getIO } = require('../socket');
 const { uploadToCloudinary } = require('../utils/cloudinary');
 
+const userFields = 'name avatar role phone isVerified';
+const chatDevice = {
+  path: 'deviceId',
+  select: 'name title images image brand pricePerDay status ownerId',
+  populate: {
+    path: 'ownerId',
+    select: userFields,
+    transform: (owner, id) => owner ?? id,
+  },
+};
+
+const idOf = value => String(value?._id ?? value ?? '');
+
+function getChatParticipants(booking, currentUserId) {
+  const owner = booking.deviceId?.ownerId ?? booking.ownerId;
+  const renterId = idOf(booking.renterId);
+  const ownerId = idOf(owner);
+  const isRenter = renterId === currentUserId;
+  return {
+    ownerId,
+    renterId,
+    otherUser: isRenter ? owner : booking.renterId,
+    isParticipant: isRenter || ownerId === currentUserId,
+    messageFilter: {
+      bookingId: booking._id,
+      $or: [
+        { senderId: renterId, receiverId: ownerId },
+        { senderId: ownerId, receiverId: renterId },
+      ],
+    },
+  };
+}
+
 /**
  * 1. LẤY DANH SÁCH CÁC CUỘC HỘI THOẠI (GET /api/chats/conversations)
  */
@@ -21,6 +54,8 @@ const getConversations = async (req, res) => {
       ? new mongoose.Types.ObjectId(currentUserId)
       : currentUserId;
 
+    const ownedDevices = await Device.find({ ownerId: currentUserId }).select('_id').lean();
+
     // Tìm các đơn đặt thuê mà user hiện tại tham gia (với tư cách renter hoặc owner)
     const bookings = await Booking.find({
       $or: [
@@ -28,43 +63,31 @@ const getConversations = async (req, res) => {
         { ownerId: currentUserId },
         { renterId: userIdObj },
         { ownerId: userIdObj },
+        { deviceId: { $in: ownedDevices.map(device => device._id) } },
       ],
     })
-      .populate('renterId', 'name avatar role phone isVerified')
-      .populate('ownerId', 'name avatar role phone isVerified')
-      .populate('deviceId', 'name title images image brand pricePerDay status')
+      .populate('renterId', userFields)
+      .populate('ownerId', userFields)
+      .populate(chatDevice)
       .sort({ updatedAt: -1 })
       .lean();
 
     const rawConversations = await Promise.all(
       bookings.map(async (b) => {
-        const renterIdStr = (b.renterId?._id || b.renterId || '').toString();
-        const ownerIdStr = (b.ownerId?._id || b.ownerId || '').toString();
-        const currentUserIdStr = currentUserId.toString();
-
-        // 1. Chặn chat với chính mình nếu renter === owner
-        if (renterIdStr && ownerIdStr && renterIdStr === ownerIdStr) {
-          return null;
-        }
-
-        const isRenter = renterIdStr === currentUserIdStr;
-        const otherUser = isRenter ? b.ownerId : b.renterId;
-        const otherUserIdStr = (otherUser?._id || otherUser || '').toString();
-
-        // 2. Chặn nếu đối phương trùng với tài khoản hiện tại
-        if (otherUserIdStr && otherUserIdStr === currentUserIdStr) {
-          return null;
-        }
+        const { isParticipant, otherUser, messageFilter } = getChatParticipants(b, String(currentUserId));
+        const otherUserId = idOf(otherUser);
+        if (!isParticipant || !otherUserId || otherUserId === String(currentUserId)) return null;
 
         // Lấy tin nhắn mới nhất trong đơn
-        const lastMsg = await Message.findOne({ bookingId: b._id })
+        const lastMsg = await Message.findOne(messageFilter)
           .sort({ createdAt: -1 })
           .lean();
 
         // Đếm tin nhắn chưa đọc gửi tới user hiện tại
         const unreadCount = await Message.countDocuments({
           bookingId: b._id,
-          $or: [{ receiverId: currentUserId }, { receiverId: userIdObj }],
+          senderId: otherUserId,
+          receiverId: currentUserId,
           status: { $ne: 'read' },
         });
 
@@ -101,7 +124,7 @@ const getConversations = async (req, res) => {
           bookingStatus: b.status,
           otherUser: otherUser
             ? {
-                _id: otherUser._id ? otherUser._id.toString() : '',
+                _id: otherUserId,
                 name: otherUser.name || 'Người dùng',
                 avatar: otherUser.avatar || '',
                 phone: otherUser.phone || '',
@@ -153,54 +176,33 @@ const getChatHistory = async (req, res) => {
     const booking = await Booking.findById(bookingId)
       .populate('renterId', 'name avatar role phone email isVerified')
       .populate('ownerId', 'name avatar role phone email isVerified')
-      .populate('deviceId', 'name title images image brand pricePerDay status');
+      .populate(chatDevice);
 
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Booking not found' });
     }
 
-    const isRenter = booking.renterId?._id?.toString() === currentUserId.toString();
-    const isOwner = booking.ownerId?._id?.toString() === currentUserId.toString();
-    const isAdmin = req.auth?.role === 'admin';
+    const { isParticipant, ownerId, renterId, otherUser, messageFilter } =
+      getChatParticipants(booking, String(currentUserId));
 
-    if (!isRenter && !isOwner && !isAdmin) {
+    if (!isParticipant && req.auth?.role !== 'admin') {
       return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
-
-    const renterIdStr = (booking.renterId?._id || booking.renterId || '').toString();
-    const ownerIdStr = (booking.ownerId?._id || booking.ownerId || '').toString();
-    if (renterIdStr && ownerIdStr && renterIdStr === ownerIdStr) {
+    if (!ownerId || !renterId) {
+      return res.status(404).json({ success: false, message: 'Chat participant not found' });
+    }
+    if (renterId === ownerId) {
       return res.status(400).json({
         success: false,
         message: 'Không thể thực hiện cuộc trò chuyện với chính mình',
       });
     }
 
-    const otherUser = isRenter ? booking.ownerId : booking.renterId;
-    const userIdObj = mongoose.Types.ObjectId.isValid(currentUserId)
-      ? new mongoose.Types.ObjectId(currentUserId)
-      : currentUserId;
-
-    // Đánh dấu đã đọc các tin nhắn gửi đến currentUserId
-    await Message.updateMany(
-      {
-        bookingId: booking._id,
-        $or: [{ receiverId: currentUserId }, { receiverId: userIdObj }],
-        status: { $ne: 'read' },
-      },
-      { $set: { status: 'read' } }
-    );
-
-    // Emit socket thông báo đã đọc
-    const io = getIO();
-    if (io) {
-      io.to(`chat_${booking._id}`).emit('messages_read', {
-        bookingId: String(booking._id),
-        readBy: String(currentUserId),
-      });
+    if (isParticipant) {
+      await markMessagesRead(booking._id, String(currentUserId), idOf(otherUser));
     }
 
-    const rawMessages = await Message.find({ bookingId })
+    const rawMessages = await Message.find(messageFilter)
       .sort({ createdAt: -1 })
       .limit(100)
       .lean();
@@ -238,7 +240,7 @@ const getChatHistory = async (req, res) => {
         },
         otherUser: otherUser
           ? {
-              _id: otherUser._id.toString(),
+              _id: idOf(otherUser),
               name: otherUser.name || '',
               avatar: otherUser.avatar || '',
               role: otherUser.role || '',
@@ -262,23 +264,19 @@ const sendMessage = async (req, res) => {
     const { bookingId } = req.params;
     const currentUserId = req.auth?.id || req.auth?.userId || req.auth?._id;
 
-    const booking = await Booking.findById(bookingId);
+    const booking = await Booking.findById(bookingId).populate('deviceId', 'ownerId name title');
     if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
 
-    const isRenter = booking.renterId.toString() === currentUserId.toString();
-    const isOwner = booking.ownerId.toString() === currentUserId.toString();
-
-    if (!isRenter && !isOwner) {
+    const { isParticipant, otherUser } = getChatParticipants(booking, String(currentUserId));
+    if (!isParticipant) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
     }
 
-    const receiverId = isRenter ? booking.ownerId : booking.renterId;
-
-    // Chặn chat với chính mình
-    if (
-      String(currentUserId) === String(receiverId) ||
-      String(booking.renterId) === String(booking.ownerId)
-    ) {
+    const receiverId = idOf(otherUser);
+    if (!receiverId) {
+      return res.status(404).json({ success: false, message: 'Chat participant not found' });
+    }
+    if (String(currentUserId) === receiverId) {
       return res.status(400).json({
         success: false,
         message: 'Không thể thực hiện cuộc trò chuyện với chính mình',
@@ -299,7 +297,7 @@ const sendMessage = async (req, res) => {
     });
 
     const sender = await User.findById(currentUserId).select('name avatar role');
-    const device = booking.deviceId ? await Device.findById(booking.deviceId).select('name title') : null;
+    const device = booking.deviceId;
     const senderDisplayName = sender?.name || 'Người dùng';
     const senderDisplayAvatar = sender?.avatar || '';
     const deviceDisplayTitle = device?.name || device?.title || 'Thiết bị';
@@ -320,10 +318,10 @@ const sendMessage = async (req, res) => {
       status: newMessage.status || 'sent',
     };
 
-    // 4. Phân phối Real-time qua Socket.IO tới room chat và room người nhận (ghép to() để deduplicate socket)
+    // Only the current participants receive booking chat events.
     const io = getIO();
     if (io) {
-      io.to(`chat_${bookingId}`).to(`user_${receiverId}`).emit('new_message', savedMessageResponse);
+      io.to(`user_${currentUserId}`).to(`user_${receiverId}`).emit('new_message', savedMessageResponse);
       io.to(`user_${receiverId}`).emit('new_notification', {
         _id: `notif_${Date.now()}`,
         userId: receiverId.toString(),
@@ -395,6 +393,24 @@ const uploadChatImage = async (req, res) => {
   }
 };
 
+async function markMessagesRead(bookingId, readerId, senderId) {
+  const result = await Message.updateMany(
+    { bookingId, senderId, receiverId: readerId, status: { $ne: 'read' } },
+    { $set: { status: 'read' } }
+  );
+
+  const io = getIO();
+  if (io) {
+    const payload = {
+      bookingId: String(bookingId),
+      readBy: String(readerId),
+      unreadCount: 0,
+    };
+    io.to(`user_${senderId}`).to(`user_${readerId}`).emit('messages_read', payload);
+  }
+  return result;
+}
+
 /**
  * 5. ĐÁNH DẤU ĐÃ ĐỌC (PATCH /api/chats/:bookingId/read)
  */
@@ -403,28 +419,25 @@ const markChatMessagesAsRead = async (req, res) => {
     const { bookingId } = req.params;
     const currentUserId = req.auth?.id || req.auth?.userId || req.auth?._id;
 
-    const userIdObj = mongoose.Types.ObjectId.isValid(currentUserId)
-      ? new mongoose.Types.ObjectId(currentUserId)
-      : currentUserId;
+    const booking = await Booking.findById(bookingId).populate('deviceId', 'ownerId');
+    if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
 
-    await Message.updateMany(
-      {
-        bookingId,
-        $or: [{ receiverId: currentUserId }, { receiverId: userIdObj }],
-        status: { $ne: 'read' },
-      },
-      { $set: { status: 'read' } }
-    );
+    const { isParticipant, otherUser } = getChatParticipants(booking, String(currentUserId));
+    if (!isParticipant) return res.status(403).json({ success: false, message: 'Forbidden' });
 
-    const io = getIO();
-    if (io) {
-      io.to(`chat_${bookingId}`).emit('messages_read', {
-        bookingId: String(bookingId),
-        readBy: String(currentUserId),
-      });
+    const otherUserId = idOf(otherUser);
+    if (otherUserId && otherUserId !== String(currentUserId)) {
+      await markMessagesRead(booking._id, String(currentUserId), otherUserId);
     }
 
-    return res.status(200).json({ success: true, message: 'Messages marked as read' });
+    return res.status(200).json({
+      success: true,
+      message: 'Messages marked as read',
+      data: {
+        bookingId: String(bookingId),
+        unreadCount: 0,
+      },
+    });
   } catch (error) {
     console.error('[Chat Controller] Lỗi markChatMessagesAsRead:', error);
     return res.status(500).json({ success: false, message: error.message });

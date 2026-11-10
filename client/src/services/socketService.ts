@@ -1,5 +1,6 @@
+import { bookingService } from './bookingService';
 import { io, Socket } from 'socket.io-client';
-import { API_BASE_URL } from '../config/api';
+import { API_BASE_URL, getAuthToken } from '../config/api';
 import { ChatMessage } from '../types';
 import { notificationService } from './notificationService';
 
@@ -98,6 +99,7 @@ export const socketService = {
     const socketUrl = API_BASE_URL.replace(/\/api\/?$/, '');
 
     socket = io(socketUrl, {
+      auth: callback => callback({ token: getAuthToken() }),
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 2000,
@@ -122,6 +124,7 @@ export const socketService = {
     });
 
     socket.on('booking_status_updated', () => {
+      bookingService.notifyBookingsUpdated();
       try {
         if (currentUserId) {
           notificationService.fetchUnreadCount(currentUserId);

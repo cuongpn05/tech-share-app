@@ -44,8 +44,17 @@ export const apiClient = axios.create({
 // Interceptor tự động gán token xác thực cho mọi HTTP request
 apiClient.interceptors.request.use(
   async (config) => {
-    if (currentToken && !config.headers.Authorization) {
-      config.headers.Authorization = `Bearer ${currentToken}`;
+    let token = currentToken;
+    if (!token) {
+      try {
+        const { store } = require('../store');
+        token = store.getState()?.auth?.token || null;
+      } catch {
+        // Store not yet available
+      }
+    }
+    if (token && !config.headers.Authorization) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },

@@ -5,8 +5,8 @@
 
 export const OWNER_STRINGS = {
   HEADER: {
-    TITLE: 'KPI & Performance Hub',
-    SUBTITLE: 'Performance metrics & net revenue',
+    TITLE: 'Owner Dashboard',
+    SUBTITLE: 'Performance overview',
   },
   PROFILE: {
     DEFAULT_USERNAME: 'Owner',

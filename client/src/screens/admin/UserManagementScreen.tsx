@@ -30,7 +30,6 @@ import {
   StatusBar,
   ScrollView,
   Modal,
-  Alert,
   KeyboardAvoidingView,
   TouchableWithoutFeedback,
   Keyboard,
@@ -39,6 +38,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, DrawerActions } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../theme/tokens';
+import {
+  ActionConfirmModal,
+  ActionResultModal,
+  ActionResultType,
+  FeedbackSummaryItem,
+} from '../../components/common/ActionFeedbackModals';
 import {
   fetchUsersList,
   toggleUserStatus,
@@ -242,7 +247,24 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
   const [selectedUserForLock, setSelectedUserForLock] = useState<MemberUser | null>(null);
   const [selectedPresetReason, setSelectedPresetReason] = useState<string>(S.LOCK_MODAL.PRESET_REASONS[0]);
   const [customLockReason,    setCustomLockReason]    = useState<string>('');
+  const [lockError,           setLockError]           = useState<string>('');
   const [submittingLock,      setSubmittingLock]      = useState(false);
+
+  // Unlock Confirm & Result Notification Modals
+  const [userToUnlock,        setUserToUnlock]        = useState<MemberUser | null>(null);
+  const [submittingUnlock,    setSubmittingUnlock]    = useState(false);
+  const [resultModal,         setResultModal]         = useState<{
+    visible: boolean;
+    type: ActionResultType;
+    title: string;
+    message: string;
+    summaryItems?: FeedbackSummaryItem[];
+  }>({
+    visible: false,
+    type: 'success',
+    title: '',
+    message: '',
+  });
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -299,6 +321,7 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
     setSelectedUserForLock(user);
     setSelectedPresetReason(S.LOCK_MODAL.PRESET_REASONS[0]);
     setCustomLockReason('');
+    setLockError('');
     setLockModalVisible(true);
   }, []);
 
@@ -307,11 +330,12 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
 
     const finalReason = customLockReason.trim() || selectedPresetReason;
     if (!finalReason) {
-      Alert.alert(S.ALERTS.REASON_REQUIRED_TITLE, S.ALERTS.REASON_REQUIRED_MSG);
+      setLockError(S.ALERTS.REASON_REQUIRED_MSG);
       return;
     }
 
     try {
+      setLockError('');
       setSubmittingLock(true);
       const res = await toggleUserStatus(selectedUserForLock._id, false, finalReason);
 
@@ -329,50 +353,103 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
 
         setLockModalVisible(false);
         setSelectedUserForLock(null);
-        Alert.alert(S.ALERTS.LOCK_SUCCESS_TITLE, S.ALERTS.LOCK_SUCCESS_MSG(targetName));
+        setResultModal({
+          visible: true,
+          type: 'locked',
+          title: S.ALERTS.LOCK_SUCCESS_TITLE,
+          message: S.ALERTS.LOCK_SUCCESS_MSG(targetName),
+          summaryItems: [
+            {
+              icon: 'person-outline',
+              label: S.ALERTS.SUMMARY_MEMBER,
+              value: targetName,
+            },
+            {
+              icon: 'alert-circle-outline',
+              label: S.ALERTS.SUMMARY_REASON,
+              value: finalReason,
+            },
+            {
+              icon: 'lock-closed-outline',
+              label: S.ALERTS.SUMMARY_STATUS,
+              value: S.ALERTS.SUMMARY_STATUS_LOCKED,
+            },
+          ],
+        });
       } else {
-        Alert.alert(S.ALERTS.ERROR_TITLE, res.message || S.ALERTS.ACTION_ERROR);
+        setLockError(res.message || S.ALERTS.ACTION_ERROR);
       }
     } catch (err: any) {
-      Alert.alert(S.ALERTS.ERROR_TITLE, err.response?.data?.message || err.message || S.ALERTS.ACTION_ERROR);
+      setLockError(err.response?.data?.message || err.message || S.ALERTS.ACTION_ERROR);
     } finally {
       setSubmittingLock(false);
     }
   };
 
   const handleConfirmUnlock = useCallback((user: MemberUser) => {
-    Alert.alert(
-      S.UNLOCK_ALERT.TITLE,
-      S.UNLOCK_ALERT.MSG(user.name),
-      [
-        { text: S.UNLOCK_ALERT.CANCEL, style: 'cancel' },
-        {
-          text: S.UNLOCK_ALERT.CONFIRM,
-          style: 'default',
-          onPress: async () => {
-            try {
-              const res = await toggleUserStatus(user._id, true);
-              if (res.success) {
-                // Update local user list state immediately
-                setUsers(prev => prev.map(u => u._id === user._id ? {
-                  ...u,
-                  isActive: true,
-                  lockReason: undefined,
-                  lockedAt: undefined,
-                } : u));
-
-                Alert.alert(S.ALERTS.UNLOCK_SUCCESS_TITLE, S.ALERTS.UNLOCK_SUCCESS_MSG(user.name));
-              } else {
-                Alert.alert(S.ALERTS.ERROR_TITLE, res.message || S.ALERTS.ACTION_ERROR);
-              }
-            } catch (err: any) {
-              Alert.alert(S.ALERTS.ERROR_TITLE, err.response?.data?.message || err.message || S.ALERTS.ACTION_ERROR);
-            }
-          },
-        },
-      ]
-    );
+    setUserToUnlock(user);
   }, []);
+
+  const handleCloseUnlockModal = useCallback(() => {
+    if (submittingUnlock) return;
+    setUserToUnlock(null);
+  }, [submittingUnlock]);
+
+  const handleExecuteUnlock = useCallback(async () => {
+    if (!userToUnlock) return;
+    const targetUser = userToUnlock;
+
+    try {
+      setSubmittingUnlock(true);
+      const res = await toggleUserStatus(targetUser._id, true);
+      if (res.success) {
+        setUsers(prev => prev.map(u => u._id === targetUser._id ? {
+          ...u,
+          isActive: true,
+          lockReason: undefined,
+          lockedAt: undefined,
+        } : u));
+
+        setUserToUnlock(null);
+        setResultModal({
+          visible: true,
+          type: 'success',
+          title: S.ALERTS.UNLOCK_SUCCESS_TITLE,
+          message: S.ALERTS.UNLOCK_SUCCESS_MSG(targetUser.name),
+          summaryItems: [
+            {
+              icon: 'person-outline',
+              label: S.ALERTS.SUMMARY_MEMBER,
+              value: targetUser.name,
+            },
+            {
+              icon: 'lock-open-outline',
+              label: S.ALERTS.SUMMARY_STATUS,
+              value: S.ALERTS.SUMMARY_STATUS_ACTIVE,
+            },
+          ],
+        });
+      } else {
+        setUserToUnlock(null);
+        setResultModal({
+          visible: true,
+          type: 'error',
+          title: S.ALERTS.ERROR_TITLE,
+          message: res.message || S.ALERTS.ACTION_ERROR,
+        });
+      }
+    } catch (err: any) {
+      setUserToUnlock(null);
+      setResultModal({
+        visible: true,
+        type: 'error',
+        title: S.ALERTS.ERROR_TITLE,
+        message: err.response?.data?.message || err.message || S.ALERTS.ACTION_ERROR,
+      });
+    } finally {
+      setSubmittingUnlock(false);
+    }
+  }, [userToUnlock]);
 
   // ── Render ─────────────────────────────────────────────
 
@@ -395,19 +472,20 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
     </View>
   );
 
-  const topPad = insets.top + (Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0);
+  const topInset = Math.max(
+    insets.top,
+    Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 20
+  );
 
   return (
-    <View style={[styles.container, { paddingTop: topPad }]}>
-
-      {/* HEADER */}
+    <View style={[styles.container, { paddingTop: topInset }]}>
+      {/* HEADER (Chuẩn theo Dashboard & Kiểm duyệt thiết bị) */}
       <View style={styles.header}>
         <TouchableOpacity
           onPress={handleOpenDrawer}
           style={styles.headerBtn}
           accessibilityRole="button"
           accessibilityLabel="Open navigation menu"
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           activeOpacity={0.7}
         >
           <Ionicons name="menu-outline" size={24} color={theme.colors.text.primary} />
@@ -420,13 +498,12 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
         </View>
         <TouchableOpacity
           onPress={handleRefresh}
-          style={styles.headerBtn}
+          style={[styles.headerBtn, styles.refreshBtn]}
           accessibilityRole="button"
           accessibilityLabel="Refresh"
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           activeOpacity={0.7}
         >
-          <Ionicons name="refresh-outline" size={22} color={theme.colors.brand[500]} />
+          <Ionicons name="refresh-outline" size={19} color={theme.colors.brand[500]} />
         </TouchableOpacity>
       </View>
 
@@ -454,7 +531,7 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
       {/* FILTER: ROLE */}
       <View style={styles.filtersRow}>
         <Ionicons name="people-circle-outline" size={16} color={theme.colors.text.muted} style={{ marginRight: 6 }} />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: theme.spacing.lg }}>
           {ROLE_TABS.map((tab) => (
             <TouchableOpacity
               key={tab.value}
@@ -473,7 +550,7 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
       {/* FILTER: STATUS */}
       <View style={styles.filtersRow}>
         <Ionicons name="shield-outline" size={16} color={theme.colors.text.muted} style={{ marginRight: 6 }} />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: theme.spacing.lg }}>
           {STATUS_TABS.map((tab) => (
             <TouchableOpacity
               key={tab.value}
@@ -594,6 +671,7 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
                         onPress={() => {
                           setSelectedPresetReason(reason);
                           setCustomLockReason('');
+                          if (lockError) setLockError('');
                         }}
                         activeOpacity={0.7}
                       >
@@ -616,12 +694,18 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
                     placeholder={S.LOCK_MODAL.CUSTOM_REASON_PLACEHOLDER}
                     placeholderTextColor={theme.colors.text.subtle}
                     value={customLockReason}
-                    onChangeText={setCustomLockReason}
+                    onChangeText={(text) => {
+                      setCustomLockReason(text);
+                      if (lockError) setLockError('');
+                    }}
                     multiline
                     numberOfLines={3}
                     textAlignVertical="top"
                     editable={!submittingLock}
                   />
+                  {Boolean(lockError) && (
+                    <Text style={styles.lockModalErrorText}>{lockError}</Text>
+                  )}
                 </View>
 
                 {/* Footer Buttons */}
@@ -656,6 +740,53 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
           </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* UNLOCK ACCOUNT CONFIRMATION MODAL */}
+      <ActionConfirmModal
+        visible={Boolean(userToUnlock)}
+        title={S.UNLOCK_ALERT.TITLE}
+        message={userToUnlock ? S.UNLOCK_ALERT.MSG(userToUnlock.name) : ''}
+        icon="lock-open-outline"
+        tone="brand"
+        summaryItems={
+          userToUnlock
+            ? [
+                {
+                  icon: 'person-outline',
+                  label: S.UNLOCK_ALERT.SUMMARY_MEMBER,
+                  value: userToUnlock.name,
+                },
+                {
+                  icon: 'mail-outline',
+                  label: S.UNLOCK_ALERT.SUMMARY_EMAIL,
+                  value: userToUnlock.email,
+                },
+                {
+                  icon: 'lock-open-outline',
+                  label: S.UNLOCK_ALERT.SUMMARY_ACTION,
+                  value: S.UNLOCK_ALERT.SUMMARY_ACTION_VALUE,
+                },
+              ]
+            : []
+        }
+        noticeText={S.UNLOCK_ALERT.NOTICE}
+        confirmText={S.UNLOCK_ALERT.CONFIRM}
+        cancelText={S.UNLOCK_ALERT.CANCEL}
+        loading={submittingUnlock}
+        onCancel={handleCloseUnlockModal}
+        onConfirm={handleExecuteUnlock}
+      />
+
+      {/* LOCK / UNLOCK RESULT NOTIFICATION MODAL */}
+      <ActionResultModal
+        visible={resultModal.visible}
+        type={resultModal.type}
+        title={resultModal.title}
+        message={resultModal.message}
+        summaryItems={resultModal.summaryItems}
+        buttonText={S.ALERTS.DONE_BTN}
+        onClose={() => setResultModal((prev) => ({ ...prev, visible: false }))}
+      />
     </View>
   );
 }
@@ -665,29 +796,30 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
 // ─────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container       : { flex: 1, backgroundColor: '#F8FAFC' },
+  container       : { flex: 1, backgroundColor: theme.colors.background },
 
-  // Header
-  header          : { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0', gap: 10 },
-  headerBtn       : { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
-  headerCenter    : { flex: 1 },
-  headerTitle     : { fontSize: 17, fontWeight: '700', color: theme.colors.text.primary },
-  headerSub       : { fontSize: 12, color: theme.colors.text.muted, marginTop: 2 },
+  // Header (Đồng bộ chuẩn AdminDashboard & DeviceModeration)
+  header          : { flexDirection: 'row', alignItems: 'center', paddingHorizontal: theme.spacing.lg, paddingVertical: 12, backgroundColor: theme.colors.background },
+  headerBtn       : { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.colors.border.light, borderRadius: 12, backgroundColor: theme.colors.background },
+  refreshBtn      : { backgroundColor: theme.colors.surface },
+  headerCenter    : { flex: 1, paddingHorizontal: theme.spacing.md },
+  headerTitle     : { fontSize: 19, fontWeight: theme.typography.fontWeight.bold, color: theme.colors.text.primary },
+  headerSub       : { fontSize: 12.5, color: theme.colors.text.muted, marginTop: 2 },
 
   // Search
-  searchContainer : { paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  searchBar       : { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', borderRadius: 12, paddingHorizontal: 12, height: 42 },
-  searchInput     : { flex: 1, fontSize: 14, color: theme.colors.text.primary, height: '100%' },
+  searchContainer : { paddingHorizontal: theme.spacing.lg, marginBottom: theme.spacing.sm },
+  searchBar       : { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, borderWidth: 1, borderColor: theme.colors.border.light, paddingHorizontal: theme.spacing.md, height: 42, ...theme.shadows.card },
+  searchInput     : { flex: 1, fontSize: theme.typography.fontSize.sm, color: theme.colors.text.primary, paddingVertical: 0 },
 
   // Filter tabs
-  filtersRow      : { flexDirection: 'row', alignItems: 'center', paddingLeft: 16, paddingVertical: 8, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  filterTab       : { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: 'transparent' },
-  filterTabActive : { backgroundColor: '#EFF6FF', borderColor: theme.colors.brand[400] },
-  filterTabText   : { fontSize: 12, fontWeight: '600', color: theme.colors.text.muted },
-  filterTabTextActive: { color: theme.colors.brand[600] },
+  filtersRow      : { flexDirection: 'row', alignItems: 'center', paddingLeft: theme.spacing.lg, paddingVertical: theme.spacing.xs },
+  filterTab       : { paddingHorizontal: 14, paddingVertical: 7, borderRadius: theme.radii.full, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border.light },
+  filterTabActive : { backgroundColor: theme.colors.brand[100], borderColor: theme.colors.brand[500] },
+  filterTabText   : { fontSize: 12.5, fontWeight: theme.typography.fontWeight.medium, color: theme.colors.text.secondary },
+  filterTabTextActive: { color: theme.colors.brand[700], fontWeight: theme.typography.fontWeight.bold },
 
   // Error
-  errorBanner     : { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF2F2', marginHorizontal: 16, marginTop: 12, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, gap: 8, borderLeftWidth: 4, borderLeftColor: theme.colors.red },
+  errorBanner     : { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF2F2', marginHorizontal: theme.spacing.lg, marginTop: 12, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, gap: 8, borderLeftWidth: 4, borderLeftColor: theme.colors.red },
   errorText       : { flex: 1, fontSize: 13, color: theme.colors.red },
   errorRetry      : { fontSize: 13, fontWeight: '700', color: theme.colors.brand[600] },
 
@@ -696,7 +828,7 @@ const styles = StyleSheet.create({
   loadingText     : { fontSize: 14, color: theme.colors.text.muted },
 
   // List
-  listContent     : { paddingHorizontal: 16, paddingTop: 12 },
+  listContent     : { paddingHorizontal: theme.spacing.lg, paddingTop: 12 },
 
   // User card
   userCard        : { backgroundColor: '#FFFFFF', borderRadius: 16, paddingVertical: 14, paddingHorizontal: 14, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2, borderWidth: 1, borderColor: '#F1F5F9', gap: 10 },
@@ -782,6 +914,7 @@ const styles = StyleSheet.create({
   customReasonContainer: { marginBottom: 16 },
   customReasonLabel: { fontSize: 12, fontWeight: '600', color: theme.colors.text.secondary, marginBottom: 6 },
   customReasonInput: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, padding: 10, fontSize: 12, color: theme.colors.text.primary, minHeight: 64 },
+  lockModalErrorText: { fontSize: 12, color: theme.colors.red, marginTop: 6, fontWeight: '500' },
 
   modalFooter     : { flexDirection: 'row', gap: 10 },
   modalCancelBtn  : { flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },

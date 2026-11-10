@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,11 +10,11 @@ import {
   Modal,
   TextInput,
   ActivityIndicator,
-  Alert,
   Platform,
   StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppDispatch, useAppSelector } from '../../store';
@@ -22,7 +22,22 @@ import { updateUser } from '../../store/slices/authSlice';
 import { confirmAndLogout } from '../../services/logoutService';
 import { userService } from '../../services/userService';
 import { getEkycStatus } from '../../services/ekycService';
+import {
+  optimizeCloudinaryUrl,
+  preloadCloudinaryConfig,
+} from '../../services/cloudinaryUploadService';
 import { theme } from '../../constants/theme';
+import {
+  ActionConfirmModal,
+  ActionResultModal,
+  ActionResultType,
+  FeedbackSummaryItem,
+} from '../../components/common/ActionFeedbackModals';
+import { GuestPromptView } from '../../components/common/GuestPromptView';
+import {
+  ImageSourcePickerModal,
+  ImageSourcePickerOptions,
+} from '../../components/common/ImageSourcePickerModal';
 import { STRINGS } from '../../constants/strings';
 import { User } from '../../types';
 
@@ -48,8 +63,9 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
         ? authUser.address
         : authUser?.address?.fullAddress || '',
     avatar: authUser?.avatar || '',
-    referralCode: authUser?.referralCode || '',
-    rating: authUser?.rating ?? 5.0,
+    trust: authUser?.trust,
+    trustScore: authUser?.trust?.score ?? authUser?.trustScore,
+    rating: authUser?.rating,
     totalReviews: authUser?.totalReviews ?? authUser?.totalReview ?? 0,
   }));
 
@@ -65,7 +81,6 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
       ? profile.address
       : profile.address?.fullAddress || ''
   );
-  const [editAvatar, setEditAvatar] = useState(profile.avatar || '');
   const [isSaving, setIsSaving] = useState(false);
 
   // Đồng bộ khi authUser trong Redux thay đổi
@@ -86,22 +101,58 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
 
   const [ekycStatusVerified, setEkycStatusVerified] = useState<boolean | null>(null);
   const [ownerEkycStatus, setOwnerEkycStatus] = useState<'none' | 'pending' | 'approved' | 'rejected'>('none');
+  const [addressPromptVisible, setAddressPromptVisible] = useState(false);
+  const [editProfileError, setEditProfileError] = useState('');
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarPickerOptions, setAvatarPickerOptions] = useState<ImageSourcePickerOptions | null>(null);
+  const [resultModal, setResultModal] = useState<{
+    visible: boolean;
+    type: ActionResultType;
+    title: string;
+    message: string;
+    summaryItems?: FeedbackSummaryItem[];
+  }>({
+    visible: false,
+    type: 'success',
+    title: '',
+    message: '',
+  });
+  const editModalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveModalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Tải lại hồ sơ mới nhất từ API
+  useEffect(() => {
+    return () => {
+      if (editModalTimerRef.current) {
+        clearTimeout(editModalTimerRef.current);
+      }
+      if (saveModalTimerRef.current) {
+        clearTimeout(saveModalTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Tải lại hồ sơ mới nhất từ API & cache sẵn config Cloudinary để upload 1-hop nhanh nhất
   const fetchFreshProfile = useCallback(async () => {
+    preloadCloudinaryConfig();
     try {
       const data = await userService.getProfile();
       if (data?.user) {
         const resolvedRole = (data.account?.role || data.user.role) as User['role'];
+        const resolvedTotalReviews = data.user.totalReviews ?? data.user.totalReview ?? 0;
+        const resolvedTrustScore = data.user.trust?.score ?? data.user.trustScore;
         setProfile((prev) => ({
           ...prev,
           ...data.user,
+          totalReviews: resolvedTotalReviews,
+          trustScore: resolvedTrustScore,
           role: resolvedRole || prev.role,
           email: data.account?.email || data.user.email || prev.email,
         }));
         dispatch(
           updateUser({
             ...data.user,
+            totalReviews: resolvedTotalReviews,
+            trustScore: resolvedTrustScore,
             ...(resolvedRole ? { role: resolvedRole } : {}),
             email: data.account?.email || data.user.email,
           })
@@ -146,27 +197,24 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
         ? profile.address
         : profile.address?.fullAddress || ''
     );
-    setEditAvatar(profile.avatar || '');
+    setEditProfileError('');
     setIsEditModalVisible(true);
   };
 
   // Save profile
   const handleSaveProfile = async () => {
     if (!editName.trim()) {
-      Alert.alert(
-        STRINGS.PROFILE_SCREEN.ALERT_NOTICE_TITLE,
-        STRINGS.PROFILE_SCREEN.ALERT_NAME_REQUIRED
-      );
+      setEditProfileError(STRINGS.PROFILE_SCREEN.ALERT_NAME_REQUIRED);
       return;
     }
 
+    setEditProfileError('');
     setIsSaving(true);
     try {
-      const res = await userService.updateProfile({
+      await userService.updateProfile({
         name: editName.trim(),
         phone: editPhone.trim(),
         address: editAddress.trim(),
-        avatar: editAvatar.trim(),
       });
 
       const updatedData: Partial<User> = {
@@ -174,7 +222,6 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
         phone: editPhone.trim(),
         email: editEmail.trim(),
         address: editAddress.trim(),
-        avatar: editAvatar.trim(),
       };
 
       setProfile((prev) => ({
@@ -183,13 +230,47 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
       }));
       dispatch(updateUser(updatedData));
       setIsEditModalVisible(false);
-      Alert.alert(
-        STRINGS.PROFILE_SCREEN.ALERT_SUCCESS_TITLE,
-        STRINGS.PROFILE_SCREEN.ALERT_SUCCESS_MSG
-      );
+
+      const summary: FeedbackSummaryItem[] = [
+        {
+          icon: 'person-outline',
+          label: STRINGS.PROFILE_SCREEN.SAVE_SUMMARY_NAME,
+          value: editName.trim(),
+        },
+        ...(editPhone.trim()
+          ? [
+              {
+                icon: 'call-outline' as const,
+                label: STRINGS.PROFILE_SCREEN.SAVE_SUMMARY_PHONE,
+                value: editPhone.trim(),
+              },
+            ]
+          : []),
+        ...(editAddress.trim()
+          ? [
+              {
+                icon: 'location-outline' as const,
+                label: STRINGS.PROFILE_SCREEN.SAVE_SUMMARY_ADDRESS,
+                value: editAddress.trim(),
+              },
+            ]
+          : []),
+      ];
+
+      if (saveModalTimerRef.current) {
+        clearTimeout(saveModalTimerRef.current);
+      }
+      saveModalTimerRef.current = setTimeout(() => {
+        setResultModal({
+          visible: true,
+          type: 'success',
+          title: STRINGS.PROFILE_SCREEN.ALERT_SUCCESS_TITLE,
+          message: STRINGS.PROFILE_SCREEN.ALERT_SUCCESS_MSG,
+          summaryItems: summary,
+        });
+      }, 180);
     } catch (err: any) {
-      Alert.alert(
-        STRINGS.PROFILE_SCREEN.ALERT_ERROR_TITLE,
+      setEditProfileError(
         err.response?.data?.message || STRINGS.PROFILE_SCREEN.ALERT_SAVE_ERROR_DEFAULT
       );
     } finally {
@@ -197,20 +278,85 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
     }
   };
 
-  // Copy referral code
-  const handleCopyReferral = () => {
-    if (!profile.referralCode) {
-      Alert.alert(
-        STRINGS.PROFILE_SCREEN.REFERRAL_COPIED_ALERT_TITLE,
-        STRINGS.PROFILE_SCREEN.REFERRAL_NONE_ALERT_MSG
-      );
-      return;
-    }
-    Alert.alert(
-      STRINGS.PROFILE_SCREEN.REFERRAL_COPIED_ALERT_TITLE,
-      STRINGS.PROFILE_SCREEN.REFERRAL_COPIED_ALERT_MSG(profile.referralCode)
-    );
-  };
+  const avatarBeforeUploadRef = useRef<string | null | undefined>(profile.avatar);
+
+  const handleUploadSelectedAvatar = useCallback(
+    async (localUri: string) => {
+      avatarBeforeUploadRef.current = profile.avatar;
+      // Hiển thị preview cục bộ ngay lập tức (0ms) trong lúc tải lên Cloudinary ở nền
+      setProfile((prev) => ({ ...prev, avatar: localUri }));
+      try {
+        setUploadingAvatar(true);
+        const res = await userService.uploadAvatar(localUri);
+        setProfile((prev) => ({ ...prev, avatar: res.avatar }));
+        dispatch(updateUser({ avatar: res.avatar }));
+        setResultModal({
+          visible: true,
+          type: 'success',
+          title: STRINGS.PROFILE_SCREEN.AVATAR_UPLOAD_SUCCESS_TITLE,
+          message: STRINGS.PROFILE_SCREEN.AVATAR_UPLOAD_SUCCESS_MSG,
+          summaryItems: [
+            {
+              icon: 'image-outline',
+              label: STRINGS.PROFILE_SCREEN.AVATAR_SUMMARY_ITEM,
+              value: STRINGS.PROFILE_SCREEN.AVATAR_SUMMARY_VALUE,
+            },
+            {
+              icon: 'checkmark-circle-outline',
+              label: STRINGS.PROFILE_SCREEN.AVATAR_SUMMARY_STATUS,
+              value: STRINGS.PROFILE_SCREEN.AVATAR_SUMMARY_STATUS_VALUE,
+            },
+          ],
+        });
+      } catch (err: any) {
+        setProfile((prev) => ({ ...prev, avatar: avatarBeforeUploadRef.current || '' }));
+        setResultModal({
+          visible: true,
+          type: 'error',
+          title: STRINGS.PROFILE_SCREEN.AVATAR_UPLOAD_ERROR_TITLE,
+          message:
+            err?.response?.data?.message ||
+            err?.message ||
+            STRINGS.PROFILE_SCREEN.AVATAR_UPLOAD_ERROR_MSG,
+        });
+      } finally {
+        setUploadingAvatar(false);
+      }
+    },
+    [dispatch, profile.avatar]
+  );
+
+  const handleOpenAvatarPicker = useCallback(
+    (fromEditModal = false) => {
+      if (uploadingAvatar) return;
+
+      const options: ImageSourcePickerOptions = {
+        title: STRINGS.PROFILE_SCREEN.AVATAR_PICKER_TITLE,
+        description: STRINGS.PROFILE_SCREEN.AVATAR_PICKER_DESC,
+        aspect: [1, 1],
+        cropShape: 'oval',
+        quality: 0.45,
+        cameraType: ImagePicker.CameraType.front,
+        onSelected: (uri) => {
+          handleUploadSelectedAvatar(uri);
+        },
+      };
+
+      if (fromEditModal) {
+        setIsEditModalVisible(false);
+        if (editModalTimerRef.current) {
+          clearTimeout(editModalTimerRef.current);
+        }
+        editModalTimerRef.current = setTimeout(() => {
+          setAvatarPickerOptions(options);
+        }, 180);
+        return;
+      }
+
+      setAvatarPickerOptions(options);
+    },
+    [uploadingAvatar, handleUploadSelectedAvatar]
+  );
 
   // Sign out
   const handleSignOut = () => {
@@ -242,20 +388,23 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
     const rawAddress = (displayAddress || '').trim();
 
     if (!rawAddress) {
-      Alert.alert(
-        STRINGS.PROFILE_SCREEN.ADDRESS_REQUIRED_TITLE,
-        STRINGS.PROFILE_SCREEN.ADDRESS_REQUIRED_MSG,
-        [
-          { text: STRINGS.PROFILE_SCREEN.LATER, style: 'cancel' },
-          { text: STRINGS.PROFILE_SCREEN.UPDATE_NOW, onPress: openEditModal },
-        ]
-      );
+      setAddressPromptVisible(true);
       return;
     }
 
     if (navigation?.navigate) {
       navigation.navigate(routeName);
     }
+  };
+
+  const handleConfirmAddressPrompt = () => {
+    setAddressPromptVisible(false);
+    if (editModalTimerRef.current) {
+      clearTimeout(editModalTimerRef.current);
+    }
+    editModalTimerRef.current = setTimeout(() => {
+      openEditModal();
+    }, 150);
   };
 
   const handleNavigateToEkyc = () => navigateWithAddressCheck('EkycVerification');
@@ -269,6 +418,34 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
   );
   const effectiveOwnerStatus: 'none' | 'pending' | 'approved' | 'rejected' =
     currentRole === 'owner' ? 'approved' : ownerEkycStatus;
+
+  const reviewCount = Number(profile.totalReviews ?? profile.totalReview ?? 0);
+  const hasReviews = Number.isFinite(reviewCount) && reviewCount > 0;
+  const ratingValue =
+    typeof profile.rating === 'number' && Number.isFinite(profile.rating) && profile.rating > 0
+      ? profile.rating
+      : null;
+  const hasDisplayableRating = hasReviews && ratingValue !== null;
+
+  const resolvedTrustScore =
+    typeof profile.trust?.score === 'number' && Number.isFinite(profile.trust.score)
+      ? profile.trust.score
+      : typeof profile.trustScore === 'number' && Number.isFinite(profile.trustScore)
+      ? profile.trustScore
+      : null;
+  const hasDisplayableTrustScore = hasReviews && resolvedTrustScore !== null;
+
+  if (!isAuthenticated) {
+    return (
+      <GuestPromptView
+        icon="person-outline"
+        title={STRINGS.PROFILE_SCREEN.GUEST_NAME}
+        subtitle={STRINGS.PROFILE_SCREEN.GUEST_DESC}
+        buttonText={STRINGS.PROFILE_SCREEN.LOGIN_SIGNUP_BUTTON}
+        onLoginPress={() => navigation?.navigate('Login')}
+      />
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -298,17 +475,13 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
 
         <Text style={styles.headerTitle}>{STRINGS.PROFILE_SCREEN.HEADER_TITLE}</Text>
 
-        {isAuthenticated ? (
-          <TouchableOpacity
-            style={styles.headerIconButton}
-            onPress={openEditModal}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="create-outline" size={22} color={theme.primary} />
-          </TouchableOpacity>
-        ) : (
-          <View style={{ width: 40 }} />
-        )}
+        <TouchableOpacity
+          style={styles.headerIconButton}
+          onPress={openEditModal}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="create-outline" size={22} color={theme.primary} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -327,61 +500,92 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
           />
         }
       >
-        {!isAuthenticated ? (
-          /* ─── GUEST STATE ─── */
-          <View style={styles.card}>
-            <View style={styles.avatarWrapper}>
-              <View style={[styles.avatarImage, styles.avatarFallback]}>
-                <Ionicons name="person-outline" size={44} color={theme.primary} />
-              </View>
-            </View>
-            <Text style={styles.profileName}>{STRINGS.PROFILE_SCREEN.GUEST_NAME}</Text>
-            <Text style={styles.guestDescText}>
-              {STRINGS.PROFILE_SCREEN.GUEST_DESC}
-            </Text>
-            <TouchableOpacity
-              style={styles.editProfileButton}
-              onPress={() => navigation?.navigate('Login')}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="log-in-outline" size={18} color="#FFFFFF" />
-              <Text style={styles.editProfileButtonText}>
-                {STRINGS.PROFILE_SCREEN.LOGIN_SIGNUP_BUTTON}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <>
-            {/* ─── 1. AVATAR, NAME & RATING CARD ─── */}
+          {/* ─── 1. AVATAR, NAME & RATING CARD ─── */}
             <View style={styles.card}>
-              <View style={styles.avatarWrapper}>
+              <TouchableOpacity
+                style={styles.avatarWrapper}
+                onPress={() => handleOpenAvatarPicker(false)}
+                disabled={uploadingAvatar}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={STRINGS.PROFILE_SCREEN.AVATAR_CHANGE_BTN}
+              >
                 {profile.avatar ? (
-                  <Image source={{ uri: profile.avatar }} style={styles.avatarImage} />
+                  <Image
+                    source={{ uri: optimizeCloudinaryUrl(profile.avatar, 300) }}
+                    style={styles.avatarImage}
+                  />
                 ) : (
                   <View style={[styles.avatarImage, styles.avatarFallback]}>
                     <Ionicons name="person" size={44} color={theme.primary} />
                   </View>
                 )}
-                <TouchableOpacity
-                  style={styles.cameraIconBadge}
-                  onPress={openEditModal}
-                  activeOpacity={0.8}
-                >
+                {uploadingAvatar && (
+                  <View style={styles.avatarUploadingOverlay}>
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  </View>
+                )}
+                <View style={styles.cameraIconBadge}>
                   <Ionicons name="camera" size={14} color="#FFFFFF" />
-                </TouchableOpacity>
-              </View>
+                </View>
+              </TouchableOpacity>
 
               <Text style={styles.profileName}>{profile.name}</Text>
 
-              {/* Star Rating */}
-              <View style={styles.ratingBox}>
-                <Ionicons name="star" size={15} color="#F59E0B" />
-                <Text style={styles.ratingNumber}>
-                  {profile.rating?.toFixed(1) || '5.0'}
-                </Text>
-                <Text style={styles.ratingCount}>
-                  {STRINGS.PROFILE_SCREEN.REVIEWS_COUNT(profile.totalReviews || 0)}
-                </Text>
+              {/* Star Rating & Trust Score */}
+              <View style={styles.reputationRow}>
+                <View
+                  style={[
+                    styles.reputationPill,
+                    hasDisplayableRating ? styles.ratingPillActive : styles.reputationPillEmpty,
+                  ]}
+                >
+                  <Ionicons
+                    name={hasDisplayableRating ? 'star' : 'star-outline'}
+                    size={14}
+                    color={hasDisplayableRating ? theme.warning : theme.textMuted}
+                  />
+                  {hasDisplayableRating && ratingValue !== null ? (
+                    <>
+                      <Text style={styles.ratingNumber}>{ratingValue.toFixed(1)}</Text>
+                      <Text style={styles.ratingCount}>
+                        {STRINGS.PROFILE_SCREEN.REVIEWS_COUNT(reviewCount)}
+                      </Text>
+                    </>
+                  ) : (
+                    <Text style={styles.reputationEmptyText}>
+                      {STRINGS.PROFILE_SCREEN.NO_RATING_YET}
+                    </Text>
+                  )}
+                </View>
+
+                <View
+                  style={[
+                    styles.reputationPill,
+                    hasDisplayableTrustScore
+                      ? styles.trustScorePillActive
+                      : styles.reputationPillEmpty,
+                  ]}
+                >
+                  <Ionicons
+                    name={hasDisplayableTrustScore ? 'shield-checkmark' : 'shield-outline'}
+                    size={14}
+                    color={
+                      hasDisplayableTrustScore ? theme.primaryDark : theme.textMuted
+                    }
+                  />
+                  {hasDisplayableTrustScore && resolvedTrustScore !== null ? (
+                    <Text style={styles.trustScoreText}>
+                      {`${STRINGS.PROFILE_SCREEN.TRUST_SCORE_LABEL}: ${Math.round(
+                        resolvedTrustScore
+                      )}`}
+                    </Text>
+                  ) : (
+                    <Text style={styles.reputationEmptyText}>
+                      {STRINGS.PROFILE_SCREEN.NO_TRUST_SCORE_YET}
+                    </Text>
+                  )}
+                </View>
               </View>
             </View>
 
@@ -547,29 +751,7 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
               )}
             </View>
 
-            {/* ─── 4. REFERRAL CODE ─── */}
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>{STRINGS.PROFILE_SCREEN.REFERRAL_SECTION_TITLE}</Text>
-              <View style={styles.referralContainer}>
-                <View style={styles.referralTextWrapper}>
-                  <Ionicons name="gift-outline" size={20} color={theme.primary} />
-                  <Text style={styles.referralCode}>
-                    {profile.referralCode || STRINGS.PROFILE_SCREEN.NO_REFERRAL_CODE}
-                  </Text>
-                </View>
-
-                <TouchableOpacity
-                  style={styles.copyButton}
-                  onPress={handleCopyReferral}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="copy-outline" size={15} color="#FFFFFF" />
-                  <Text style={styles.copyButtonText}>{STRINGS.PROFILE_SCREEN.COPY_BUTTON}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* ─── 5. WISHLIST ─── */}
+            {/* ─── 4. WISHLIST ─── */}
             <TouchableOpacity
               style={styles.wishlistButton}
               onPress={() => {
@@ -608,8 +790,6 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
               <Ionicons name="log-out-outline" size={18} color={theme.danger} />
               <Text style={styles.signOutButtonText}>{STRINGS.PROFILE_SCREEN.LOGOUT_BUTTON}</Text>
             </TouchableOpacity>
-          </>
-        )}
       </ScrollView>
 
       {/* ─── EDIT PROFILE MODAL ─── */}
@@ -637,13 +817,23 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
+              {Boolean(editProfileError) && (
+                <View style={styles.editErrorBanner}>
+                  <Ionicons name="alert-circle-outline" size={16} color={theme.danger} />
+                  <Text style={styles.editErrorText}>{editProfileError}</Text>
+                </View>
+              )}
+
               {/* Full Name */}
               <View style={styles.modalField}>
                 <Text style={styles.modalLabel}>{STRINGS.PROFILE_SCREEN.FULL_NAME_LABEL}</Text>
                 <TextInput
                   style={styles.modalInput}
                   value={editName}
-                  onChangeText={setEditName}
+                  onChangeText={(text) => {
+                    setEditName(text);
+                    if (editProfileError) setEditProfileError('');
+                  }}
                   placeholder={STRINGS.PROFILE_SCREEN.FULL_NAME_PLACEHOLDER}
                   placeholderTextColor={theme.textMuted}
                 />
@@ -690,17 +880,32 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
                 />
               </View>
 
-              {/* Avatar URL */}
+              {/* Profile Photo Picker */}
               <View style={styles.modalField}>
                 <Text style={styles.modalLabel}>{STRINGS.PROFILE_SCREEN.AVATAR_LABEL}</Text>
-                <TextInput
-                  style={styles.modalInput}
-                  value={editAvatar}
-                  onChangeText={setEditAvatar}
-                  placeholder={STRINGS.PROFILE_SCREEN.AVATAR_PLACEHOLDER}
-                  placeholderTextColor={theme.textMuted}
-                  autoCapitalize="none"
-                />
+                <View style={styles.editAvatarRow}>
+                  {profile.avatar ? (
+                    <Image
+                      source={{ uri: optimizeCloudinaryUrl(profile.avatar, 200) }}
+                      style={styles.editAvatarPreview}
+                    />
+                  ) : (
+                    <View style={[styles.editAvatarPreview, styles.avatarFallback]}>
+                      <Ionicons name="person" size={22} color={theme.primary} />
+                    </View>
+                  )}
+                  <TouchableOpacity
+                    style={styles.editAvatarChangeBtn}
+                    onPress={() => handleOpenAvatarPicker(true)}
+                    disabled={uploadingAvatar || isSaving}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="camera-outline" size={16} color={theme.primaryDark} />
+                    <Text style={styles.editAvatarChangeBtnText}>
+                      {STRINGS.PROFILE_SCREEN.AVATAR_CHANGE_BTN}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
               {/* Save Button */}
@@ -725,6 +930,52 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
           </View>
         </View>
       </Modal>
+
+      {/* ─── ADDRESS REQUIRED FOR EKYC MODAL ─── */}
+      <ActionConfirmModal
+        visible={addressPromptVisible}
+        title={STRINGS.PROFILE_SCREEN.ADDRESS_REQUIRED_TITLE}
+        message={STRINGS.PROFILE_SCREEN.ADDRESS_REQUIRED_MSG}
+        icon="location-outline"
+        tone="brand"
+        summaryItems={[
+          {
+            icon: 'location-outline',
+            label: STRINGS.PROFILE_SCREEN.ADDRESS_REQUIRED_SUMMARY_LABEL,
+            value: STRINGS.PROFILE_SCREEN.ADDRESS_REQUIRED_SUMMARY_VALUE,
+          },
+        ]}
+        noticeText={STRINGS.PROFILE_SCREEN.ADDRESS_REQUIRED_NOTICE}
+        confirmText={STRINGS.PROFILE_SCREEN.UPDATE_NOW}
+        cancelText={STRINGS.PROFILE_SCREEN.LATER}
+        onCancel={() => setAddressPromptVisible(false)}
+        onConfirm={handleConfirmAddressPrompt}
+      />
+
+      {/* ─── AVATAR PICKER MODAL (CAMERA / GALLERY) ─── */}
+      <ImageSourcePickerModal
+        options={avatarPickerOptions}
+        onClose={() => setAvatarPickerOptions(null)}
+        onError={(title, message) =>
+          setResultModal({
+            visible: true,
+            type: 'error',
+            title,
+            message,
+          })
+        }
+      />
+
+      {/* ─── SAVE PROFILE / AVATAR RESULT MODAL ─── */}
+      <ActionResultModal
+        visible={resultModal.visible}
+        type={resultModal.type}
+        title={resultModal.title}
+        message={resultModal.message}
+        summaryItems={resultModal.summaryItems || []}
+        buttonText={STRINGS.PROFILE_SCREEN.SAVE_DONE_BTN}
+        onClose={() => setResultModal((prev) => ({ ...prev, visible: false }))}
+      />
     </View>
   );
 }
@@ -799,6 +1050,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  avatarUploadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   cameraIconBadge: {
     position: 'absolute',
     bottom: 2,
@@ -819,28 +1081,53 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 6,
   },
-  guestDescText: {
-    fontSize: 13,
-    color: theme.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: theme.spacing.lg,
-    paddingHorizontal: theme.spacing.sm,
-  },
-  ratingBox: {
+  reputationRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 8,
+    marginTop: 2,
+  },
+  reputationPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: theme.radii.full,
+    borderWidth: 1,
+  },
+  ratingPillActive: {
+    backgroundColor: theme.warningLight,
+    borderColor: theme.warningLight,
+  },
+  trustScorePillActive: {
+    backgroundColor: theme.primaryBg,
+    borderColor: theme.primaryLight,
+  },
+  reputationPillEmpty: {
+    backgroundColor: theme.colors.slate[50],
+    borderColor: theme.borderDefault,
   },
   ratingNumber: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#B45309',
+    color: theme.colors.warning[600],
   },
   ratingCount: {
-    fontSize: 13,
+    fontSize: 12.5,
     color: theme.textSecondary,
+  },
+  trustScoreText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: theme.primaryDark,
+  },
+  reputationEmptyText: {
+    fontSize: 12.5,
+    fontWeight: '500',
+    color: theme.textMuted,
   },
 
   /* 2. Thông tin liên hệ */
@@ -872,44 +1159,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: theme.textPrimary,
-  },
-
-  /* 3. Mã giới thiệu */
-  referralContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: theme.primaryBg,
-    borderRadius: theme.radii.md,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: theme.primaryLight,
-  },
-  referralTextWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  referralCode: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: theme.primaryDark,
-    letterSpacing: 1.5,
-  },
-  copyButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: theme.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: theme.radii.sm,
-  },
-  copyButtonText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
   },
 
   /* 4. Action Buttons */
@@ -963,6 +1212,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: theme.spacing.md,
   },
+  editErrorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: theme.colors.danger[50],
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: theme.radii.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: theme.spacing.sm + 4,
+  },
+  editErrorText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+    color: theme.danger,
+  },
   modalTitle: {
     fontSize: 17,
     fontWeight: '700',
@@ -990,6 +1257,40 @@ const styles = StyleSheet.create({
   modalInputMultiline: {
     height: 60,
     textAlignVertical: 'top',
+  },
+  editAvatarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: theme.colors.slate[50],
+    borderWidth: 1,
+    borderColor: theme.border,
+    borderRadius: theme.radii.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  editAvatarPreview: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: theme.primaryLight,
+  },
+  editAvatarChangeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: theme.primaryBg,
+    borderWidth: 1,
+    borderColor: theme.primaryLight,
+    borderRadius: theme.radii.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  editAvatarChangeBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.primaryDark,
   },
   modalSaveButton: {
     flexDirection: 'row',
