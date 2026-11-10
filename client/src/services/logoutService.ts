@@ -35,13 +35,44 @@ export interface LogoutOptions {
 }
 
 export interface ConfirmLogoutParams {
-  dispatch: any;
+  dispatch?: any;
   title?: string;
   message?: string;
   confirmText?: string;
   cancelText?: string;
+  noticeText?: string;
   onBeforeLogout?: () => void;
   onAfterLogout?: () => void;
+}
+
+export type LogoutModalConfig = ConfirmLogoutParams & {
+  isOpen: boolean;
+};
+
+type ModalListener = (config: LogoutModalConfig | null) => void;
+let modalListener: ModalListener | null = null;
+
+/**
+ * Đăng ký listener nhận sự kiện hiển thị Logout Modal toàn cục.
+ */
+export function registerLogoutModalListener(
+  listener: ModalListener | null
+): () => void {
+  modalListener = listener;
+  return () => {
+    if (modalListener === listener) {
+      modalListener = null;
+    }
+  };
+}
+
+/**
+ * Đóng Logout Modal toàn cục nếu đang mở.
+ */
+export function closeLogoutModal(): void {
+  if (modalListener) {
+    modalListener(null);
+  }
 }
 
 export interface LogoutResponse {
@@ -126,7 +157,8 @@ export async function logoutUser(
 }
 
 /**
- * Hiển thị hộp thoại Alert xác nhận chuẩn hóa và thực hiện đăng xuất nếu người dùng đồng ý.
+ * Hiển thị giao diện xác nhận đăng xuất đồng bộ và thực hiện đăng xuất nếu người dùng đồng ý.
+ * Ưu tiên gọi Modal UI Soft-Teal chuẩn hệ thống thông qua listener toàn cục.
  */
 export function confirmAndLogout({
   dispatch,
@@ -134,9 +166,25 @@ export function confirmAndLogout({
   message,
   confirmText,
   cancelText,
+  noticeText,
   onBeforeLogout,
   onAfterLogout,
 }: ConfirmLogoutParams): void {
+  if (modalListener) {
+    modalListener({
+      dispatch,
+      title,
+      message,
+      confirmText,
+      cancelText,
+      noticeText,
+      onBeforeLogout,
+      onAfterLogout,
+      isOpen: true,
+    });
+    return;
+  }
+
   const alertTitle = title || STRINGS.LOGOUT_MODAL.DEFAULT_TITLE;
   const alertMessage = message || STRINGS.LOGOUT_MODAL.DEFAULT_SUBTITLE;
   const btnConfirm = confirmText || STRINGS.LOGOUT_MODAL.DEFAULT_CONFIRM;
@@ -172,5 +220,7 @@ export default {
   logoutUser,
   clearLocalSession,
   confirmAndLogout,
+  registerLogoutModalListener,
+  closeLogoutModal,
 };
 

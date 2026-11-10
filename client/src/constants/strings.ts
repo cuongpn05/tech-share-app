@@ -340,6 +340,7 @@ export const STRINGS = {
     DEFAULT_SUBTITLE: 'Are you sure you want to end this session and sign out of your account?',
     DEFAULT_CONFIRM: 'Log Out',
     DEFAULT_CANCEL: 'Cancel',
+    SECURITY_NOTE: 'Your active session and cached data on this device will be cleared safely.',
     CLOSE_ACCESSIBILITY: 'Close modal',
   },
 
