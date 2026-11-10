@@ -55,7 +55,7 @@ import { STRINGS } from '../../constants/strings';
  *    các thiết bị công nghệ (Máy ảnh, Drone, Laptop, VR, v.v.) ở gần mình nhất.
  * 2. Kết nối GPS thực tế của thiết bị với Backend MongoDB Geospatial ($geoNear).
  * 3. Tổ chức giao diện thành các khối thành phần nhỏ, dễ hiểu và dễ tái sử dụng:
- *    - HomeHeader (Logo, GPS Location, Nút thông báo/đăng nhập)
+ *    - HomeHeader (Logo, nút thông báo/đăng nhập)
  *    - HomeSearchBar (Tìm kiếm theo tên, thương hiệu)
  *    - CategoryBar (Bộ lọc danh mục sản phẩm)
  *    - PromoBanner (Banner khuyến mãi lướt tự động)
@@ -325,28 +325,14 @@ export function HomeScreen({
     dispatch(toggleFavoriteDevice(device));
   };
 
-  // Xác định nhãn hiển thị địa chỉ trên Header
-  let locationLabel = nearby ? 'Locating...' : 'All Devices';
-  if (location.cityName) {
-    locationLabel = location.cityName;
-  } else if (location.position) {
-    locationLabel = `${location.position.latitude.toFixed(2)}, ${location.position.longitude.toFixed(2)}`;
-  } else if (nearby && location.error) {
-    locationLabel = 'Location unavailable';
-  }
-
   // ============================================================================
   // GIAO DIỆN HEADER CỦA DANH SÁCH (ListHeaderComponent)
   // ============================================================================
   const listHeader = (
     <View style={styles.headerArea}>
-      {/* 1. Thanh tiêu đề trên cùng: Logo, Vị trí GPS & Nút chức năng */}
+      {/* 1. Thanh tiêu đề trên cùng: Logo và nút chức năng */}
       <HomeHeader
         topInset={topInset}
-        locationLabel={locationLabel}
-        isLocating={location.isLocating}
-        isRefreshingLocation={location.isRefreshingLocation}
-        onRefreshLocation={() => void location.refresh(true)}
         isAuthenticated={isAuthenticated}
         unreadMessages={unreadMessages}
         unreadNotifications={unreadNotifications}

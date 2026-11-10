@@ -1099,12 +1099,6 @@ const updateBookingStatus = async (req, res) => {
       }
     } else if (status === 'completed') {
       booking.paymentStatus = 'refunded';
-      if (devId) {
-        await Device.findByIdAndUpdate(devId, {
-          status: 'available',
-          $inc: { 'stats.rentalCount': 1 },
-        }).catch(() => {});
-      }
     }
 
     let actionText = 'Chủ máy cập nhật trạng thái đơn thuê';
@@ -1128,7 +1122,10 @@ const updateBookingStatus = async (req, res) => {
     await booking.save();
 
     if (status === 'completed' && devId) {
-      await Device.findByIdAndUpdate(devId, { status: 'available' }).catch(() => {});
+      await Device.findByIdAndUpdate(devId, {
+        $set: { status: 'available' },
+        $inc: { 'stats.rentalCount': 1 },
+      }).catch(() => {});
     }
 
     // Gửi thông báo đến người thuê

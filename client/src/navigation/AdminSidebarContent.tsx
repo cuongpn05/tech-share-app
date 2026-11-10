@@ -51,18 +51,6 @@ const MENU_ITEMS: MenuItem[] = [
     routeName: 'DeviceModeration',
   },
   {
-    id: 'extensions',
-    title: ADMIN_STRINGS.SIDEBAR.MENU.EXTENSIONS,
-    icon: 'calendar-outline',
-    routeName: 'ExtensionRequests',
-  },
-  {
-    id: 'disputes',
-    title: ADMIN_STRINGS.SIDEBAR.MENU.DISPUTES,
-    icon: 'chatbox-ellipses-outline',
-    routeName: 'DepositDisputes',
-  },
-  {
     id: 'ekyc',
     title: ADMIN_STRINGS.SIDEBAR.MENU.EKYC,
     icon: 'finger-print-outline',
@@ -73,12 +61,6 @@ const MENU_ITEMS: MenuItem[] = [
     title: ADMIN_STRINGS.SIDEBAR.MENU.OWNER_EKYC,
     icon: 'ribbon-outline',
     routeName: 'OwnerEkycReviews',
-  },
-  {
-    id: 'vouchers',
-    title: ADMIN_STRINGS.SIDEBAR.MENU.VOUCHERS,
-    icon: 'pricetag-outline',
-    routeName: 'VouchersPromotions',
   },
 ];
 
@@ -322,8 +304,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: theme.colors.redLight,
-    borderWidth: 1.5,
-    borderColor: theme.colors.redBorder,
     paddingVertical: 12,
     paddingHorizontal: theme.spacing.md,
     borderRadius: theme.radii.lg,

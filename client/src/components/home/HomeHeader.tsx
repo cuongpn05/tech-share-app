@@ -4,7 +4,6 @@ import {
   View,
   Text,
   TouchableOpacity,
-  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { HeaderActions } from '../navigation/HeaderActions';
@@ -18,8 +17,7 @@ import { STRINGS } from '../../constants/strings';
  * TRÁCH NHIỆM (RESPONSIBILITY):
  * Hiển thị thanh tiêu đề trên cùng của HomeScreen:
  * 1. Logo ứng dụng & Tên thương hiệu "TechShare".
- * 2. Vị trí hiện tại của người dùng (lấy từ GPS thực tế) kèm nút làm mới vị trí.
- * 3. Các nút chức năng người dùng (Tin nhắn, Thông báo, Yêu thích nếu đã đăng nhập;
+ * 2. Các nút chức năng người dùng (Tin nhắn, Thông báo, Yêu thích nếu đã đăng nhập;
  *    hoặc nút "Login" nếu là khách vãng lai).
  * ============================================================================
  */
@@ -27,14 +25,6 @@ import { STRINGS } from '../../constants/strings';
 interface HomeHeaderProps {
   /** Khoảng cách an toàn phía trên (tránh tai thỏ/status bar) */
   topInset: number;
-  /** Tên địa danh thực tế (Quận, Tỉnh/Thành) hoặc tọa độ GPS */
-  locationLabel: string;
-  /** Trạng thái đang định vị lần đầu */
-  isLocating: boolean;
-  /** Trạng thái người dùng bấm refresh GPS */
-  isRefreshingLocation: boolean;
-  /** Hàm callback khi người dùng bấm vào dòng vị trí để cập nhật lại GPS */
-  onRefreshLocation: () => void;
   /** Trạng thái đăng nhập của người dùng */
   isAuthenticated: boolean;
   /** Số lượng tin nhắn chưa đọc */
@@ -53,10 +43,6 @@ interface HomeHeaderProps {
 
 export function HomeHeader({
   topInset,
-  locationLabel,
-  isLocating,
-  isRefreshingLocation,
-  onRefreshLocation,
   isAuthenticated,
   unreadMessages = 0,
   unreadNotifications,
@@ -67,44 +53,16 @@ export function HomeHeader({
 }: HomeHeaderProps) {
   return (
     <View style={[styles.topBar, { paddingTop: topInset + 8 }]}>
-      {/* 1. BRAND LOGO & DYNAMIC GPS LOCATION */}
+      {/* 1. Logo và tên thương hiệu */}
       <View style={styles.brandContainer}>
         <View style={styles.logoBadge}>
           <Ionicons name="hardware-chip" size={18} color={colors.light.white} />
         </View>
 
-        <View>
-          <Text style={styles.brandTitle}>{STRINGS.HOME_SCREEN.BRAND_TITLE}</Text>
-
-          {/* Dòng hiển thị vị trí: Bấm vào để refresh lại GPS */}
-          <TouchableOpacity
-            style={styles.locationRow}
-            onPress={onRefreshLocation}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Refresh current location"
-          >
-            <Ionicons name="location-sharp" size={13} color={colors.light.primary} />
-
-            <Text
-              style={[styles.locationText, { color: colors.light.primary, fontWeight: '700' }]}
-              numberOfLines={1}
-            >
-              {locationLabel}
-            </Text>
-
-            {isLocating || isRefreshingLocation ? (
-              <ActivityIndicator size={10} color={colors.light.primary} style={styles.indicator} />
-            ) : (
-              <Ionicons
-                name="refresh"
-                size={11}
-                color={colors.light.textSecondary}
-                style={styles.refreshIcon}
-              />
-            )}
-          </TouchableOpacity>
-        </View>
+        <Text style={styles.brandTitle}>
+          {STRINGS.HOME_SCREEN.BRAND_TITLE_PREFIX}
+          <Text style={styles.brandTitleAccent}>{STRINGS.HOME_SCREEN.BRAND_TITLE_SUFFIX}</Text>
+        </Text>
       </View>
 
       {/* 2. ACTIONS: Chat, Thông báo, Yêu thích HOẶC Nút Đăng nhập */}
@@ -162,25 +120,11 @@ const styles = StyleSheet.create({
   brandTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: colors.light.textPrimary,
+    color: colors.light.black,
     letterSpacing: 0.5,
   },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    marginTop: 1,
-  },
-  locationText: {
-    fontSize: 11,
-    color: colors.light.textSecondary,
-    maxWidth: 160,
-  },
-  indicator: {
-    marginLeft: 3,
-  },
-  refreshIcon: {
-    marginLeft: 2,
+  brandTitleAccent: {
+    color: colors.light.primary,
   },
   headerLoginButton: {
     flexDirection: 'row',

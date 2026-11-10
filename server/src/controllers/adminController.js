@@ -6,6 +6,7 @@ const Dispute = require('../models/Dispute');
 const EkycRequest = require('../models/EkycRequest');
 const OwnerEkycRequest = require('../models/OwnerEkycRequest');
 const Role = require('../models/Role');
+const { getDashboardWindow, getPeriodAnalytics, grossAmount } = require('../services/adminDashboardAnalytics');
 
 /**
  * Controller cung cấp dữ liệu phân tích và số liệu KPI cho Admin Dashboard
@@ -14,6 +15,11 @@ const Role = require('../models/Role');
  */
 const getDashboardStats = async (req, res) => {
   try {
+    const { period } = req.query ?? {};
+    const window = getDashboardWindow(period);
+    if (period !== undefined && !window) {
+      return res.status(400).json({ success: false, message: 'Invalid dashboard period.' });
+    }
     // 1. Thực thi song song các truy vấn Mongoose
     const [
       totalUsersCount,
@@ -30,6 +36,8 @@ const getDashboardStats = async (req, res) => {
       pendingDisputesCount,
       pendingEkycCount,
       pendingOwnerEkycCount,
+      pendingDeviceApprovals,
+      analytics,
     ] = await Promise.all([
       Account.countDocuments(),
       User.countDocuments({
@@ -50,14 +58,7 @@ const getDashboardStats = async (req, res) => {
         {
           $group: {
             _id: null,
-            total: {
-              $sum: {
-                $ifNull: [
-                  '$pricing.totalAmount',
-                  { $ifNull: ['$pricing.rentalFee', '$rentalFee'] },
-                ],
-              },
-            },
+            total: { $sum: grossAmount },
           },
         },
       ]),
@@ -70,6 +71,8 @@ const getDashboardStats = async (req, res) => {
       Dispute.countDocuments({ status: 'pending' }),
       EkycRequest.countDocuments({ status: 'pending' }),
       OwnerEkycRequest.countDocuments({ status: 'pending' }),
+      Device.countDocuments({ isDeleted: { $ne: true }, moderationStatus: 'pending' }),
+      window ? getPeriodAnalytics(period, window) : null,
     ]);
 
     // 2. Tính toán Gross Rental Volume thực tế từ DB
@@ -96,42 +99,30 @@ const getDashboardStats = async (req, res) => {
     const completedOrders = completedOrdersCount;
 
     // 6. Tính toán phân bổ danh mục theo dữ liệu thực tế từ DB
-    const categoryCounts = {};
+    const categoryNames = new Map([
+      ['camera', 'Cameras & Lenses'], ['laptop', 'Laptops'], ['smartphone', 'Smartphones'],
+      ['gaming', 'Gaming'], ['drone', 'Drones'], ['audio', 'Audio'], ['tablet', 'Tablets'],
+      ['accessory', 'Accessories'],
+    ]);
+    const aliases = new Map([
+      ['cameras', 'camera'], ['laptops', 'laptop'], ['smartphones', 'smartphone'],
+      ['drones', 'drone'], ['tablets', 'tablet'], ['accessories', 'accessory'],
+    ]);
+    const categories = new Map();
     let totalCategorized = 0;
-
-    categoryGroupResult.forEach((item) => {
-      if (!item._id) return;
-      const cat = String(item._id).trim();
-      categoryCounts[cat] = (categoryCounts[cat] || 0) + item.count;
-      totalCategorized += item.count;
-    });
-
-    const categoryNamesMap = {
-      camera: 'Cameras & Lenses',
-      cameras: 'Cameras & Lenses',
-      laptop: 'Graphic Laptops',
-      laptops: 'Graphic Laptops',
-      smartphone: 'Smartphones',
-      smartphones: 'Smartphones',
-      gaming: 'Gaming & Drones',
-      drone: 'Gaming & Drones',
-    };
-
-    let categoryBreakdown = [];
-    if (totalCategorized > 0) {
-      categoryBreakdown = Object.keys(categoryCounts).map((catKey) => {
-        const lowerKey = catKey.toLowerCase();
-        const displayName = categoryNamesMap[lowerKey] || catKey;
-        const count = categoryCounts[catKey];
-        const percentage = Math.round((count / totalCategorized) * 100);
-        return {
-          id: lowerKey,
-          name: displayName,
-          percentage,
-          count,
-        };
-      });
+    for (const row of categoryGroupResult) {
+      const rawName = String(row._id ?? '').trim();
+      if (!rawName) continue;
+      const key = rawName.toLowerCase();
+      const id = aliases.get(key) ?? key;
+      const previous = categories.get(id);
+      categories.set(id, { id, name: categoryNames.get(id) ?? previous?.name ?? rawName, count: (previous?.count ?? 0) + row.count });
+      totalCategorized += row.count;
     }
+    const categoryBreakdown = [...categories.values()]
+      .sort((a, b) => b.count - a.count || a.id.localeCompare(b.id))
+      .map(category => ({ ...category, percentage: Math.round(category.count / totalCategorized * 100) }));
+    const isSmooth = pendingDisputesCount + pendingEkycCount + pendingOwnerEkycCount + pendingDeviceApprovals === 0;
 
     return res.status(200).json({
       success: true,
@@ -154,13 +145,14 @@ const getDashboardStats = async (req, res) => {
           pendingDisputes: pendingDisputesCount,
           pendingEkyc: pendingEkycCount,
           pendingOwnerEkyc: pendingOwnerEkycCount,
-          isSmooth: pendingDisputesCount === 0 && pendingEkycCount === 0 && pendingOwnerEkycCount === 0,
-          message:
-            pendingDisputesCount === 0 && pendingEkycCount === 0 && pendingOwnerEkycCount === 0
+          pendingDeviceApprovals,
+          isSmooth,
+          message: isSmooth
               ? 'All systems operational • No unresolved disputes or verification requests pending'
-              : `Action required: ${pendingDisputesCount} dispute(s) pending • ${pendingEkycCount} Renter eKYC • ${pendingOwnerEkycCount} Owner upgrade eKYC`,
+              : `Action required: ${pendingDisputesCount} disputes • ${pendingEkycCount} renter eKYC • ${pendingOwnerEkycCount} owner eKYC • ${pendingDeviceApprovals} device approvals`,
         },
         categoryBreakdown,
+        ...(analytics && { analytics }),
         lastUpdated: new Date().toISOString(),
       },
     });

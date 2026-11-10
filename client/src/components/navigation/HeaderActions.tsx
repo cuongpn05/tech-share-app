@@ -87,7 +87,7 @@ export function HeaderActions({
           color={wishlistCount > 0 ? theme.colors.danger[500] : theme.textPrimary}
         />
         {wishlistCount > 0 && (
-          <View style={styles.badge}>
+          <View style={[styles.badge, styles.wishlistBadgeBorder]}>
             <Text style={styles.badgeText}>
               {wishlistCount > 99 ? '99+' : String(wishlistCount)}
             </Text>
@@ -189,10 +189,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
-    borderWidth: 1.5,
-    borderColor: theme.white,
     zIndex: 99,
     elevation: 5,
+  },
+  wishlistBadgeBorder: {
+    borderWidth: 1.5,
+    borderColor: theme.white,
   },
   badgeText: {
     color: theme.white,

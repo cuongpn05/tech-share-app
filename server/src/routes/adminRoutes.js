@@ -31,9 +31,13 @@ router.get('/owner-ekyc', requireAuth, adminMiddleware, getAdminOwnerEkycSubmiss
 router.patch('/owner-ekyc/:id/approve', requireAuth, adminMiddleware, approveOwnerEkycSubmission);
 router.patch('/owner-ekyc/:id/reject', requireAuth, adminMiddleware, rejectOwnerEkycSubmission);
 
-// Endpoint lấy số liệu Dashboard & Analytics từ MongoDB
-router.get('/dashboard', getDashboardStats);
-router.get('/analytics', getDashboardStats);
+const dashboardRoutes = ['/dashboard', '/analytics'];
+// Preserve existing lifetime clients. The new period breakdown is admin-only.
+router.get(dashboardRoutes, (req, res, next) => {
+  if (req.query.period === undefined) return next('route');
+  return next();
+}, requireAuth, adminMiddleware, getDashboardStats);
+router.get(dashboardRoutes, getDashboardStats);
 
 // Phân hệ Quản lý Người dùng (tách riêng thành userManagementRoutes)
 router.use('/users', userManagementRoutes);

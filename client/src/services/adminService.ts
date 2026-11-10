@@ -6,6 +6,33 @@ import {
   GetModerationParams,
 } from '../types';
 
+export type DashboardPeriod = '7d' | '30d' | '90d' | 'year';
+export type RentalVolumePoint = { date: string; amount: number };
+export type DashboardBookingStatus = { status: string; count: number };
+export type DashboardCategory = { id: string; name: string; count: number; percentage: number };
+
+export interface AdminDashboardData {
+  kpis: {
+    totalUsers: number;
+    verifiedUsers: number;
+    totalDevices: number;
+    availableDevices: number;
+  };
+  actionItems: {
+    pendingEkyc: number;
+    pendingOwnerEkyc: number;
+    pendingDeviceApprovals: number;
+  };
+  categoryBreakdown: DashboardCategory[];
+  analytics?: {
+    period: DashboardPeriod;
+    grossRentalVolume: number;
+    volumeBookingCount: number;
+    rentalVolumeTrend: RentalVolumePoint[];
+    bookingStatuses: DashboardBookingStatus[];
+  };
+}
+
 export interface ModerationResponse {
   devices: DeviceModerationItem[];
   counts: ModerationTabCounts;
@@ -19,6 +46,13 @@ export interface ModerationResponse {
 }
 
 export const adminService = {
+  async getDashboard(period: DashboardPeriod, signal: AbortSignal): Promise<AdminDashboardData> {
+    const { data } = await apiClient.get<{ success: boolean; data?: AdminDashboardData }>(
+      '/admin/dashboard', { params: { period }, signal }
+    );
+    if (!data.success || !data.data) throw new Error('Invalid dashboard response');
+    return data.data;
+  },
   /**
    * Lấy danh sách thiết bị kiểm duyệt cho Admin Hub (Backlog #51)
    */
