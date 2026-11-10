@@ -23,12 +23,7 @@ interface DeviceCardProps {
   width?: number;
 }
 
-const formatPrice = (price?: number): string => {
-  if (!Number.isFinite(price)) return 'Price unavailable';
-  return `${price!.toLocaleString('en-US')}${STRINGS.DEVICE_CARD.PRICE_SUFFIX}`;
-};
-
-const resolveImageUri = (url?: string): string => {
+export const resolveImageUri = (url?: string): string => {
   if (!url || typeof url !== 'string' || !url.trim()) {
     return '';
   }
@@ -42,17 +37,26 @@ const resolveImageUri = (url?: string): string => {
   return url;
 };
 
-// Một số dữ liệu cũ có image/imageUrl; giữ fallback này mà không dùng any.
 type DeviceImageData = Pick<Device, 'images'> & {
   image?: unknown;
   imageUrl?: unknown;
 };
 
-function getDeviceImageUrl(device: DeviceImageData): string | undefined {
+export function getDeviceImageUrl(device: DeviceImageData): string | undefined {
   const images: unknown = device.images || device.image || device.imageUrl;
   if (Array.isArray(images) && images.length > 0) return images[0];
   if (typeof images === 'string' && images.trim()) return images;
   return undefined;
+}
+
+function getSpecIcon(key: string): keyof typeof Ionicons.glyphMap {
+  const k = key.toLowerCase();
+  if (k.includes('screen') || k.includes('display') || k.includes('size')) return 'phone-portrait-outline';
+  if (k.includes('chip') || k.includes('cpu') || k.includes('processor')) return 'hardware-chip-outline';
+  if (k.includes('ram') || k.includes('storage') || k.includes('rom') || k.includes('memory') || k.includes('ssd')) return 'save-outline';
+  if (k.includes('battery')) return 'battery-charging-outline';
+  if (k.includes('camera')) return 'camera-outline';
+  return 'apps-outline';
 }
 
 export function DeviceCard({
@@ -87,30 +91,75 @@ export function DeviceCard({
   const imageUri = resolveImageUri(getDeviceImageUrl(device));
   const [imageFailed, setImageFailed] = useState(false);
   useEffect(() => setImageFailed(false), [imageUri]);
-  const address = device.location?.addressText || device.location?.address || device.addressText;
-  const rating = device.stats?.ratingAvg ?? device.rating;
-  const reviewCount = device.stats?.ratingCount ?? device.reviewCount;
-  const distance = device.distanceMeters;
+
+  const reviewCount = device.stats?.ratingCount ?? device.reviewCount ?? 0;
+  const rawRating = device.stats?.ratingAvg ?? device.rating ?? 0;
+  const rating = Number.isFinite(rawRating) ? rawRating : 0;
   const available = device.status === 'available';
-  const imageCount = Array.isArray(device.images) ? device.images.filter(url => typeof url === 'string' && url.trim()).length : 0;
-  const specs = device.specs && typeof device.specs === 'object'
-    ? Object.entries(device.specs).filter(([, value]) => typeof value === 'string' && value.trim()).slice(0, 3) : [];
+  const imageCount = Array.isArray(device.images)
+    ? device.images.filter((url) => typeof url === 'string' && url.trim()).length
+    : 0;
+
+  const ownerName =
+    device.ownerId && typeof device.ownerId === 'object' && 'name' in device.ownerId
+      ? (device.ownerId as any).name
+      : undefined;
+
+  const primarySpec =
+    device.specs && typeof device.specs === 'object'
+      ? Object.entries(device.specs).find(
+          ([, value]) => typeof value === 'string' && value.trim().length > 0
+        )
+      : undefined;
+
+  const primarySpecDisplay = primarySpec
+    ? primarySpec[1].toLowerCase().includes(primarySpec[0].toLowerCase())
+      ? primarySpec[1]
+      : `${primarySpec[0]}: ${primarySpec[1]}`
+    : '';
+
+  const rentalCount = device.stats?.rentalCount ?? (device as any).rentalCount ?? 0;
+  const priceAmount = (device.pricePerDay ?? device.dailyRate ?? 0).toLocaleString('en-US');
 
   return (
-    <TouchableOpacity style={[styles.card, width ? { width } : styles.defaultWidth]}
-      onPress={() => onPress?.(device._id)} disabled={!onPress} accessibilityRole="button"
-      accessibilityLabel={device.name || device.title} accessibilityState={{ disabled: !onPress }} activeOpacity={0.88}>
+    <TouchableOpacity
+      style={[styles.card, width ? { width } : styles.defaultWidth]}
+      onPress={() => onPress?.(device._id)}
+      disabled={!onPress}
+      accessibilityRole="button"
+      accessibilityLabel={device.name || device.title}
+      accessibilityState={{ disabled: !onPress }}
+      activeOpacity={0.88}
+    >
       <View style={styles.imageContainer}>
-        {imageUri && !imageFailed ? <Image source={{ uri: imageUri }} style={styles.image} resizeMode="contain"
-          onError={() => setImageFailed(true)} /> : <View style={styles.placeholder}>
-          <Ionicons name="image-outline" size={30} color={colors.light.textMuted} />
-          <Text style={styles.smallText}>Image unavailable</Text>
-        </View>}
-        {device.brand ? <View style={styles.brandBadge}><Text style={styles.brandText} numberOfLines={1}>{device.brand}</Text></View> : null}
+        {imageUri && !imageFailed ? (
+          <Image
+            source={{ uri: imageUri }}
+            style={styles.image}
+            resizeMode="cover"
+            onError={() => setImageFailed(true)}
+          />
+        ) : (
+          <View style={styles.placeholder}>
+            <Ionicons name="image-outline" size={30} color={colors.light.textMuted} />
+            <Text style={styles.smallText}>Image unavailable</Text>
+          </View>
+        )}
+
+        {/* TOP LEFT: Brand badge */}
+        {device.brand ? (
+          <View style={styles.brandBadge}>
+            <Text style={styles.brandBadgeText} numberOfLines={1}>
+              {device.brand}
+            </Text>
+          </View>
+        ) : null}
+
+        {/* TOP RIGHT: Heart Button in white circle */}
         <TouchableOpacity
           style={styles.heartButton}
           onPress={handleHeartPress}
-          activeOpacity={0.7}
+          activeOpacity={0.75}
           accessibilityRole="button"
           accessibilityLabel={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
           accessibilityState={{ selected: isFavorite }}
@@ -118,65 +167,96 @@ export function DeviceCard({
         >
           <Ionicons
             name={isFavorite ? 'heart' : 'heart-outline'}
-            size={18}
-            color={isFavorite ? colors.light.danger : colors.light.textSecondary}
+            size={17}
+            color={isFavorite ? colors.light.danger : '#0F172A'}
           />
         </TouchableOpacity>
+
+        {/* BOTTOM OVERLAYS */}
         <View style={styles.imageFooter}>
+          {/* BOTTOM LEFT: Available pill */}
           <View style={[styles.statusBadge, !available && styles.unavailableBadge]}>
-            <View style={[styles.statusDot, !available && styles.unavailableDot]} />
+            <Ionicons
+              name={available ? 'checkmark-circle' : 'time'}
+              size={11}
+              color={available ? '#059669' : '#D97706'}
+            />
             <Text style={[styles.statusText, !available && styles.unavailableText]} numberOfLines={1}>
-              {available ? 'Available' : STRINGS.DEVICE_CARD.UNAVAILABLE}
+              {available ? 'Available' : 'Rented'}
             </Text>
           </View>
-          {imageCount > 0 ? <View style={styles.imageCount}>
-            <Ionicons name="images-outline" size={12} color={colors.light.white} />
-            <Text style={styles.imageCountText}>{imageCount}</Text>
-          </View> : null}
+
+          {/* BOTTOM RIGHT: Image count pill */}
+          {imageCount > 0 ? (
+            <View style={styles.imageCount}>
+              <Ionicons name="images-outline" size={10} color="#FFFFFF" />
+              <Text style={styles.imageCountText}>1 / {imageCount}</Text>
+            </View>
+          ) : null}
         </View>
       </View>
+
       <View style={styles.content}>
-        <Text style={styles.title} numberOfLines={2}>{device.name || device.title}</Text>
-        <Text style={styles.category} numberOfLines={1}>{device.category}</Text>
-        <View style={styles.metaBlock}>
-          <View style={styles.metaRow}>
-            <View style={styles.ratingRow}>
-              <Ionicons name="star" size={12} color={colors.light.ratingStar} />
-              <Text style={styles.ratingText}>{Number.isFinite(rating) ? rating.toFixed(1) : '—'}</Text>
-              {Number.isFinite(reviewCount) ? <Text style={styles.smallText} numberOfLines={1}>({reviewCount})</Text> : null}
-            </View>
-            {typeof address === 'string' && address.trim() ? <View style={styles.locationRow}>
-              <Ionicons name="location-outline" size={12} color={colors.light.textSecondary} />
-              <Text style={styles.locationText} numberOfLines={1}>{address.split(',').slice(-2).join(',').trim()}</Text>
-            </View> : null}
-          </View>
-          {Number.isFinite(distance) && distance! >= 0 ? <Text style={styles.smallText} numberOfLines={1}>
-            {distance! < 1000 ? Math.round(distance!) + ' m' : (distance! / 1000).toFixed(1) + ' km'}
-          </Text> : null}
-        </View>
-        <View style={styles.specs}>
-          {specs.map(([key, value]) => <View key={key} style={styles.specBadge}>
-            <Text style={styles.specText} numberOfLines={1} accessibilityLabel={key + ': ' + value}>{value}</Text>
-          </View>)}
-        </View>
-        <View style={styles.priceSection}>
-          <View style={styles.priceInfo}>
-            <Text style={styles.priceLabel}>{STRINGS.DEVICE_CARD.DAILY_RATE}</Text>
-            <Text style={styles.priceText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-              {formatPrice(device.pricePerDay ?? device.dailyRate)}
+        {/* DEVICE TITLE: exactly 1 line with ellipsis to prevent asymmetric layout */}
+        <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
+          {device.name || device.title}
+        </Text>
+
+        {/* RATING & OWNER ROW */}
+        <View style={styles.ratingOwnerRow}>
+          <View style={styles.ratingGroup}>
+            <Ionicons name="star" size={11} color="#F59E0B" />
+            <Text style={styles.ratingNumber}>
+              {rating.toFixed(1)}
+            </Text>
+            <Text style={styles.reviewCountText}>
+              ({reviewCount} reviews)
             </Text>
           </View>
-          <TouchableOpacity
-            style={styles.arrowButton}
-            disabled={!onPress}
-            accessibilityRole="button"
-            accessibilityLabel="View device details"
-            accessibilityState={{ disabled: !onPress }}
-            onPress={() => onPress?.(device._id)}
-            hitSlop={4}
-          >
-            <Ionicons name="arrow-forward" size={18} color={colors.light.white} />
-          </TouchableOpacity>
+
+          {ownerName ? (
+            <>
+              <View style={styles.inlineDivider} />
+              <View style={styles.ownerGroup}>
+                <Ionicons name="person-circle" size={12} color="#64748B" />
+                <Text style={styles.ownerNameText} numberOfLines={1}>
+                  {ownerName}
+                </Text>
+              </View>
+            </>
+          ) : null}
+        </View>
+
+        {/* PRIMARY SPEC BADGE: Exactly 1 full-width spec to avoid truncation */}
+        {primarySpec ? (
+          <View style={styles.specsRow}>
+            <View style={styles.specBadge}>
+              <Ionicons name={getSpecIcon(primarySpec[0])} size={11} color="#475569" />
+              <Text style={styles.specText} numberOfLines={1} ellipsizeMode="tail">
+                {primarySpecDisplay}
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.specsRowPlaceholder} />
+        )}
+
+        {/* CARD DIVIDER */}
+        <View style={styles.cardDivider} />
+
+        {/* FOOTER: RENTAL COUNT ON THE LEFT, PRICE ON THE RIGHT */}
+        <View style={styles.footerRow}>
+          <View style={styles.rentalCountContainer}>
+            <Ionicons name="repeat-outline" size={11} color="#64748B" />
+            <Text style={styles.rentalCountText} numberOfLines={1}>
+              {rentalCount} {rentalCount === 1 ? 'rented' : 'rented'}
+            </Text>
+          </View>
+
+          <Text style={styles.priceText} numberOfLines={1}>
+            {priceAmount}
+            <Text style={styles.priceSuffix}> đ/day</Text>
+          </Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -184,50 +264,238 @@ export function DeviceCard({
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: 18, backgroundColor: colors.light.surface, borderWidth: 1, borderColor: colors.light.border,
-    marginBottom: 14, elevation: 3, shadowColor: colors.light.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 8 },
-  defaultWidth: { width: '100%' },
-  imageContainer: { width: '100%', aspectRatio: 1.2, backgroundColor: colors.light.border,
-    borderTopLeftRadius: 18, borderTopRightRadius: 18, overflow: 'hidden' },
-  image: { width: '100%', height: '100%' },
-  placeholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 },
-  brandBadge: { position: 'absolute', top: 9, left: 9, maxWidth: '55%', backgroundColor: colors.light.primaryLight,
-    borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4 },
-  brandText: { fontSize: 9, fontWeight: '800', color: colors.light.primaryDark, textTransform: 'uppercase' },
-  heartButton: { position: 'absolute', top: 7, right: 7, width: 30, height: 30, borderRadius: 15,
-    alignItems: 'center', justifyContent: 'center', backgroundColor: colors.light.surface, elevation: 2,
-    shadowColor: colors.light.shadow, shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
-  imageFooter: { position: 'absolute', left: 7, right: 7, bottom: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  statusBadge: { flexDirection: 'row', alignItems: 'center', flexShrink: 1, gap: 4, borderWidth: 1,
-    borderColor: colors.light.success, borderRadius: 12, backgroundColor: colors.light.successLight, paddingHorizontal: 6, paddingVertical: 4 },
-  statusDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.light.success },
-  statusText: { flexShrink: 1, fontSize: 9, fontWeight: '700', color: colors.light.success },
-  unavailableBadge: { borderColor: colors.light.warning, backgroundColor: colors.light.warningLight },
-  unavailableDot: { backgroundColor: colors.light.warning },
-  unavailableText: { color: colors.light.textSecondary },
-  imageCount: { marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(15,23,42,0.65)',
-    borderRadius: 7, paddingHorizontal: 5, paddingVertical: 4 },
-  imageCountText: { color: colors.light.white, fontSize: 10, fontWeight: '700' },
-  content: { height: 184, padding: 10, gap: 4 },
-  title: { height: 36, fontSize: 13, lineHeight: 18, color: colors.light.textPrimary, fontWeight: '800' },
-  category: { fontSize: 11, lineHeight: 14, color: colors.light.textSecondary, textTransform: 'capitalize' },
-  metaBlock: { height: 30, gap: 2 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 3, maxWidth: '55%' },
-  ratingText: { fontSize: 11, fontWeight: '700', color: colors.light.textPrimary },
-  smallText: { fontSize: 9, lineHeight: 12, color: colors.light.textSecondary, flexShrink: 1 },
-  locationRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 2,
-    paddingLeft: 5, borderLeftWidth: 1, borderLeftColor: colors.light.borderDefault },
-  locationText: { flex: 1, minWidth: 0, fontSize: 9, lineHeight: 12, color: colors.light.textSecondary },
-  specs: { height: 21, flexDirection: 'row', gap: 4 },
-  specBadge: { flex: 1, minWidth: 0, alignSelf: 'flex-start', borderRadius: 6, backgroundColor: colors.light.background,
-    paddingHorizontal: 4, paddingVertical: 4 },
-  specText: { fontSize: 8, lineHeight: 11, color: colors.light.textSecondary },
-  priceSection: { marginTop: 'auto', paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.light.border,
-    flexDirection: 'row', alignItems: 'center', gap: 5 },
-  priceInfo: { flex: 1, minWidth: 0, gap: 3 },
-  priceLabel: { fontSize: 10, color: colors.light.textSecondary },
-  priceText: { fontSize: 13, fontWeight: '800', color: colors.light.primaryDark },
-  arrowButton: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.light.primary,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  card: {
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 14,
+    elevation: 2,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    overflow: 'hidden',
+  },
+  defaultWidth: {
+    width: '100%',
+  },
+  imageContainer: {
+    width: '100%',
+    aspectRatio: 1.15,
+    backgroundColor: '#F8FAFC',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+  },
+  placeholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  smallText: {
+    fontSize: 9,
+    color: '#94A3B8',
+  },
+  brandBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  brandBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  heartButton: {
+    position: 'absolute',
+    top: 7,
+    right: 7,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+  },
+  imageFooter: {
+    position: 'absolute',
+    left: 8,
+    right: 8,
+    bottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    borderRadius: 12,
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  statusText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  unavailableBadge: {
+    backgroundColor: '#FEF3C7',
+  },
+  unavailableText: {
+    color: '#D97706',
+  },
+  imageCount: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 3,
+  },
+  imageCountText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  content: {
+    padding: 10,
+  },
+  title: {
+    fontSize: 13.5,
+    lineHeight: 18,
+    height: 18,
+    color: '#0F172A',
+    fontWeight: '800',
+    marginBottom: 5,
+  },
+  ratingOwnerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 16,
+    marginBottom: 6,
+  },
+  ratingGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    flexShrink: 0,
+  },
+  ratingNumber: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  reviewCountText: {
+    fontSize: 9.5,
+    color: '#64748B',
+  },
+  noReviewsText: {
+    fontSize: 9.5,
+    color: '#94A3B8',
+    fontStyle: 'italic',
+  },
+  inlineDivider: {
+    width: 1,
+    height: 10,
+    backgroundColor: '#CBD5E1',
+    marginHorizontal: 4,
+  },
+  ownerGroup: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  ownerNameText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#475569',
+    flexShrink: 1,
+  },
+  specsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 24,
+    marginBottom: 6,
+  },
+  specsRowPlaceholder: {
+    height: 24,
+    marginBottom: 6,
+  },
+  specBadge: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: 7,
+    backgroundColor: '#F1F5F9',
+    paddingVertical: 3.5,
+    paddingHorizontal: 7,
+  },
+  specText: {
+    fontSize: 9.5,
+    lineHeight: 13,
+    color: '#334155',
+    fontWeight: '600',
+    flex: 1,
+  },
+  cardDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginBottom: 8,
+  },
+  footerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: 24,
+    gap: 4,
+  },
+  rentalCountContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2.5,
+    flexShrink: 0,
+  },
+  rentalCountText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  priceText: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#0F766E',
+    textAlign: 'right',
+    flexShrink: 1,
+  },
+  priceSuffix: {
+    fontSize: 9.5,
+    fontWeight: '600',
+    color: '#64748B',
+  },
 });

@@ -176,6 +176,7 @@ export function HomeRoute({
               navigation.navigate('DeviceDetail', { deviceId });
             }
           }}
+          onNavigateToMap={() => setActiveTab('map')}
           unreadMessages={unreadMessages}
           unreadNotifications={unreadNotifications}
         />
