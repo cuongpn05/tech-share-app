@@ -89,22 +89,32 @@ const createBooking = async (req, res) => {
 
     const diffTime = Math.abs(end.getTime() - start.getTime());
     const totalHours = Math.max(1, Math.round(diffTime / (1000 * 60 * 60)));
-    let totalDays = Math.ceil(totalHours / 24);
-    if (totalDays === 0) totalDays = 1;
+
+    // Ràng buộc thời gian thuê tối thiểu 12 giờ
+    if (totalHours < 12) {
+      return res.status(400).json({
+        success: false,
+        message: 'Thời gian thuê tối thiểu là 12 giờ. Vui lòng chọn thời gian trả sau ít nhất 12 giờ.',
+      });
+    }
+
+    let totalDays = Math.max(1, Math.ceil(totalHours / 24));
 
     const pricePerDayAtBooking = device.pricePerDay || device.dailyRate;
-    const rentalFee = totalDays * pricePerDayAtBooking;
+    // Tính tiền chính xác theo giờ: (giá thuê 1 ngày / 24h) * số giờ thuê thực tế
+    const hourlyRate = pricePerDayAtBooking / 24;
+    const rentalFee = Math.round(hourlyRate * totalHours);
     const depositFee = device.depositAmount || device.depositValue || 0;
 
-    // Apply long-term discount
+    // Apply long-term discount (72h = 3 ngày: giảm 10%, 168h = 7 ngày: giảm 20%)
     let discountPercent = 0;
-    if (totalDays >= 7) {
+    if (totalHours >= 168) {
       discountPercent = 20;
-    } else if (totalDays >= 3) {
+    } else if (totalHours >= 72) {
       discountPercent = 10;
     }
 
-    const longTermDiscountAmount = (rentalFee * discountPercent) / 100;
+    const longTermDiscountAmount = Math.round((rentalFee * discountPercent) / 100);
     let baseAmountAfterDiscount = rentalFee - longTermDiscountAmount;
 
     const totalAmount = baseAmountAfterDiscount + depositFee;
@@ -138,19 +148,20 @@ const createBooking = async (req, res) => {
 
     if (ownerId) {
       const renter = await User.findById(renterId).select('name');
-      const renterName = renter?.name || 'Khách thuê';
+      const renterName = renter?.name || 'Customer';
       await createAndSendNotification({
         userId: ownerId,
-        title: 'Yêu cầu thuê thiết bị mới! 📦',
-        body: `Khách hàng ${renterName} vừa gửi yêu cầu thuê "${device.name}" (${totalDays} ngày). Mã đơn: #${bookingCode}. Nhấn để xem và duyệt đơn.`,
+        title: 'New Rental Request! 📦',
+        body: `Customer ${renterName} requested to rent "${device.name}" (${totalDays} day(s)). Order code: #${bookingCode}. Tap to review and approve.`,
         type: 'order',
         relatedId: booking._id,
         data: {
           bookingId: booking._id.toString(),
           deviceId: device._id.toString(),
           status: 'pending',
+          bookingCode,
         },
-      }).catch((err) => console.error('❌ Lỗi gửi thông báo cho chủ máy:', err.message));
+      }).catch((err) => console.error('❌ Error sending notification to owner:', err.message));
     }
 
     res.status(201).json(booking);
@@ -322,20 +333,21 @@ const cancelBooking = async (req, res) => {
     // Bắn thông báo chi tiết cho chủ máy khi khách hủy đơn
     if (booking.ownerId) {
       const renter = await User.findById(userId).select('name');
-      const renterName = renter?.name || 'Khách thuê';
+      const renterName = renter?.name || 'Customer';
       const dev = await Device.findById(booking.deviceId).select('name');
-      const deviceName = dev?.name || 'thiết bị';
+      const deviceName = dev?.name || 'device';
       createAndSendNotification({
         userId: booking.ownerId,
-        title: 'Đơn thuê đã bị hủy ⚠️',
-        body: `Khách thuê ${renterName} đã hủy đơn thuê "${deviceName}" (#${booking.bookingCode}). Lịch thiết bị đã được mở lại.`,
+        title: 'Booking Cancelled ⚠️',
+        body: `Customer ${renterName} cancelled rental order "${deviceName}" (#${booking.bookingCode}). Equipment schedule has been released.`,
         type: 'order',
         relatedId: booking._id,
         data: {
           bookingId: booking._id.toString(),
           status: 'cancelled',
+          bookingCode: booking.bookingCode,
         },
-      }).catch((err) => console.error('❌ Lỗi gửi thông báo cho chủ máy:', err.message));
+      }).catch((err) => console.error('❌ Error sending notification to owner:', err.message));
     }
 
     res.status(200).json({ success: true, data: booking });
@@ -691,13 +703,17 @@ const respondToExtensionRequest = async (req, res) => {
     const rejectionReason = typeof reason === 'string' ? reason.trim().slice(0, 500) : '';
     const notificationResult = await createAndSendNotification({
       userId: renterId,
-      title: action === 'approve' ? 'Yêu cầu gia hạn đã được duyệt' : 'Yêu cầu gia hạn đã bị từ chối',
+      title: action === 'approve' ? 'Extension Request Approved! 🎉' : 'Extension Request Declined ❌',
       body: action === 'approve'
-        ? `Yêu cầu gia hạn ${updatedBooking.extensionRequest.requestedDays} ngày cho "${deviceName}" (đơn #${updatedBooking.bookingCode}) đã được duyệt.`
-        : `Yêu cầu gia hạn ${updatedBooking.extensionRequest.requestedDays} ngày cho "${deviceName}" (đơn #${updatedBooking.bookingCode}) đã bị từ chối.${rejectionReason ? ` Lý do: ${rejectionReason}` : ''}`,
+        ? `Extension request of ${updatedBooking.extensionRequest.requestedDays} day(s) for "${deviceName}" (Order #${updatedBooking.bookingCode}) was approved.`
+        : `Extension request of ${updatedBooking.extensionRequest.requestedDays} day(s) for "${deviceName}" (Order #${updatedBooking.bookingCode}) was declined.${rejectionReason ? ` Reason: ${rejectionReason}` : ''}`,
       type: 'order',
       relatedId: updatedBooking._id,
-      data: { bookingId: updatedBooking._id.toString(), status: `extension_${action === 'approve' ? 'approved' : 'rejected'}` },
+      data: {
+        bookingId: updatedBooking._id.toString(),
+        status: `extension_${action === 'approve' ? 'approved' : 'rejected'}`,
+        bookingCode: updatedBooking.bookingCode,
+      },
     });
     if (!notificationResult.success) {
       console.error('Failed to notify renter about extension decision:', notificationResult.message || notificationResult.error);
@@ -1109,55 +1125,59 @@ const updateBookingStatus = async (req, res) => {
     // Gửi thông báo đến người thuê
     if (booking.renterId) {
       const renterIdVal = booking.renterId._id || booking.renterId;
-      const deviceName = booking.deviceId?.name || 'thiết bị';
+      const deviceName = booking.deviceId?.name || 'device';
       if (status === 'approved') {
         await createAndSendNotification({
           userId: renterIdVal,
-          title: 'Yêu cầu thuê đã được duyệt! 🎉',
-          body: `Chủ máy đã phê duyệt yêu cầu thuê "${deviceName}" (#${booking.bookingCode}). Vui lòng chuẩn bị nhận thiết bị!`,
+          title: 'Booking Request Approved! 🎉',
+          body: `The owner approved your booking request for "${deviceName}" (#${booking.bookingCode}). Please prepare for device handover!`,
           type: 'order',
           relatedId: booking._id,
           data: {
             bookingId: booking._id.toString(),
             status: 'approved',
+            bookingCode: booking.bookingCode,
           },
-        }).catch((err) => console.error('❌ Lỗi gửi thông báo duyệt cho khách:', err.message));
+        }).catch((err) => console.error('❌ Error sending approval notification to renter:', err.message));
       } else if (status === 'rejected' || status === 'cancelled') {
         await createAndSendNotification({
           userId: renterIdVal,
-          title: 'Yêu cầu thuê đã bị từ chối ❌',
-          body: `Chủ máy không thể đáp ứng yêu cầu thuê "${deviceName}" (#${booking.bookingCode}). Lý do: ${reason || 'Chủ máy bận vào thời gian này'}.`,
+          title: 'Booking Request Declined ❌',
+          body: `The owner was unable to accept your rental request for "${deviceName}" (#${booking.bookingCode}). Reason: ${reason || 'Owner unavailable during requested dates'}.`,
           type: 'order',
           relatedId: booking._id,
           data: {
             bookingId: booking._id.toString(),
             status: 'rejected',
+            bookingCode: booking.bookingCode,
           },
-        }).catch((err) => console.error('❌ Lỗi gửi thông báo từ chối cho khách:', err.message));
+        }).catch((err) => console.error('❌ Error sending decline notification to renter:', err.message));
       } else if (status === 'active') {
         await createAndSendNotification({
           userId: renterIdVal,
-          title: 'Thiết bị đã được bàn giao! 📱',
-          body: `Đơn thuê "${deviceName}" (#${booking.bookingCode}) đã bắt đầu tính thời gian thuê. Chúc bạn trải nghiệm tốt!`,
+          title: 'Device Handover Completed! 📱',
+          body: `Rental period for "${deviceName}" (#${booking.bookingCode}) has officially started. Enjoy your device!`,
           type: 'order',
           relatedId: booking._id,
           data: {
             bookingId: booking._id.toString(),
             status: 'active',
+            bookingCode: booking.bookingCode,
           },
-        }).catch((err) => console.error('❌ Lỗi gửi thông báo bàn giao cho khách:', err.message));
+        }).catch((err) => console.error('❌ Error sending handover notification to renter:', err.message));
       } else if (status === 'completed') {
         await createAndSendNotification({
           userId: renterIdVal,
-          title: 'Đơn thuê đã hoàn tất! 🎉',
-          body: `Chủ máy đã xác nhận nhận lại "${deviceName}" (#${booking.bookingCode}). Hãy để lại đánh giá trải nghiệm thuê nhé!`,
+          title: 'Rental Completed! 🎉',
+          body: `The owner confirmed the return of "${deviceName}" (#${booking.bookingCode}). Your deposit has been released. Please leave a review!`,
           type: 'order',
           relatedId: booking._id,
           data: {
             bookingId: booking._id.toString(),
             status: 'completed',
+            bookingCode: booking.bookingCode,
           },
-        }).catch((err) => console.error('❌ Lỗi gửi thông báo hoàn tất cho khách:', err.message));
+        }).catch((err) => console.error('❌ Error sending completion notification to renter:', err.message));
       }
     }
 

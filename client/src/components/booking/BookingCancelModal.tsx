@@ -5,6 +5,7 @@ import {
   Text,
   Modal,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +20,12 @@ export interface BookingCancelModalProps {
   onConfirm: () => void;
 }
 
+/**
+ * BookingCancelModal
+ *
+ * Giao diện xác nhận huỷ đặt thiết bị đồng bộ tối giản theo phong cách Soft-UI (tương tự LogoutConfirmModal).
+ * Phẳng, tinh gọn, không đổ bóng nặng, không vành kép rườm rà.
+ */
 export function BookingCancelModal({
   visible,
   bookingCode,
@@ -26,66 +33,84 @@ export function BookingCancelModal({
   onClose,
   onConfirm,
 }: BookingCancelModalProps) {
+  const handleClose = () => {
+    if (!isCancelling) {
+      onClose();
+    }
+  };
+
+  const message = bookingCode
+    ? `Are you sure you want to cancel booking #${bookingCode}?`
+    : 'Are you sure you want to cancel this booking?';
+
   return (
     <Modal
       visible={visible}
       transparent
       animationType="fade"
       statusBarTranslucent
-      onRequestClose={() => {
-        if (!isCancelling) onClose();
-      }}
+      onRequestClose={handleClose}
     >
-      <View style={styles.cancelModalOverlay}>
-        <View style={styles.cancelModalCard}>
+      <View style={styles.modalOverlay}>
+        <TouchableWithoutFeedback onPress={handleClose} disabled={isCancelling}>
+          <View style={StyleSheet.absoluteFill} />
+        </TouchableWithoutFeedback>
+
+        <View style={styles.modalCard} accessibilityRole="alert">
+          {/* Subtle top-right X close button */}
           <TouchableOpacity
-            style={styles.cancelModalCloseBtn}
-            onPress={onClose}
+            style={styles.closeBtn}
+            onPress={handleClose}
             disabled={isCancelling}
-            activeOpacity={0.7}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            activeOpacity={0.6}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel={STRINGS.COMMON.CLOSE}
+            accessibilityRole="button"
           >
-            <Ionicons name="close" size={18} color={colors.light.textSecondary} />
+            <Ionicons name="close" size={20} color={colors.light.textMuted} />
           </TouchableOpacity>
 
-          <View style={styles.cancelModalIconRing}>
-            <View style={styles.cancelModalIconCircle}>
-              <Ionicons name="alert-circle-outline" size={28} color={colors.light.white} />
-            </View>
+          {/* Single soft pastel danger circle */}
+          <View style={styles.iconCircle}>
+            <Ionicons
+              name="alert-circle-outline"
+              size={26}
+              color={colors.light.error}
+            />
           </View>
 
-          <Text style={styles.cancelModalTitle}>{STRINGS.BOOKING_DETAIL.CONFIRM_CANCEL_TITLE}</Text>
-          <Text style={styles.cancelModalDesc}>
-            {STRINGS.BOOKING_DETAIL.CONFIRM_CANCEL_MSG(bookingCode || '')}
-          </Text>
+          {/* Title & Description */}
+          <Text style={styles.modalTitle}>Confirm Cancellation</Text>
+          <Text style={styles.modalDesc}>{message}</Text>
 
-          <View style={styles.cancelModalNoticeBox}>
-            <Ionicons name="information-circle-outline" size={16} color={colors.light.warning} />
-            <Text style={styles.cancelModalNoticeText}>
-              The reservation slot will be released upon cancellation.
-            </Text>
-          </View>
-
-          <View style={styles.cancelModalActionRow}>
+          {/* Clean Flat Action Buttons */}
+          <View style={styles.actionRow}>
             <TouchableOpacity
-              style={styles.cancelModalKeepBtn}
-              onPress={onClose}
+              style={styles.cancelBtn}
+              onPress={handleClose}
               disabled={isCancelling}
-              activeOpacity={0.75}
+              activeOpacity={0.7}
+              accessibilityRole="button"
             >
-              <Text style={styles.cancelModalKeepBtnText}>{STRINGS.BOOKING_DETAIL.KEEP_BOOKING}</Text>
+              <Text style={styles.cancelBtnText}>{STRINGS.BOOKING_DETAIL.KEEP_BOOKING || 'Keep Booking'}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.cancelModalConfirmBtn, isCancelling && { opacity: 0.7 }]}
+              style={[
+                styles.confirmBtn,
+                isCancelling && styles.confirmBtnDisabled,
+              ]}
               onPress={onConfirm}
               disabled={isCancelling}
-              activeOpacity={0.85}
+              activeOpacity={0.8}
+              accessibilityRole="button"
             >
               {isCancelling ? (
                 <ActivityIndicator size="small" color={colors.light.white} />
               ) : (
-                <Text style={styles.cancelModalConfirmBtnText}>{STRINGS.BOOKING_DETAIL.CONFIRM_CANCEL_ACTION}</Text>
+                <Text style={styles.confirmBtnText}>
+                  {STRINGS.BOOKING_DETAIL.CONFIRM_CANCEL_ACTION || 'Confirm Cancel'}
+                </Text>
               )}
             </TouchableOpacity>
           </View>
@@ -96,139 +121,100 @@ export function BookingCancelModal({
 }
 
 const styles = StyleSheet.create({
-  cancelModalOverlay: {
+  modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
   },
-  cancelModalCard: {
+  modalCard: {
     width: '100%',
-    maxWidth: 360,
+    maxWidth: 340,
     backgroundColor: colors.light.surface,
-    borderRadius: 24,
-    paddingTop: 28,
-    paddingBottom: 22,
-    paddingHorizontal: 22,
+    borderRadius: 20,
+    paddingTop: 24,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.light.borderSubtle,
-    shadowColor: colors.light.shadow,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
-    elevation: 8,
+    borderColor: colors.light.borderDefault,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  cancelModalCloseBtn: {
+  closeBtn: {
     position: 'absolute',
-    top: 16,
-    right: 16,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.light.background,
-    borderWidth: 1,
-    borderColor: colors.light.borderSubtle,
+    top: 14,
+    right: 14,
+    width: 28,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 1,
   },
-  cancelModalIconRing: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+  iconCircle: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     backgroundColor: colors.light.dangerLight,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
-    borderWidth: 3,
-    borderColor: colors.light.background,
+    marginBottom: 14,
   },
-  cancelModalIconCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: colors.light.error,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.light.error,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  cancelModalTitle: {
-    fontSize: 19,
-    fontWeight: '800',
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
     color: colors.light.textPrimary,
-    marginBottom: 8,
+    marginBottom: 6,
     textAlign: 'center',
   },
-  cancelModalDesc: {
-    fontSize: 13,
+  modalDesc: {
+    fontSize: 13.5,
     color: colors.light.textSecondary,
     textAlign: 'center',
     lineHeight: 19,
-    marginBottom: 16,
-    paddingHorizontal: 6,
+    marginBottom: 18,
+    paddingHorizontal: 4,
   },
-  cancelModalNoticeBox: {
-    width: '100%',
+  actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: colors.light.warningLight,
-    borderWidth: 1,
-    borderColor: colors.light.warningLight,
+    gap: 10,
+    width: '100%',
+  },
+  cancelBtn: {
+    flex: 1,
+    height: 44,
     borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 20,
-  },
-  cancelModalNoticeText: {
-    flex: 1,
-    fontSize: 12,
-    color: colors.light.textPrimary,
-    lineHeight: 16,
-  },
-  cancelModalActionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    width: '100%',
-  },
-  cancelModalKeepBtn: {
-    flex: 1,
-    height: 48,
-    borderRadius: 9999,
     backgroundColor: colors.light.background,
     borderWidth: 1,
     borderColor: colors.light.borderDefault,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cancelModalKeepBtnText: {
+  cancelBtnText: {
     fontSize: 14,
-    fontWeight: '700',
-    color: colors.light.textPrimary,
+    fontWeight: '600',
+    color: colors.light.textSecondary,
   },
-  cancelModalConfirmBtn: {
+  confirmBtn: {
     flex: 1,
-    height: 48,
-    borderRadius: 9999,
+    height: 44,
+    borderRadius: 12,
     backgroundColor: colors.light.error,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: colors.light.error,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 4,
   },
-  cancelModalConfirmBtnText: {
+  confirmBtnDisabled: {
+    opacity: 0.7,
+  },
+  confirmBtnText: {
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.light.white,
-    letterSpacing: 0.3,
   },
 });
+
