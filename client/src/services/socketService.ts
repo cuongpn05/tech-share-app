@@ -32,6 +32,9 @@ let notificationListeners: NotificationListener[] = [];
 export type AccountLockedEvent = { userId: string; reason: string; lockedAt?: string };
 type AccountLockedListener = (data: AccountLockedEvent) => void;
 let accountLockedListeners: AccountLockedListener[] = [];
+export type RoleUpdatedEvent = { userId: string; accountId?: string; role: 'renter' | 'owner' | 'admin' };
+type RoleUpdatedListener = (data: RoleUpdatedEvent) => void;
+let roleUpdatedListeners: RoleUpdatedListener[] = [];
 
 export const socketService = {
   getActiveBookingId: () => activeBookingId,
@@ -62,6 +65,13 @@ export const socketService = {
     accountLockedListeners.push(listener);
     return () => {
       accountLockedListeners = accountLockedListeners.filter((l) => l !== listener);
+    };
+  },
+
+  onRoleUpdated: (listener: RoleUpdatedListener) => {
+    roleUpdatedListeners.push(listener);
+    return () => {
+      roleUpdatedListeners = roleUpdatedListeners.filter((l) => l !== listener);
     };
   },
 
@@ -135,6 +145,10 @@ export const socketService = {
     socket.on('account_locked', (data: AccountLockedEvent) => {
       console.warn('[SocketService] Received account_locked event:', data);
       accountLockedListeners.forEach((fn) => fn(data));
+    });
+
+    socket.on('role_updated', (data: RoleUpdatedEvent) => {
+      roleUpdatedListeners.forEach((fn) => fn(data));
     });
   },
 

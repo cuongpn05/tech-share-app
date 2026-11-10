@@ -59,6 +59,7 @@ export const ADMIN_STRINGS = {
       EXTENSIONS: 'Extension Requests',
       DISPUTES: 'Deposit Disputes',
       EKYC: 'eKYC Reviews',
+      OWNER_EKYC: 'Owner Upgrade eKYC',
       VOUCHERS: 'Vouchers & Promotions',
     },
     SIGN_OUT: 'Sign Out of Admin Session',
