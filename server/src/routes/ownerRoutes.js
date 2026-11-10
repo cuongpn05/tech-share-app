@@ -5,9 +5,9 @@ const User = require('../models/User');
 const Device = require('../models/Device');
 const { asyncHandler } = require('../middlewares/asyncHandler');
 
-// Tuyến đường lấy danh sách các chủ sở hữu và thiết bị của họ hiển thị trên bản đồ (lọc theo category và tọa độ)
+// Tuyến đường lấy danh sách các chủ sở hữu và thiết bị của họ hiển thị trên bản đồ (lọc theo category, tọa độ và bán kính)
 router.get('/map-owners', asyncHandler(async (req, res) => {
-  const { category, lat, lng } = req.query;
+  const { category, lat, lng, radius, maxDistance, all } = req.query;
 
   // Lọc các thiết bị khả dụng
   const deviceFilter = {
@@ -49,7 +49,16 @@ router.get('/map-owners', asyncHandler(async (req, res) => {
 
   const userLat = Number(lat);
   const userLng = Number(lng);
-  const hasUserCoords = Number.isFinite(userLat) && Number.isFinite(userLng);
+  const hasUserCoords =
+    Number.isFinite(userLat) &&
+    Number.isFinite(userLng) &&
+    Math.abs(userLat) <= 90 &&
+    Math.abs(userLng) <= 180;
+
+  const queryRadius = Number(radius ?? maxDistance);
+  // Bán kính tìm kiếm (mặc định 50 km = 50,000 mét khi có tọa độ)
+  const effectiveRadius = Number.isFinite(queryRadius) && queryRadius > 0 ? queryRadius : 50000;
+  const isFilterByRadius = hasUserCoords && all !== 'true';
 
   // Hàm tính khoảng cách haversine (mét)
   const calcDistance = (lat1, lon1, lat2, lon2) => {
@@ -67,16 +76,54 @@ router.get('/map-owners', asyncHandler(async (req, res) => {
     const userDevices = ownerDevicesMap.get(String(user._id)) || [];
     if (userDevices.length === 0) continue;
 
-    // Tọa độ của chủ sở hữu
+    // Tọa độ của chủ sở hữu [longitude, latitude]
     let coordinates = user.location?.coordinates;
     if (!coordinates || !Array.isArray(coordinates) || coordinates.length !== 2) {
       coordinates = userDevices[0]?.location?.coordinates;
     }
     if (!coordinates || !Array.isArray(coordinates) || coordinates.length !== 2) continue;
 
+    // Xử lý và tính khoảng cách chính xác cho từng thiết bị
+    const processedDevices = userDevices.map(d => {
+      const dCoords = (d.location && Array.isArray(d.location.coordinates) && d.location.coordinates.length === 2)
+        ? d.location.coordinates
+        : coordinates;
+
+      let dDistanceMeters = null;
+      if (hasUserCoords && Array.isArray(dCoords) && dCoords.length === 2) {
+        dDistanceMeters = Math.round(calcDistance(userLat, userLng, dCoords[1], dCoords[0]));
+      }
+
+      const dAddress = d.location?.addressText || d.addressText || (typeof user.address === 'string' ? user.address : 'Việt Nam');
+
+      return {
+        ...d,
+        location: {
+          type: 'Point',
+          coordinates: [dCoords[0], dCoords[1]],
+          addressText: dAddress,
+        },
+        coordinates: [dCoords[0], dCoords[1]], // [longitude, latitude]
+        addressText: dAddress,
+        distanceMeters: dDistanceMeters,
+      };
+    });
+
+    // Sắp xếp các thiết bị của chủ sở hữu theo khoảng cách gần nhất
+    if (hasUserCoords) {
+      processedDevices.sort((a, b) => (a.distanceMeters ?? Infinity) - (b.distanceMeters ?? Infinity));
+    }
+
     let distanceMeters = null;
     if (hasUserCoords) {
-      distanceMeters = Math.round(calcDistance(userLat, userLng, coordinates[1], coordinates[0]));
+      const ownerDist = Math.round(calcDistance(userLat, userLng, coordinates[1], coordinates[0]));
+      const minDeviceDist = processedDevices[0]?.distanceMeters ?? Infinity;
+      distanceMeters = Math.min(ownerDist, minDeviceDist);
+
+      // Lọc bỏ nếu cả chủ sở hữu và các thiết bị đều nằm ngoài bán kính tìm kiếm
+      if (isFilterByRadius && ownerDist > effectiveRadius && minDeviceDist > effectiveRadius) {
+        continue;
+      }
     }
 
     results.push({
@@ -90,13 +137,13 @@ router.get('/map-owners', asyncHandler(async (req, res) => {
       isVerified: Boolean(user.trust?.isVerified),
       address: typeof user.address === 'string' ? user.address : (userDevices[0]?.addressText || 'Việt Nam'),
       coordinates: [coordinates[0], coordinates[1]], // [longitude, latitude]
-      deviceCount: userDevices.length,
+      deviceCount: processedDevices.length,
       distanceMeters,
-      devices: userDevices,
+      devices: processedDevices,
     });
   }
 
-  // Sắp xếp theo khoảng cách nếu có tọa độ người dùng, ngược lại sắp theo số lượng thiết bị
+  // Sắp xếp theo khoảng cách gần nhất nếu có tọa độ người dùng, ngược lại sắp theo số lượng thiết bị
   if (hasUserCoords) {
     results.sort((a, b) => (a.distanceMeters ?? Infinity) - (b.distanceMeters ?? Infinity));
   } else {

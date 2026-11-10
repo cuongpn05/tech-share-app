@@ -18,7 +18,7 @@ import {
   getMapOwnersMarkers,
   parseMapMessage,
 } from '../../components/map/mapHtml';
-import { HomeCoordinate, useHomeLocation } from '../../hooks/useHomeLocation';
+import { HomeCoordinate, homeDistanceMeters, useHomeLocation } from '../../hooks/useHomeLocation';
 import { deviceService } from '../../services/deviceService';
 import { MapOwner, userService } from '../../services/userService';
 import { useAppSelector } from '../../store';
@@ -30,9 +30,6 @@ interface MapScreenProps {
   onNavigateToOwnerProfile?: (ownerId: string) => void;
 }
 
-// Tọa độ mặc định tại Việt Nam (Hà Nội: 21.0285, 105.8544)
-const DEFAULT_COORDINATE: HomeCoordinate = { latitude: 21.0285, longitude: 105.8544 };
-
 export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }: MapScreenProps) {
   const insets = useSafeAreaInsets();
   const homeCategory = useAppSelector(state => state.devices.selectedCategory);
@@ -41,7 +38,11 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
   const [categoryError, setCategoryError] = useState(false);
   const [categoryRetry, setCategoryRetry] = useState(0);
 
-  const [queryPosition, setQueryPosition] = useState<HomeCoordinate | null>(null);
+  // Tọa độ tìm kiếm thiết bị lân cận (khởi tạo động từ GPS thực tế, KHÔNG hardcode Hà Nội)
+  const [searchCoordinate, setSearchCoordinate] = useState<HomeCoordinate | null>(null);
+  // Tọa độ tâm bản đồ hiện tại (cập nhật khi người dùng kéo bản đồ sang khu vực khác)
+  const [mapCenter, setMapCenter] = useState<HomeCoordinate | null>(null);
+
   const [owners, setOwners] = useState<MapOwner[]>([]);
   const [loadingOwners, setLoadingOwners] = useState(false);
   const [ownerError, setOwnerError] = useState<string | null>(null);
@@ -56,21 +57,19 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
 
   const webView = useRef<WebView>(null);
   const messageId = useRef(0);
+  const hasFocusedInitialGps = useRef(false);
 
-  // Kích hoạt GPS và lắng nghe vị trí người dùng
-  const location = useHomeLocation(coordinate => setQueryPosition(coordinate), true);
+  // Kích hoạt GPS và lắng nghe vị trí người dùng thực tế
+  const location = useHomeLocation((coordinate) => {
+    // Khi nhận được GPS thực tế, cập nhật tọa độ tìm kiếm nếu chưa có hoặc vừa định vị
+    setSearchCoordinate(prev => prev ?? coordinate);
+    setMapCenter(prev => prev ?? coordinate);
+  }, true);
+
   const source = useMemo(() => ({ html: createGoogleMapHtml(), baseUrl: 'https://www.google.com' }), []);
 
-  // Xác định tọa độ tìm kiếm (Ưu tiên GPS trong nước, fallback về Hà Nội)
-  const effectivePosition: HomeCoordinate = useMemo(() => {
-    const isCoordinateInVietnam = (coord: HomeCoordinate | null) =>
-      Boolean(coord && coord.latitude >= 8 && coord.latitude <= 24 &&
-              coord.longitude >= 102 && coord.longitude <= 110);
-
-    if (isCoordinateInVietnam(queryPosition)) return queryPosition!;
-    if (isCoordinateInVietnam(location.position)) return location.position!;
-    return DEFAULT_COORDINATE;
-  }, [queryPosition, location.position]);
+  // Vị trí GPS thực tế của người dùng (chỉ có khi được cấp quyền và GPS hợp lệ)
+  const userGps = location.position;
 
   // Trích xuất các ghim Chủ sở hữu (Owner)
   const markers = useMemo(() => getMapOwnersMarkers(owners), [owners]);
@@ -100,16 +99,22 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
     return () => { active = false; };
   }, [categoryRetry]);
 
-  // Tải danh sách Chủ sở hữu & Thiết bị trên bản đồ (lọc theo Category và Tọa độ)
+  // Tải danh sách Chủ sở hữu & Thiết bị trên bản đồ (lọc theo tọa độ tìm kiếm động, bán kính 50km)
   useEffect(() => {
     let active = true;
+    if (!searchCoordinate) {
+      setOwners([]);
+      return;
+    }
+
     setLoadingOwners(true);
     setOwnerError(null);
 
     userService.getMapOwners({
       category: category !== 'all' ? category : undefined,
-      lat: effectivePosition.latitude,
-      lng: effectivePosition.longitude,
+      lat: searchCoordinate.latitude,
+      lng: searchCoordinate.longitude,
+      radius: 50000, // 50 km quanh tọa độ tìm kiếm
     })
       .then(data => {
         if (!active) return;
@@ -124,7 +129,7 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
       });
 
     return () => { active = false; };
-  }, [effectivePosition, category, ownerRetry]);
+  }, [searchCoordinate, category, ownerRetry]);
 
   // Bộ hẹn giờ kiểm tra tải bản đồ
   useEffect(() => {
@@ -135,31 +140,54 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
     return () => clearTimeout(timeout);
   }, [mapReady, mapError, mapReload]);
 
-  // Đồng bộ vị trí người dùng và danh sách các chủ sở hữu sang WebView
+  // Đồng bộ vị trí người dùng thực tế và danh sách các chủ sở hữu sang WebView
   useEffect(() => {
     if (!mapReady || mapError) return;
-    const isUserInVietnam = location.position &&
-      location.position.latitude >= 8 && location.position.latitude <= 24 &&
-      location.position.longitude >= 102 && location.position.longitude <= 110;
 
-    const currentCoords = isUserInVietnam
-      ? [location.position!.longitude, location.position!.latitude]
-      : [effectivePosition.longitude, effectivePosition.latitude];
+    // Tọa độ người dùng chỉ gửi khi CÓ GPS THẬT (không bao giờ giả lập vị trí cố định)
+    const userGpsCoords = userGps
+      ? [userGps.longitude, userGps.latitude]
+      : null;
+
+    // Lấy vị trí và thông tin các thiết bị thuộc chủ sở hữu đang chọn
+    const selectedOwnerDevices = selectedOwner
+      ? filteredOwnerDevices.map(d => ({
+          id: d._id,
+          name: d.name || d.title,
+          price: d.pricePerDay ?? d.dailyRate,
+          category: d.category,
+          coordinates: d.location?.coordinates || selectedOwner.coordinates,
+          address: d.location?.addressText || d.addressText || selectedOwner.address,
+        }))
+      : [];
 
     webView.current?.postMessage(JSON.stringify({
       type: 'update',
       messageId: ++messageId.current,
       owners: markers,
-      position: currentCoords,
+      devices: selectedOwnerDevices,
+      position: userGpsCoords,
       selectedId: selectedOwnerId,
     }));
-  }, [mapReady, mapError, markers, location.position, effectivePosition, selectedOwnerId]);
+
+    // Tự động di chuyển tới vị trí GPS của người dùng lần đầu tiên khi lấy được tọa độ
+    if (userGps && !hasFocusedInitialGps.current) {
+      hasFocusedInitialGps.current = true;
+      webView.current?.postMessage(JSON.stringify({
+        type: 'focus',
+        messageId: ++messageId.current,
+        position: [userGps.longitude, userGps.latitude],
+      }));
+    }
+  }, [mapReady, mapError, markers, userGps, selectedOwnerId, filteredOwnerDevices]);
 
   function handleMapMessage(event: WebViewMessageEvent) {
     const message = parseMapMessage(event.nativeEvent.data);
-    if (message?.type === 'ready') setMapReady(true);
-    if (message?.type === 'error') setMapError(message.message);
-    if (message?.type === 'select') {
+    if (!message) return;
+
+    if (message.type === 'ready') setMapReady(true);
+    if (message.type === 'error') setMapError(message.message);
+    if (message.type === 'select') {
       const targetId = message.id || message.deviceId;
       if (targetId && markers.some(m => m.id === targetId)) {
         setSelectedOwnerId(targetId);
@@ -168,34 +196,71 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
         setSelectedOwnerId(null);
       }
     }
+    if (message.type === 'select_device') {
+      onNavigateToDeviceDetail(message.deviceId);
+    }
+    // Khi người dùng kéo bản đồ sang khu vực khác (lắng nghe sự kiện dragend từ Leaflet)
+    if (message.type === 'center_change') {
+      const newCenter: HomeCoordinate = {
+        latitude: message.center[1],
+        longitude: message.center[0],
+      };
+      setMapCenter(newCenter);
+      // Nếu chưa có tọa độ tìm kiếm (ví dụ người dùng từ chối GPS), dùng tâm bản đồ để tải dữ liệu
+      if (!searchCoordinate) {
+        setSearchCoordinate(newCenter);
+      }
+    }
   }
 
-  function focusMyLocation() {
-    if (mapReady && !mapError) {
-      const isUserInVietnam = location.position &&
-        location.position.latitude >= 8 && location.position.latitude <= 24 &&
-        location.position.longitude >= 102 && location.position.longitude <= 110;
-
-      const targetPos = isUserInVietnam
-        ? [location.position!.longitude, location.position!.latitude]
-        : [DEFAULT_COORDINATE.longitude, DEFAULT_COORDINATE.latitude];
-
+  // Tiêu điểm bản đồ vào vị trí cụ thể của thiết bị
+  function focusOnDevice(device: Device) {
+    const coords = device.location?.coordinates || (device as any).coordinates || selectedOwner?.coordinates;
+    if (coords && Array.isArray(coords) && coords.length === 2 && mapReady && !mapError) {
       webView.current?.postMessage(JSON.stringify({
-        type: 'focus',
+        type: 'focus_device',
         messageId: ++messageId.current,
-        position: targetPos,
+        position: coords,
       }));
     }
+  }
+
+  // Nút định vị My Location: Đưa bản đồ về vị trí GPS thực tế của người dùng
+  function focusMyLocation() {
+    if (userGps) {
+      setSearchCoordinate(userGps);
+      setMapCenter(userGps);
+      if (mapReady && !mapError) {
+        webView.current?.postMessage(JSON.stringify({
+          type: 'focus',
+          messageId: ++messageId.current,
+          position: [userGps.longitude, userGps.latitude],
+        }));
+      }
+    }
+    // Lấy lại vị trí GPS mới nhất
     void location.refresh(true);
   }
+
+  // Nút tìm kiếm tại khu vực hiện tại trên bản đồ (khi người dùng kéo bản đồ đi xa > 3km)
+  function handleSearchThisArea() {
+    if (mapCenter) {
+      setSearchCoordinate(mapCenter);
+    }
+  }
+
+  // Kiểm tra xem người dùng có đang kéo bản đồ ra xa khỏi điểm đã tìm kiếm hay không (> 3km)
+  const isMovedAway = Boolean(
+    mapCenter &&
+    searchCoordinate &&
+    homeDistanceMeters(mapCenter, searchCoordinate) > 3000
+  );
 
   function reloadMap() {
     setMapReady(false);
     setMapError(null);
     setMapReload(value => value + 1);
   }
-
-  const locationMessage = location.error || location.warning;
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -220,26 +285,53 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
         </TouchableOpacity>
       ) : null}
 
-      {locationMessage ? (
-        <View style={styles.notice}>
-          <Text style={styles.error}>{locationMessage}</Text>
+      {/* Thông báo trạng thái GPS / Quyền truy cập vị trí */}
+      {location.isLocating && !userGps && !searchCoordinate ? (
+        <View style={styles.locationBannerLoading}>
           <View style={styles.row}>
-            <TouchableOpacity onPress={() => void location.refresh(true)}>
+            <ActivityIndicator size="small" color={colors.light.primaryDark} />
+            <Text style={styles.body}>Đang xác định vị trí của bạn qua GPS...</Text>
+          </View>
+        </View>
+      ) : location.error && !userGps ? (
+        <View style={styles.locationBannerError}>
+          <View style={styles.row}>
+            <Ionicons name="location-outline" size={18} color={colors.light.error} />
+            <Text style={[styles.error, { flex: 1 }]}>{location.error}</Text>
+          </View>
+          <View style={[styles.row, { marginTop: 4 }]}>
+            <TouchableOpacity
+              style={styles.actionBtnSmall}
+              onPress={() => void location.refresh(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Thử lại GPS"
+            >
+              <Ionicons name="refresh" size={13} color={colors.light.primaryDark} />
               <Text style={styles.link}>Thử lại GPS</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => void Linking.openSettings().catch(() => setOwnerError('Không thể mở cài đặt.'))}>
+            <TouchableOpacity
+              style={styles.actionBtnSmall}
+              onPress={() => void Linking.openSettings().catch(() => setOwnerError('Không thể mở cài đặt.'))}
+              accessibilityRole="button"
+              accessibilityLabel="Mở cài đặt vị trí"
+            >
+              <Ionicons name="settings-outline" size={13} color={colors.light.primaryDark} />
               <Text style={styles.link}>Mở cài đặt</Text>
             </TouchableOpacity>
           </View>
         </View>
+      ) : location.warning ? (
+        <View style={styles.notice}>
+          <Text style={styles.warningText}>{location.warning}</Text>
+        </View>
       ) : null}
 
-      {/* Trạng thái tải chủ sở hữu */}
+      {/* Trạng thái tải chủ sở hữu & Thiết bị */}
       <View style={styles.notice}>
         {loadingOwners ? (
           <View style={styles.row}>
             <ActivityIndicator size="small" color={colors.light.primaryDark} />
-            <Text style={styles.body}>Đang tìm các chủ thiết bị phù hợp...</Text>
+            <Text style={styles.body}>Đang tìm các chủ thiết bị trong khu vực...</Text>
           </View>
         ) : ownerError ? (
           <TouchableOpacity onPress={() => setOwnerRetry(value => value + 1)}>
@@ -247,9 +339,11 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
           </TouchableOpacity>
         ) : (
           <Text style={styles.body}>
-            {markers.length > 0
-              ? `Tìm thấy ${markers.length} chủ thiết bị trên bản đồ`
-              : 'Không có chủ thiết bị nào trong danh mục này.'}
+            {searchCoordinate
+              ? (markers.length > 0
+                ? `Tìm thấy ${markers.length} chủ thiết bị xung quanh khu vực này (bán kính 50 km)`
+                : `Không có chủ thiết bị nào ${category !== 'all' ? `thuộc danh mục "${category}" ` : ''}trong bán kính 50 km quanh đây.`)
+              : 'Đang đợi vị trí GPS để tìm thiết bị lân cận...'}
           </Text>
         )}
       </View>
@@ -275,6 +369,20 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
           onContentProcessDidTerminate={() => setMapError('Bộ xử lý bản đồ đã dừng. Vui lòng tải lại.')}
         />
 
+        {/* Nút tìm kiếm tại khu vực này (Hiện khi người dùng kéo bản đồ đi xa khỏi vị trí ban đầu) */}
+        {isMovedAway ? (
+          <TouchableOpacity
+            style={styles.searchAreaBtn}
+            onPress={handleSearchThisArea}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Tìm thiết bị ở khu vực này"
+          >
+            <Ionicons name="search" size={15} color={colors.light.primaryDark} />
+            <Text style={styles.searchAreaBtnText}>Tìm ở khu vực này</Text>
+          </TouchableOpacity>
+        ) : null}
+
         {(!mapReady || mapError) ? (
           <View style={styles.overlay}>
             {mapError ? (
@@ -288,20 +396,24 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
             ) : (
               <>
                 <ActivityIndicator size="large" color={colors.light.primaryDark} />
-                <Text style={styles.body}>Đang tải Google Maps...</Text>
+                <Text style={styles.body}>Đang tải bản đồ...</Text>
               </>
             )}
           </View>
         ) : null}
 
-        {/* Nút định vị GPS */}
+        {/* Nút định vị My Location */}
         <TouchableOpacity
           style={styles.locate}
           onPress={focusMyLocation}
           accessibilityRole="button"
           accessibilityLabel="Vị trí của tôi"
         >
-          <Ionicons name="locate" size={24} color={colors.light.primaryDark} />
+          <Ionicons
+            name={userGps ? "navigate" : "locate"}
+            size={24}
+            color={userGps ? colors.light.primaryDark : colors.light.textSecondary}
+          />
         </TouchableOpacity>
       </View>
 
@@ -442,15 +554,40 @@ export function MapScreen({ onNavigateToDeviceDetail, onNavigateToOwnerProfile }
                             {device.name || device.title}
                           </Text>
 
+                          {/* Vị trí và khoảng cách của thiết bị */}
+                          <View style={styles.deviceLocationRow}>
+                            <Ionicons name="location-outline" size={12} color={colors.light.primaryDark} />
+                            <Text style={styles.deviceLocationText} numberOfLines={1}>
+                              {device.location?.addressText || device.addressText || selectedOwner.address || 'Việt Nam'}
+                              {typeof device.distanceMeters === 'number'
+                                ? ` · Cách ${(device.distanceMeters / 1000).toFixed(1)} km`
+                                : ''}
+                            </Text>
+                          </View>
+
                           <View style={styles.deviceItemFooter}>
                             <Text style={styles.deviceItemPrice}>
                               {typeof rate === 'number' && Number.isFinite(rate)
                                 ? `${rate.toLocaleString('vi-VN')} đ/ngày`
                                 : 'Liên hệ'}
                             </Text>
-                            <View style={styles.viewDetailPill}>
-                              <Text style={styles.viewDetailPillText}>Xem chi tiết</Text>
-                              <Ionicons name="arrow-forward" size={13} color={colors.light.primaryDark} />
+                            <View style={styles.deviceActionsRow}>
+                              <TouchableOpacity
+                                style={styles.focusDevicePill}
+                                onPress={(e) => {
+                                  e.stopPropagation();
+                                  focusOnDevice(device);
+                                }}
+                                accessibilityRole="button"
+                                accessibilityLabel="Xem vị trí thiết bị trên bản đồ"
+                              >
+                                <Ionicons name="map-outline" size={11} color={colors.light.primaryDark} />
+                                <Text style={styles.focusDevicePillText}>Vị trí</Text>
+                              </TouchableOpacity>
+                              <View style={styles.viewDetailPill}>
+                                <Text style={styles.viewDetailPillText}>Xem chi tiết</Text>
+                                <Ionicons name="arrow-forward" size={12} color={colors.light.primaryDark} />
+                              </View>
                             </View>
                           </View>
                         </View>
@@ -478,12 +615,69 @@ const styles = StyleSheet.create({
   error: { color: colors.light.error, fontSize: 13, lineHeight: 19 },
   errorCenter: { color: colors.light.error, fontSize: 13, lineHeight: 19, textAlign: 'center' },
   link: { color: colors.light.primaryDark, fontWeight: '700', fontSize: 13 },
+  warningText: { color: '#D97706', fontSize: 13, lineHeight: 19 },
   map: { flex: 1, overflow: 'hidden' },
   webView: { flex: 1, backgroundColor: colors.light.background },
   overlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: colors.light.background, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 20 },
   locate: { position: 'absolute', right: 14, bottom: 20, padding: 12, borderRadius: 26, backgroundColor: colors.light.surface, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84 },
   button: { paddingVertical: 11, paddingHorizontal: 16, backgroundColor: colors.light.primaryDark, borderRadius: 10, alignItems: 'center' },
   buttonText: { color: colors.light.white, fontWeight: '700', fontSize: 14 },
+
+  /* Nút tìm kiếm tại khu vực này khi kéo bản đồ */
+  searchAreaBtn: {
+    position: 'absolute',
+    top: 12,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.light.surface,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 22,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.22,
+    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.light.primaryDark,
+    zIndex: 10,
+  },
+  searchAreaBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.light.primaryDark,
+  },
+
+  /* Banners thông báo trạng thái vị trí */
+  locationBannerLoading: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#F0F9FF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0F2FE',
+  },
+  locationBannerError: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#FEF2F2',
+    borderBottomWidth: 1,
+    borderBottomColor: '#FEE2E2',
+    gap: 4,
+  },
+  actionBtnSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    backgroundColor: colors.light.surface,
+    borderWidth: 1,
+    borderColor: colors.light.borderDefault,
+    marginRight: 8,
+  },
 
   /* Bảng điều khiển Owner (Drawer) */
   drawerContainer: {
@@ -714,6 +908,36 @@ const styles = StyleSheet.create({
   deviceItemPrice: {
     fontSize: 13,
     fontWeight: '800',
+    color: colors.light.primaryDark,
+  },
+  deviceLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginVertical: 2,
+  },
+  deviceLocationText: {
+    fontSize: 11,
+    color: colors.light.textSecondary,
+    flexShrink: 1,
+  },
+  deviceActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  focusDevicePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingVertical: 3,
+    paddingHorizontal: 7,
+    borderRadius: 6,
+    backgroundColor: colors.light.primaryLight,
+  },
+  focusDevicePillText: {
+    fontSize: 11,
+    fontWeight: '700',
     color: colors.light.primaryDark,
   },
   viewDetailPill: {
