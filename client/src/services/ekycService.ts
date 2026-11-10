@@ -12,6 +12,7 @@
  */
 
 import { apiClient } from '../config/api';
+import { uploadImageWithCloudinary } from './cloudinaryUploadService';
 
 export interface EkycProfile {
   _id    : string;
@@ -120,92 +121,19 @@ export async function getOwnerEkycStatus(): Promise<OwnerEkycStatusResponse> {
   return response.data;
 }
 
-const CLOUDINARY_CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME || 'oigtlazh';
-const CLOUDINARY_UPLOAD_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'techshare_avatar';
-
 /**
- * 2. Tải ảnh CCCD / chân dung lên Cloudinary với tốc độ cao
+ * 2. Tải ảnh CCCD / chân dung lên Cloudinary (1-hop trực tiếp + server fallback)
  */
 export async function uploadEkycPhoto(uri: string, prefix = 'cccd'): Promise<string> {
-  if (!uri || typeof uri !== 'string') {
-    throw new Error('Đường dẫn ảnh không hợp lệ.');
-  }
-
-  // Nếu là URL đã lưu trên web/Cloudinary thì không upload lại
-  if (uri.startsWith('http://') || uri.startsWith('https://')) {
-    return uri;
-  }
-
-  const rawExt = uri.split('.').pop()?.toLowerCase() || 'jpg';
-  const extension = ['jpg', 'jpeg', 'png', 'webp'].includes(rawExt) ? rawExt : 'jpg';
-  const mimeType =
-    extension === 'png'
-      ? 'image/png'
-      : extension === 'webp'
-      ? 'image/webp'
-      : 'image/jpeg';
-
-  const filename = `${prefix}-${Date.now()}.${extension}`;
-
-  // ── Thử nghiệm 1: Upload trực tiếp lên Cloudinary ──
-  try {
-    const directForm = new FormData();
-    directForm.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-    directForm.append('folder', 'techshare/ekyc');
-    directForm.append('file', {
-      uri,
-      name: filename,
-      type: mimeType,
-    } as unknown as Blob);
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 20000);
-
-    const directRes = await fetch(
-      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
-      {
-        method: 'POST',
-        body: directForm,
-        signal: controller.signal,
-      }
-    );
-    clearTimeout(timer);
-
-    if (directRes.ok) {
-      const data = await directRes.json();
-      if (data?.secure_url) {
-        return data.secure_url;
-      }
-    }
-  } catch (directErr) {
-    console.warn('[EkycService] Direct upload không thành công, chuyển sang server fallback:', directErr);
-  }
-
-  // ── Thử nghiệm 2: Fallback qua API Server với timeout 60s ──
-  const serverForm = new FormData();
-  serverForm.append('image', {
+  const result = await uploadImageWithCloudinary({
     uri,
-    name: filename,
-    type: mimeType,
-  } as unknown as Blob);
-
-  const response = await apiClient.post<{ success: boolean; data?: { url: string }; message?: string }>(
-    '/ekyc/upload-image',
-    serverForm,
-    {
-      timeout: 60000,
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    }
-  );
-
-  const url = response.data?.data?.url;
-  if (!url) {
-    throw new Error(response.data?.message || 'Không thể tải ảnh CCCD lên máy chủ.');
-  }
-
-  return url;
+    folder: 'techshare/ekyc',
+    filenamePrefix: prefix,
+    fallbackEndpoint: '/ekyc/upload-image',
+    fallbackFieldName: 'image',
+    directTimeoutMs: 12000,
+  });
+  return result.url;
 }
 
 /**

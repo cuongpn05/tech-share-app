@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -14,191 +14,16 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
+import {
+  ImageSourcePickerModal,
+  ImageSourcePickerOptions,
+} from '../common/ImageSourcePickerModal';
 import { theme } from '../../theme/tokens';
 import { STRINGS } from '../../constants/strings';
 import { EkycProfile } from '../../services/ekycService';
 
-export interface PickEkycImageOptions {
-  title: string;
-  description: string;
-  aspect: [number, number];
-  cameraType?: ImagePicker.CameraType;
-  onSelected: (uri: string) => void;
-}
-
-/**
- * Modal chọn nguồn ảnh (Chụp ảnh mới / Chọn từ thư viện) đồng bộ chuẩn Soft-UI cho cả Renter & Owner eKYC.
- */
-export function EkycImagePickerModal({
-  options,
-  onClose,
-  onError,
-}: {
-  options: PickEkycImageOptions | null;
-  onClose: () => void;
-  onError: (title: string, message: string) => void;
-}) {
-  const launchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (launchTimerRef.current) {
-        clearTimeout(launchTimerRef.current);
-      }
-    };
-  }, []);
-
-  const launchCamera = async (opts: PickEkycImageOptions) => {
-    try {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) {
-        onError(STRINGS.EKYC.PERMISSION_TITLE, STRINGS.EKYC.CAMERA_PERMISSION_MSG);
-        return;
-      }
-
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: opts.aspect,
-        quality: 0.65,
-        cameraType: opts.cameraType ?? ImagePicker.CameraType.back,
-      });
-
-      if (!result.canceled && result.assets[0]?.uri) {
-        opts.onSelected(result.assets[0].uri);
-      }
-    } catch (err: any) {
-      onError(
-        STRINGS.COMMON.ERROR,
-        STRINGS.EKYC.CAMERA_ERROR_PREFIX + (err.message || STRINGS.EKYC.UNKNOWN_ERROR)
-      );
-    }
-  };
-
-  const launchGallery = async (opts: PickEkycImageOptions) => {
-    try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        onError(STRINGS.EKYC.PERMISSION_TITLE, STRINGS.EKYC.GALLERY_PERMISSION_MSG);
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: opts.aspect,
-        quality: 0.65,
-      });
-
-      if (!result.canceled && result.assets[0]?.uri) {
-        opts.onSelected(result.assets[0].uri);
-      }
-    } catch (err: any) {
-      onError(
-        STRINGS.COMMON.ERROR,
-        STRINGS.EKYC.GALLERY_ERROR_PREFIX + (err.message || STRINGS.EKYC.UNKNOWN_ERROR)
-      );
-    }
-  };
-
-  const handleSelectSource = (source: 'camera' | 'gallery') => {
-    if (!options) return;
-    const currentOptions = options;
-    onClose();
-
-    if (launchTimerRef.current) {
-      clearTimeout(launchTimerRef.current);
-    }
-    // Đợi modal đóng hoàn toàn rồi mới bật Camera/Thư viện ảnh để tránh xung đột native controller trên iOS
-    launchTimerRef.current = setTimeout(() => {
-      if (source === 'camera') {
-        launchCamera(currentOptions);
-      } else {
-        launchGallery(currentOptions);
-      }
-    }, 180);
-  };
-
-  return (
-    <Modal
-      visible={Boolean(options)}
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-      onRequestClose={onClose}
-    >
-      <View style={styles.modalBackdrop}>
-        <TouchableWithoutFeedback onPress={onClose}>
-          <View style={StyleSheet.absoluteFill} />
-        </TouchableWithoutFeedback>
-
-        <View style={styles.modalContent} accessibilityRole="alert">
-          <TouchableOpacity
-            style={styles.modalCloseBtn}
-            onPress={onClose}
-            activeOpacity={0.7}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="close" size={18} color={theme.colors.text.muted} />
-          </TouchableOpacity>
-
-          <View style={styles.modalIconOuterRing}>
-            <View style={styles.modalIconInnerCircle}>
-              <Ionicons name="camera-outline" size={26} color={theme.colors.white} />
-            </View>
-          </View>
-
-          <Text style={styles.modalTitle}>{options?.title || ''}</Text>
-          <Text style={styles.modalSubtitle}>{options?.description || ''}</Text>
-
-          <View style={styles.pickerOptionsList}>
-            <TouchableOpacity
-              style={styles.pickerOptionCard}
-              onPress={() => handleSelectSource('camera')}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-            >
-              <View style={styles.pickerOptionIconWrap}>
-                <Ionicons name="camera-outline" size={20} color={theme.colors.brand[600]} />
-              </View>
-              <View style={styles.pickerOptionTextWrap}>
-                <Text style={styles.pickerOptionTitle}>{STRINGS.EKYC.TAKE_PHOTO}</Text>
-                <Text style={styles.pickerOptionDesc}>{STRINGS.EKYC.TAKE_PHOTO_DESC}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={theme.colors.text.subtle} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.pickerOptionCard}
-              onPress={() => handleSelectSource('gallery')}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-            >
-              <View style={styles.pickerOptionIconWrap}>
-                <Ionicons name="images-outline" size={20} color={theme.colors.brand[600]} />
-              </View>
-              <View style={styles.pickerOptionTextWrap}>
-                <Text style={styles.pickerOptionTitle}>{STRINGS.EKYC.CHOOSE_FROM_GALLERY}</Text>
-                <Text style={styles.pickerOptionDesc}>{STRINGS.EKYC.CHOOSE_FROM_GALLERY_DESC}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={theme.colors.text.subtle} />
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity
-            style={styles.pickerCancelBtn}
-            onPress={onClose}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-          >
-            <Text style={styles.modalCancelBtnText}>{STRINGS.COMMON.CANCEL}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
-}
+export type PickEkycImageOptions = ImageSourcePickerOptions;
+export const EkycImagePickerModal = ImageSourcePickerModal;
 
 export type EkycStatusBannerVariant = 'approved' | 'pending' | 'rejected' | 'intro' | 'locked';
 
@@ -1106,53 +931,5 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontWeight: '700',
     fontSize: 14,
-  },
-  pickerOptionsList: {
-    width: '100%',
-    gap: 10,
-    marginBottom: 14,
-  },
-  pickerOptionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.brand[50],
-    borderWidth: 1,
-    borderColor: theme.colors.brand[100],
-    borderRadius: theme.radii.lg,
-    padding: 13,
-    gap: 12,
-  },
-  pickerOptionIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.brand[100],
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pickerOptionTextWrap: {
-    flex: 1,
-  },
-  pickerOptionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: theme.colors.text.primary,
-  },
-  pickerOptionDesc: {
-    fontSize: 12,
-    color: theme.colors.text.secondary,
-    marginTop: 2,
-  },
-  pickerCancelBtn: {
-    width: '100%',
-    height: 46,
-    borderRadius: theme.radii.md,
-    backgroundColor: theme.colors.background,
-    borderWidth: 1,
-    borderColor: theme.colors.border.light,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

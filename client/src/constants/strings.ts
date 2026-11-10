@@ -1957,14 +1957,6 @@ export const STRINGS = {
     OWNER_EKYC_DESC_APPROVED:
       'Your account has been verified and upgraded to Device Owner.',
 
-    // Referral Code
-    REFERRAL_SECTION_TITLE: 'Referral Code',
-    NO_REFERRAL_CODE: 'None',
-    COPY_BUTTON: 'Copy',
-    REFERRAL_COPIED_ALERT_TITLE: 'Referral Code',
-    REFERRAL_COPIED_ALERT_MSG: (code: string) => `Referral code copied: ${code}`,
-    REFERRAL_NONE_ALERT_MSG: 'No referral code available for this account.',
-
     // Wishlist
     WISHLIST_BUTTON: 'Wishlist',
 
@@ -1991,8 +1983,19 @@ export const STRINGS = {
     PHONE_PLACEHOLDER: 'Enter phone number...',
     EMAIL_PLACEHOLDER: 'Enter email address...',
     ADDRESS_PLACEHOLDER: 'Enter your address...',
-    AVATAR_LABEL: 'Avatar URL',
+    AVATAR_LABEL: 'Profile Photo',
     AVATAR_PLACEHOLDER: 'https://...',
+    AVATAR_CHANGE_BTN: 'Change Photo',
+    AVATAR_PICKER_TITLE: 'Update Profile Photo',
+    AVATAR_PICKER_DESC: 'Take a new photo or choose one from your device gallery.',
+    AVATAR_UPLOAD_SUCCESS_TITLE: 'Avatar Updated',
+    AVATAR_UPLOAD_SUCCESS_MSG: 'Your profile photo has been uploaded and updated.',
+    AVATAR_UPLOAD_ERROR_TITLE: 'Upload Failed',
+    AVATAR_UPLOAD_ERROR_MSG: 'Unable to upload profile photo. Please try again.',
+    AVATAR_SUMMARY_ITEM: 'Updated Item',
+    AVATAR_SUMMARY_VALUE: 'Profile Photo',
+    AVATAR_SUMMARY_STATUS: 'Status',
+    AVATAR_SUMMARY_STATUS_VALUE: 'Saved to Profile',
     SAVE_CHANGES_BUTTON: 'Save Changes',
 
     // Alerts

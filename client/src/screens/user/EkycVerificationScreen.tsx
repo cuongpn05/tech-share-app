@@ -37,6 +37,7 @@ import {
   EkycRequestData,
   OwnerEkycRequestData,
 } from '../../services/ekycService';
+import { preloadCloudinaryConfig } from '../../services/cloudinaryUploadService';
 import { userService } from '../../services/userService';
 import { STRINGS } from '../../constants/strings';
 import {
@@ -122,6 +123,7 @@ export function EkycVerificationScreen({
   });
 
   const fetchStatus = useCallback(async () => {
+    preloadCloudinaryConfig();
     try {
       setLoading(true);
       const res = await getEkycStatus();
@@ -197,6 +199,7 @@ export function EkycVerificationScreen({
       description:
         type === 'front' ? STRINGS.EKYC.PICK_IMAGE_FRONT_DESC : STRINGS.EKYC.PICK_IMAGE_BACK_DESC,
       aspect: [85, 54],
+      quality: 0.55,
       onSelected: (uri) => handleSelectedUri(type, uri),
     });
   };
