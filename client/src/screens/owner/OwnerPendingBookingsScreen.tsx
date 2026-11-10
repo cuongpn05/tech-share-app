@@ -14,14 +14,15 @@ import {
   Modal,
   Alert,
   ActivityIndicator,
+  Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../../theme/tokens';
-import { OWNER_STRINGS } from '../../constants/ownerStrings';
+import { colors } from '../../theme/colors';
 import { OwnerApprovalCard } from '../../components/booking/OwnerApprovalCard';
 import { ReviewModal } from '../../components/booking/ReviewModal';
 import { HandoverCameraModal } from '../../components/booking/HandoverCameraModal';
+import { HandoverScannerModal } from '../../components/booking/HandoverScannerModal';
 import { bookingService, Booking } from '../../services/bookingService';
 import { notificationService } from '../../services/notificationService';
 import { useAppSelector } from '../../store';
@@ -35,7 +36,6 @@ type TabType = 'all' | 'pending' | 'approved' | 'active' | 'completed' | 'cancel
 export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProps> = ({
   navigation,
 }) => {
-  const strings = OWNER_STRINGS.PENDING_REQUESTS;
   const currentUser = useAppSelector((state) => state.auth.user);
   const currentUserId = currentUser?._id || (currentUser as any)?.id;
 
@@ -46,6 +46,7 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
 
   const [pendingBookings, setPendingBookings] = useState<Booking[]>([]);
   const [allBookings, setAllBookings] = useState<Booking[]>([]);
+  const [scanBooking, setScanBooking] = useState<Booking | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
   // Reject Modal State
@@ -65,7 +66,7 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
     notificationService.getUnreadCountCached()
   );
 
-  // Tải danh sách đơn thuê từ Database Atlas dựa chính xác vào Owner
+  // Fetch bookings for owner from API
   const fetchBookings = useCallback(async () => {
     try {
       const [allData, pendingData] = await Promise.all([
@@ -82,7 +83,7 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
       setAllBookings(normalizedAll);
       setPendingBookings(normalizedPending);
     } catch (error) {
-      console.warn('[OwnerPendingBookingsScreen] Lỗi khi tải dữ liệu từ server:', error);
+      console.warn('[OwnerPendingBookingsScreen] Error loading bookings:', error);
     } finally {
       setLoading(false);
     }
@@ -120,21 +121,21 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
     setRefreshing(false);
   };
 
-  // Approve booking request immediately without confirmation popup
+  // Approve booking request
   const handleApprove = async (booking: Booking) => {
     try {
       setProcessingId(booking._id);
       await bookingService.updateBookingStatusByOwner(booking._id, 'approved');
       await fetchBookings();
     } catch (error: any) {
-      const msg = error?.response?.data?.message || strings.OPERATION_FAILED;
-      Alert.alert(strings.ERROR_TITLE, msg);
+      const msg = error?.response?.data?.message || 'Unable to approve booking. Please retry.';
+      Alert.alert('Approval Failed', msg);
     } finally {
       setProcessingId(null);
     }
   };
 
-  // Open decline modal (ONLY action that asks for confirmation & reason)
+  // Open decline modal
   const handleOpenReject = (booking: Booking) => {
     setSelectedBookingForReject(booking);
     setRejectReason('');
@@ -145,7 +146,8 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
   const handleConfirmReject = async () => {
     if (!selectedBookingForReject) return;
     try {
-      const reasonToSubmit = rejectReason.trim() || strings.DEFAULT_REJECT_REASON;
+      const reasonToSubmit =
+        rejectReason.trim() || 'Owner is unavailable during this time';
       setProcessingId(selectedBookingForReject._id);
       setRejectModalVisible(false);
 
@@ -157,8 +159,8 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
 
       await fetchBookings();
     } catch (error: any) {
-      const msg = error?.response?.data?.message || strings.OPERATION_FAILED;
-      Alert.alert(strings.ERROR_TITLE, msg);
+      const msg = error?.response?.data?.message || 'Unable to decline booking. Please retry.';
+      Alert.alert('Decline Failed', msg);
     } finally {
       setProcessingId(null);
       setSelectedBookingForReject(null);
@@ -168,54 +170,40 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
   // Open chat with renter
   const handleChat = (booking: Booking) => {
     if (!navigation) return;
-    navigation.navigate('ChatDetail', {
-      bookingId: booking._id,
-      otherBookings: [booking],
-    });
+    navigation.navigate('ChatDetail', { bookingId: booking._id });
   };
 
-  // Handover device immediately without confirmation popup (approved -> active)
-  const handleHandover = async (booking: Booking) => {
-    try {
-      setProcessingId(booking._id);
-      await bookingService.updateBookingStatusByOwner(booking._id, 'active');
-      await fetchBookings();
-    } catch (error: any) {
-      const msg = error?.response?.data?.message || strings.OPERATION_FAILED;
-      Alert.alert(strings.ERROR_TITLE, msg);
-    } finally {
-      setProcessingId(null);
-    }
-  };
+  // Handover device (approved -> active)
+  const handleHandover = (booking: Booking) => setScanBooking(booking);
 
-  // Receive device & complete rental immediately without confirmation popup (active -> completed)
+  // Complete rental (active -> completed)
   const handleComplete = async (booking: Booking) => {
     try {
       setProcessingId(booking._id);
       await bookingService.updateBookingStatusByOwner(booking._id, 'completed');
       await fetchBookings();
     } catch (error: any) {
-      const msg = error?.response?.data?.message || strings.OPERATION_FAILED;
-      Alert.alert(strings.ERROR_TITLE, msg);
+      const msg = error?.response?.data?.message || 'Unable to complete rental. Please retry.';
+      Alert.alert('Completion Failed', msg);
     } finally {
       setProcessingId(null);
     }
   };
 
-  // Mở modal đánh giá khách thuê khi đơn hàng đã completed
+  // Open renter review modal
   const handleOpenReviewRenter = (booking: Booking) => {
     setSelectedBookingForReview(booking);
     setReviewModalVisible(true);
   };
 
-  // Mở modal chụp ảnh kiểm tra máy khi trả (chỉ khi đơn hàng đang active)
+  // Open return inspection camera modal
   const handleOpenReturnCamera = (booking: Booking) => {
     if (booking.status !== 'active') return;
     setSelectedBookingForCamera(booking);
     setReturnCameraModalVisible(true);
   };
 
-  // Lọc danh sách theo tab và thanh tìm kiếm
+  // Filter bookings by active tab and search query
   const getFilteredBookings = () => {
     let sourceList: Booking[] = [];
     if (activeTab === 'pending') {
@@ -244,13 +232,15 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
     const query = searchQuery.trim().toLowerCase();
     return sourceList.filter((b) => {
       const renterName = (b.renterId?.name || b.renterId?.username || '').toLowerCase();
-      const deviceName = (b.deviceId?.name || '').toLowerCase();
-      const code = (b.bookingCode || '').toLowerCase();
+      const deviceName = (b.deviceId?.name || b.deviceId?.title || '').toLowerCase();
+      const code = (b.bookingCode || b._id || '').toLowerCase();
       return renterName.includes(query) || deviceName.includes(query) || code.includes(query);
     });
   };
 
   const filteredList = getFilteredBookings();
+
+  // Tab counters
   const pendingCount =
     pendingBookings.length || allBookings.filter((b) => b.status === 'pending').length;
   const approvedCount = allBookings.filter((b) => b.status === 'approved').length;
@@ -262,51 +252,70 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
   const allCount = allBookings.length;
 
   const tabItems: { key: TabType; label: string; count: number }[] = [
-    { key: 'all', label: strings.TABS.ALL, count: allCount },
-    { key: 'pending', label: strings.TABS.PENDING, count: pendingCount },
-    { key: 'approved', label: strings.TABS.APPROVED, count: approvedCount },
-    { key: 'active', label: strings.TABS.ACTIVE, count: activeCount },
-    { key: 'completed', label: strings.TABS.COMPLETED, count: completedCount },
-    { key: 'cancelled', label: strings.TABS.CANCELLED, count: cancelledCount },
+    { key: 'all', label: 'All', count: allCount },
+    { key: 'pending', label: 'Pending', count: pendingCount },
+    { key: 'approved', label: 'Approved', count: approvedCount },
+    { key: 'active', label: 'Active', count: activeCount },
+    { key: 'completed', label: 'Completed', count: completedCount },
+    { key: 'cancelled', label: 'Cancelled', count: cancelledCount },
   ];
 
   const insets = useSafeAreaInsets();
   const topInset = Math.max(
     insets.top,
-    Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 20
+    Platform.OS === 'android' ? StatusBar.currentHeight || 20 : 16
   );
+
+  const handleMenuPress = () => {
+    if (navigation?.openDrawer) {
+      navigation.openDrawer();
+    } else if (navigation?.canGoBack?.()) {
+      navigation.goBack();
+    }
+  };
+
+  const leftIconName = navigation?.openDrawer ? 'menu-outline' : 'chevron-back';
+
+  const declineReasons = [
+    'Device is under maintenance / inspection',
+    'Owner has an unexpected schedule conflict',
+    'Delivery / pickup location is too far',
+    'Device was already reserved for another rental',
+  ];
 
   return (
     <View style={[styles.screenContainer, { paddingTop: topInset }]}>
-      <StatusBar
-        barStyle="dark-content"
-        backgroundColor={theme.colors.background}
-        translucent={true}
-      />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.light.background} />
 
       {/* 1. Header Bar */}
       <View style={styles.headerBar}>
         <TouchableOpacity
           accessibilityRole="button"
-          accessibilityLabel="Menu"
+          accessibilityLabel={navigation?.openDrawer ? 'Open Navigation Menu' : 'Go Back'}
           style={styles.headerIconButton}
-          onPress={() => navigation?.openDrawer?.()}
+          onPress={handleMenuPress}
           activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons name="menu-outline" size={24} color={theme.colors.text.primary} />
+          <Ionicons name={leftIconName} size={22} color={colors.light.textPrimary} />
         </TouchableOpacity>
 
         <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>{strings.HEADER_TITLE}</Text>
-          <Text style={styles.headerSubtitle}>{strings.HEADER_SUBTITLE}</Text>
+          <Text style={styles.headerTitle}>Rental Requests</Text>
+          <Text style={styles.headerSubtitle} numberOfLines={1}>
+            Review, handover and manage customer bookings
+          </Text>
         </View>
 
         <TouchableOpacity
           style={styles.headerIconButton}
           onPress={() => navigation?.navigate?.('OwnerNotifications')}
           activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityLabel="View Notifications"
+          accessibilityRole="button"
         >
-          <Ionicons name="notifications-outline" size={20} color={theme.colors.text.primary} />
+          <Ionicons name="notifications-outline" size={20} color={colors.light.textPrimary} />
           {unreadNotifications > 0 && (
             <View style={styles.notifBadge}>
               <Text style={styles.notifBadgeText}>
@@ -323,21 +332,25 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
           <Ionicons name="search-outline" size={18} color="#94A3B8" />
           <TextInput
             style={styles.searchInput}
-            placeholder={strings.SEARCH_PLACEHOLDER}
+            placeholder="Search by customer, device or booking code"
             placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={setSearchQuery}
+            returnKeyType="search"
             clearButtonMode="while-editing"
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
+            <TouchableOpacity
+              onPress={() => setSearchQuery('')}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
               <Ionicons name="close-circle" size={16} color="#94A3B8" />
             </TouchableOpacity>
           )}
         </View>
       </View>
 
-      {/* 3. Segmented Tabs Filter */}
+      {/* 3. Status Filter Tabs */}
       <View style={styles.tabsWrapper}>
         <ScrollView
           horizontal
@@ -351,7 +364,10 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
                 key={tab.key}
                 style={[styles.tabButton, isTabActive && styles.tabButtonActive]}
                 onPress={() => setActiveTab(tab.key)}
-                activeOpacity={0.8}
+                activeOpacity={0.75}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: isTabActive }}
+                accessibilityLabel={`${tab.label} filter tab, ${tab.count} items`}
               >
                 <Text style={[styles.tabButtonText, isTabActive && styles.tabButtonTextActive]}>
                   {tab.label}
@@ -379,23 +395,29 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
         </ScrollView>
       </View>
 
-      {/* 4. Main List of Bookings */}
+      {/* 4. Booking List */}
       {loading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={theme.colors.brand[500]} />
-          <Text style={styles.loadingText}>{strings.LOADING_TEXT}</Text>
+          <ActivityIndicator size="large" color={colors.light.primary} />
+          <Text style={styles.loadingText}>Loading rental requests...</Text>
         </View>
       ) : (
         <FlatList
           data={filteredList}
           keyExtractor={(item) => item._id}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 24 }]}
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: Math.max(insets.bottom + 20, 28) },
+          ]}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={[theme.colors.brand[500]]}
+              colors={[colors.light.primary]}
+              tintColor={colors.light.primary}
             />
           }
           renderItem={({ item }) => (
@@ -411,19 +433,28 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
               onTakeReturnPhotos={handleOpenReturnCamera}
               onReviewRenter={handleOpenReviewRenter}
               onChat={handleChat}
-              isProcessing={processingId === item._id}
+              isProcessing={!!processingId || !!scanBooking}
             />
           )}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <View style={styles.emptyIconCircle}>
-                <Ionicons name="file-tray-outline" size={42} color={theme.colors.brand[500]} />
+                <Ionicons name="file-tray-outline" size={38} color={colors.light.primary} />
               </View>
-              <Text style={styles.emptyTitle}>{strings.EMPTY_TITLE}</Text>
-              <Text style={styles.emptySubtitle}>{strings.EMPTY_SUBTITLE}</Text>
-              <TouchableOpacity style={styles.reloadButton} onPress={onRefresh} activeOpacity={0.8}>
-                <Ionicons name="refresh" size={16} color={theme.colors.brand[600]} />
-                <Text style={styles.reloadButtonText}>{strings.RELOAD_BUTTON}</Text>
+              <Text style={styles.emptyTitle}>No rental requests found</Text>
+              <Text style={styles.emptySubtitle}>
+                When customers submit new rental requests or bookings reach this status, they
+                will appear here immediately.
+              </Text>
+              <TouchableOpacity
+                style={styles.reloadButton}
+                onPress={onRefresh}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Refresh rental requests list"
+              >
+                <Ionicons name="refresh-outline" size={16} color={colors.light.primaryDark} />
+                <Text style={styles.reloadButtonText}>Refresh List</Text>
               </TouchableOpacity>
             </View>
           }
@@ -441,26 +472,28 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <View style={styles.modalWarningIcon}>
-                <Ionicons name="alert-circle-outline" size={24} color="#DC2626" />
+                <Ionicons name="alert-circle-outline" size={22} color={colors.light.error} />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.modalTitle}>{strings.CONFIRM_REJECT_TITLE}</Text>
+                <Text style={styles.modalTitle}>Decline Rental Request</Text>
                 <Text style={styles.modalSubtitle}>
-                  #{selectedBookingForReject?.bookingCode || ''}
+                  #{selectedBookingForReject?.bookingCode || selectedBookingForReject?._id?.slice(-8).toUpperCase()}
                 </Text>
               </View>
             </View>
 
-            <Text style={styles.modalPromptText}>{strings.CONFIRM_REJECT_PROMPT}</Text>
+            <Text style={styles.modalPromptText}>
+              Please select or enter a reason for declining this rental request:
+            </Text>
 
             {/* Quick Reason Chips */}
             <View style={styles.chipsContainer}>
-              {strings.REASONS.map((r, idx) => (
+              {declineReasons.map((r, idx) => (
                 <TouchableOpacity
                   key={`reason-${idx}`}
                   style={[styles.reasonChip, rejectReason === r && styles.reasonChipSelected]}
                   onPress={() => setRejectReason(r)}
-                  activeOpacity={0.8}
+                  activeOpacity={0.75}
                 >
                   <Text
                     style={[
@@ -477,7 +510,7 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
             {/* Custom Input */}
             <TextInput
               style={styles.modalTextInput}
-              placeholder={strings.REJECT_REASON_PLACEHOLDER}
+              placeholder="Enter specific reason for declining..."
               placeholderTextColor="#94A3B8"
               value={rejectReason}
               onChangeText={setRejectReason}
@@ -492,7 +525,7 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
                 onPress={() => setRejectModalVisible(false)}
                 activeOpacity={0.8}
               >
-                <Text style={styles.modalCancelText}>{strings.CANCEL}</Text>
+                <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -500,15 +533,15 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
                 onPress={handleConfirmReject}
                 activeOpacity={0.85}
               >
-                <Ionicons name="close-circle" size={17} color="#FFFFFF" />
-                <Text style={styles.modalConfirmRejectText}>{strings.CONFIRM}</Text>
+                <Ionicons name="close-circle" size={16} color="#FFFFFF" />
+                <Text style={styles.modalConfirmRejectText}>Confirm Decline</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* 6. Renter Review Modal (Same mechanism as Renter reviewing Owner) */}
+      {/* 6. Renter Review Modal */}
       <ReviewModal
         visible={reviewModalVisible}
         booking={selectedBookingForReview}
@@ -522,7 +555,22 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
         }}
       />
 
-      {/* 7. Owner Return Inspection Camera Modal (ONLY when booking is active) */}
+      {/* 7. Owner Handover QR Scanner Modal */}
+      {scanBooking && (
+        <HandoverScannerModal
+          bookingId={scanBooking._id}
+          onClose={() => setScanBooking(null)}
+          onSuccess={(updated) => {
+            setAllBookings((items) =>
+              items.map((item) => (item._id === updated._id ? updated : item))
+            );
+            setScanBooking(null);
+            fetchBookings();
+          }}
+        />
+      )}
+
+      {/* 8. Owner Return Inspection Camera Modal */}
       <HandoverCameraModal
         visible={returnCameraModalVisible}
         booking={selectedBookingForCamera}
@@ -542,23 +590,24 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
 const styles = StyleSheet.create({
   screenContainer: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: colors.light.background,
   },
   headerBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: 12,
-    backgroundColor: theme.colors.background,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 10,
+    backgroundColor: colors.light.background,
   },
   headerIconButton: {
     width: 38,
     height: 38,
     borderRadius: 12,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.light.card,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.light.borderDefault,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -568,19 +617,20 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 19,
-    fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.text.primary,
+    fontWeight: '700',
+    color: colors.light.textPrimary,
+    letterSpacing: -0.3,
   },
   headerSubtitle: {
-    fontSize: 12.5,
-    color: theme.colors.text.muted,
+    fontSize: 12,
+    color: colors.light.textSecondary,
     marginTop: 2,
   },
   notifBadge: {
     position: 'absolute',
-    top: -5,
-    right: -5,
-    backgroundColor: '#EF4444',
+    top: -4,
+    right: -4,
+    backgroundColor: colors.light.error,
     minWidth: 18,
     height: 18,
     borderRadius: 9,
@@ -588,76 +638,79 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: '#FFFFFF',
+    borderColor: colors.light.white,
   },
   notifBadgeText: {
-    color: '#FFFFFF',
+    color: colors.light.white,
     fontSize: 10,
-    fontWeight: theme.typography.fontWeight.bold,
+    fontWeight: '700',
     textAlign: 'center',
     lineHeight: 12,
   },
   searchSection: {
-    paddingHorizontal: theme.spacing.lg,
-    marginTop: 6,
+    paddingHorizontal: 20,
+    marginTop: 2,
     marginBottom: 10,
   },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.surface,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: Platform.OS === 'ios' ? 10 : 6,
+    backgroundColor: colors.light.card,
+    borderRadius: 12,
+    height: 44,
+    paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    ...theme.shadows.card,
+    borderColor: colors.light.borderDefault,
   },
   searchInput: {
     flex: 1,
-    marginLeft: 10,
+    marginLeft: 8,
     fontSize: 13.5,
-    color: theme.colors.text.primary,
+    color: colors.light.textPrimary,
+    paddingVertical: 0,
   },
   tabsWrapper: {
-    marginBottom: 14,
+    marginBottom: 12,
   },
   tabsContainer: {
     flexDirection: 'row',
-    paddingHorizontal: theme.spacing.lg,
+    paddingHorizontal: 20,
     gap: 8,
   },
   tabButton: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
+    height: 36,
+    borderRadius: 10,
     backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: colors.light.borderDefault,
     gap: 6,
   },
   tabButtonActive: {
-    backgroundColor: '#0D9488',
+    backgroundColor: colors.light.primary,
+    borderColor: colors.light.primary,
   },
   tabButtonText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#64748B',
+    color: colors.light.textSecondary,
   },
   tabButtonTextActive: {
-    color: '#FFFFFF',
+    color: colors.light.white,
     fontWeight: '700',
   },
   badgeCounter: {
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 10,
+    borderRadius: 8,
   },
   badgeCounterActive: {
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
   },
   badgeCounterInactive: {
-    backgroundColor: '#E2E8F0',
+    backgroundColor: colors.light.borderDefault,
   },
   badgeCounterText: {
     fontSize: 11,
@@ -665,10 +718,10 @@ const styles = StyleSheet.create({
     color: '#475569',
   },
   badgeCounterTextActive: {
-    color: '#FFFFFF',
+    color: colors.light.white,
   },
   listContent: {
-    paddingHorizontal: theme.spacing.lg,
+    paddingHorizontal: 20,
     paddingTop: 4,
   },
   centerContainer: {
@@ -679,8 +732,8 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    fontSize: 14,
-    color: theme.colors.text.muted,
+    fontSize: 13.5,
+    color: colors.light.textSecondary,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -689,59 +742,63 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   emptyIconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#E6F7F7',
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.light.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   emptyTitle: {
-    fontSize: 17,
-    fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.text.primary,
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.light.textPrimary,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   emptySubtitle: {
     fontSize: 13,
-    color: theme.colors.text.muted,
+    color: colors.light.textSecondary,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 19,
     maxWidth: 290,
   },
   reloadButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 18,
+    marginTop: 16,
     paddingHorizontal: 16,
     paddingVertical: 9,
-    borderRadius: 14,
-    backgroundColor: '#F0FDFA',
+    borderRadius: 10,
+    backgroundColor: colors.light.primaryLight,
     borderWidth: 1,
-    borderColor: '#CCFBF1',
+    borderColor: '#A4DEE2',
     gap: 6,
   },
   reloadButtonText: {
     fontSize: 13,
     fontWeight: '600',
-    color: theme.colors.brand[600],
+    color: colors.light.primaryDark,
   },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.55)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: theme.spacing.lg,
+    padding: 20,
   },
   modalCard: {
     width: '100%',
     maxWidth: 380,
-    backgroundColor: theme.colors.surface,
-    borderRadius: 24,
+    backgroundColor: colors.light.card,
+    borderRadius: 20,
     padding: 20,
-    ...theme.shadows.card,
+    shadowColor: colors.light.shadow,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -749,28 +806,28 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   modalWarningIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FEE2E2',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.light.dangerLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
   modalTitle: {
-    fontSize: 17,
-    fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.text.primary,
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.light.textPrimary,
   },
   modalSubtitle: {
-    fontSize: 13,
-    color: theme.colors.text.muted,
+    fontSize: 12.5,
+    color: colors.light.textSecondary,
     marginTop: 2,
   },
   modalPromptText: {
     fontSize: 13,
-    color: '#475569',
+    color: colors.light.textSecondary,
     marginBottom: 10,
-    fontWeight: '500',
+    lineHeight: 18,
   },
   chipsContainer: {
     flexDirection: 'row',
@@ -781,31 +838,31 @@ const styles = StyleSheet.create({
   reasonChip: {
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 10,
+    borderRadius: 8,
     backgroundColor: '#F1F5F9',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.light.borderDefault,
   },
   reasonChipSelected: {
-    backgroundColor: '#FEE2E2',
-    borderColor: '#F87171',
+    backgroundColor: colors.light.dangerLight,
+    borderColor: colors.light.error,
   },
   reasonChipText: {
     fontSize: 12,
     color: '#475569',
   },
   reasonChipTextSelected: {
-    color: '#DC2626',
+    color: colors.light.error,
     fontWeight: '700',
   },
   modalTextInput: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 14,
+    backgroundColor: colors.light.background,
+    borderRadius: 12,
     padding: 12,
     fontSize: 13,
-    color: theme.colors.text.primary,
+    color: colors.light.textPrimary,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.light.borderDefault,
     textAlignVertical: 'top',
     height: 75,
     marginBottom: 16,
@@ -816,31 +873,33 @@ const styles = StyleSheet.create({
   },
   modalCancelButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 14,
+    paddingVertical: 11,
+    borderRadius: 10,
     backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: colors.light.borderDefault,
     alignItems: 'center',
     justifyContent: 'center',
   },
   modalCancelText: {
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '600',
     color: '#475569',
   },
   modalConfirmRejectButton: {
     flex: 1.4,
     flexDirection: 'row',
-    paddingVertical: 12,
-    borderRadius: 14,
-    backgroundColor: '#DC2626',
+    paddingVertical: 11,
+    borderRadius: 10,
+    backgroundColor: colors.light.error,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
   },
   modalConfirmRejectText: {
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: colors.light.white,
   },
 });
 

@@ -41,6 +41,9 @@ export interface Booking {
   rejectReason?: string;
   cancelReason?: string;
   qrToken?: string;
+  handover?: {
+    afterPhotos?: string[];
+  };
   handoverPhotos?: {
     beforeRental?: string[];
     afterRental?: string[];
@@ -56,6 +59,16 @@ export interface Booking {
   isRenterReviewed?: boolean;
   renterReviewId?: string;
   createdAt: string;
+}
+
+export const REQUIRED_RETURN_PHOTOS = 4;
+
+export function hasRequiredReturnPhotos(booking: Booking) {
+  const photos = booking.handover?.afterPhotos ?? booking.handoverPhotos?.afterRental ?? [];
+  const uploadedPhotos = photos.filter(photo =>
+    typeof photo === 'string' && /^(?:https?:\/\/[^\s/]+\/\S+|\/uploads\/[^/\s]+)$/i.test(photo)
+  );
+  return new Set(uploadedPhotos).size >= REQUIRED_RETURN_PHOTOS;
 }
 
 
@@ -257,6 +270,11 @@ export const bookingService = {
       conditionNotes,
     });
     bookingService.notifyBookingsUpdated();
+    return res.data.data;
+  },
+
+  getHandoverToken: async (bookingId: string): Promise<{ payload: string; expiresAt: string }> => {
+    const res = await apiClient.post(`/bookings/${bookingId}/handover-token`);
     return res.data.data;
   },
 

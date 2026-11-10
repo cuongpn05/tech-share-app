@@ -6,6 +6,7 @@ const Review = require('../models/Review');
 const EkycRequest = require('../models/EkycRequest');
 const { createAndSendNotification } = require('../services/notificationService');
 const { uploadToCloudinary } = require('../utils/cloudinary');
+const { getCompletionError, isUploadedPhoto } = require('../utils/returnInspection');
 
 // @desc    Create new booking
 // @route   POST /api/bookings
@@ -111,13 +112,11 @@ const createBooking = async (req, res) => {
 
     const randomSuffix = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
     const bookingCode = 'B' + Date.now().toString().slice(-6) + randomSuffix;
-    const qrToken = `TSQR-${bookingCode}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
     const ownerId = device.ownerId || device.owner;
 
     const booking = await Booking.create({
       bookingCode,
-      qrToken,
       deviceId,
       renterId,
       ownerId,
@@ -366,10 +365,6 @@ const getBookingById = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Không tìm thấy đơn thuê' });
     }
 
-    if (!booking.qrToken) {
-      booking.qrToken = `TSQR-${booking.bookingCode}-${booking._id.toString().slice(-4).toUpperCase()}`;
-      await booking.save();
-    }
 
     // Sync isReviewed & isRenterReviewed for completed booking if reviews already exist
     if (booking.status === 'completed' && (!booking.isReviewed || !booking.isRenterReviewed)) {
@@ -881,6 +876,7 @@ const updateAfterRentalPhotos = async (req, res) => {
     const resolvedPhotos = await Promise.all(
       photos.map(async (photoStr) => {
         if (!photoStr || typeof photoStr !== 'string') return '';
+        if (isUploadedPhoto(photoStr)) return photoStr;
         if (
           photoStr.startsWith('data:image/') ||
           (!photoStr.startsWith('http://') &&
@@ -889,13 +885,18 @@ const updateAfterRentalPhotos = async (req, res) => {
             !photoStr.startsWith('file://') &&
             photoStr.length > 300)
         ) {
-          const cldUrl = await uploadToCloudinary(photoStr, 'techshare/handover');
-          return cldUrl || photoStr;
+          return uploadToCloudinary(photoStr, 'techshare/handover');
         }
-        return photoStr;
+        return '';
       })
     );
-    const validPhotos = resolvedPhotos.filter(Boolean);
+    if (!resolvedPhotos.every(isUploadedPhoto)) {
+      return res.status(422).json({
+        success: false,
+        message: 'Some return photos could not be saved. Please upload them again.',
+      });
+    }
+    const validPhotos = resolvedPhotos;
 
     if (!booking.handover) {
       booking.handover = { beforePhotos: [], afterPhotos: [], beforeNote: '', afterNote: '' };
@@ -1025,10 +1026,10 @@ const updateBookingStatus = async (req, res) => {
     const { status, reason } = req.body;
     const userId = (req.auth && (req.auth.id || req.auth._id)) || (req.user && req.user._id);
 
-    if (!['approved', 'rejected', 'cancelled', 'active', 'completed'].includes(status)) {
+    if (!['approved', 'rejected', 'cancelled', 'completed'].includes(status)) {
       return res.status(400).json({
         success: false,
-        message: 'Trạng thái cập nhật không hợp lệ (approved/rejected/cancelled/active/completed)',
+        message: 'Trạng thái cập nhật không hợp lệ (approved/rejected/cancelled/completed)',
       });
     }
 
@@ -1065,14 +1066,15 @@ const updateBookingStatus = async (req, res) => {
       return res.status(400).json({ success: false, message: `Không thể duyệt đơn đang ở trạng thái "${booking.status}"` });
     }
 
+    if (status === 'completed') {
+      const message = getCompletionError(booking);
+      if (message) return res.status(409).json({ success: false, message });
+    }
+
     booking.status = status;
     const devId = booking.deviceId?._id || booking.deviceId;
 
-    if (status === 'approved') {
-      if (!booking.qrToken) {
-        booking.qrToken = `TSQR-${booking.bookingCode}-${booking._id.toString().slice(-4).toUpperCase()}`;
-      }
-    } else if (status === 'rejected' || status === 'cancelled') {
+    if (status === 'rejected' || status === 'cancelled') {
       booking.statusReason = reason || 'Chủ máy từ chối yêu cầu thuê';
       booking.rejectReason = reason || 'Chủ máy từ chối yêu cầu thuê';
     } else if (status === 'active') {
@@ -1081,9 +1083,6 @@ const updateBookingStatus = async (req, res) => {
       }
     } else if (status === 'completed') {
       booking.paymentStatus = 'refunded';
-      if (devId) {
-        await Device.findByIdAndUpdate(devId, { status: 'available' }).catch(() => {});
-      }
     }
 
     let actionText = 'Chủ máy cập nhật trạng thái đơn thuê';
@@ -1105,6 +1104,10 @@ const updateBookingStatus = async (req, res) => {
     });
 
     await booking.save();
+
+    if (status === 'completed' && devId) {
+      await Device.findByIdAndUpdate(devId, { status: 'available' }).catch(() => {});
+    }
 
     // Gửi thông báo đến người thuê
     if (booking.renterId) {

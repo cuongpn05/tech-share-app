@@ -1,5 +1,4 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, initializeAuth, inMemoryPersistence } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
@@ -15,19 +14,5 @@ const firebaseConfig = {
 // Khởi tạo Firebase App an toàn (Singleton tránh khởi tạo lặp lại)
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-let authInstance: any = null;
-try {
-  authInstance = getAuth(app);
-} catch {
-  try {
-    authInstance = initializeAuth(app, {
-      persistence: inMemoryPersistence,
-    });
-  } catch {
-    authInstance = null;
-  }
-}
-
-export const auth = authInstance;
 export const storage = getStorage(app);
 export default app;

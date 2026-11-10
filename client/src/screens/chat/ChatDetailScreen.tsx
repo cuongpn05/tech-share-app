@@ -29,13 +29,14 @@ import { ChatMessagesSkeleton } from '../../components/common/ShimmerPlaceholder
 import {
   ChatMessage,
   ChatBookingInfo,
+  ChatDetailParams,
   ChatOtherUser,
   LocationData,
   ChatMessageType,
 } from '../../types';
 
 export interface ChatDetailScreenProps {
-  route?: any;
+  route?: { params?: ChatDetailParams };
   navigation?: any;
   bookingId?: string;
   onBack?: () => void;
@@ -49,7 +50,9 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
 }) => {
   const initialBookingId = propBookingId || route?.params?.bookingId || '';
   const [effectiveBookingId, setEffectiveBookingId] = useState(initialBookingId);
-  const otherBookings = route?.params?.otherBookings || [];
+  const otherBookings = (route?.params?.otherBookings ?? []).filter(
+    option => typeof option?.bookingId === 'string' && option.bookingId.length > 0
+  );
   const [showBookingModal, setShowBookingModal] = useState(false);
 
   useEffect(() => {
@@ -85,15 +88,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
         // Kiểm tra chặn nếu đối tác là chính mình
         const otherId = String(data.otherUser?._id || '');
         const myId = String(currentUserId || '');
-        const checkIsSelf =
-          (otherId && myId && otherId === myId) ||
-          Boolean(
-            data.otherUser?.name &&
-              currentUser?.name &&
-              data.otherUser.name.trim().toLowerCase() === currentUser.name.trim().toLowerCase()
-          );
-
-        if (checkIsSelf) {
+        if (otherId && myId && otherId === myId) {
           setLoadError(OWNER_STRINGS.MESSAGES.CANNOT_CHAT_WITH_SELF);
         }
       }
@@ -109,7 +104,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [effectiveBookingId, currentUserId, currentUser?.name]);
+  }, [effectiveBookingId, currentUserId]);
 
   // 2. Kết nối Socket & Lắng nghe tin nhắn mới + Read Receipts CHỈ KHI màn hình đang được FOCUS
   useFocusEffect(
@@ -205,12 +200,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
   );
 
   // Kiểm tra xem đối tác có phải là chính mình không
-  const isSelf = Boolean(
-    (otherUser?._id && String(otherUser._id) === String(currentUserId)) ||
-    (otherUser?.name &&
-      currentUser?.name &&
-      otherUser.name.trim().toLowerCase() === currentUser.name.trim().toLowerCase())
-  );
+  const isSelf = Boolean(otherUser?._id && String(otherUser._id) === String(currentUserId));
 
   // 3. Cơ chế gửi tin với Optimistic UI
   const dispatchMessage = async (
@@ -398,7 +388,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
                 </Text>
               </View>
 
-              {Boolean(otherBookings && otherBookings.length > 1) && (
+              {otherBookings.length > 1 && (
                 <TouchableOpacity
                   style={styles.switchBookingBtn}
                   onPress={() => setShowBookingModal(true)}
@@ -519,7 +509,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
             </View>
 
             <ScrollView style={styles.modalList} showsVerticalScrollIndicator={false}>
-              {otherBookings.map((b: any) => {
+              {showBookingModal && otherBookings.map((b) => {
                 const isSelected = b.bookingId === effectiveBookingId;
                 return (
                   <TouchableOpacity

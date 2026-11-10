@@ -104,7 +104,7 @@ export function HomeRoute({
 
   const handleNavigateToChat = () => {
     if (navigation?.navigate) {
-      navigation.navigate('OwnerMessages');
+      navigation.navigate('Messages');
     }
   };
 

@@ -1,3 +1,4 @@
+import { HandoverScannerModal } from '../../components/booking/HandoverScannerModal';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
@@ -18,7 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../theme/colors';
 import { STRINGS } from '../../constants/strings';
-import { bookingService, Booking } from '../../services/bookingService';
+import { bookingService, Booking, hasRequiredReturnPhotos } from '../../services/bookingService';
 import { OrderTimeline } from '../../components/booking/OrderTimeline';
 import { RentalCountdownTimer } from '../../components/booking/RentalCountdownTimer';
 import { ExtensionModal } from '../../components/booking/ExtensionModal';
@@ -173,6 +174,7 @@ export function BookingDetailScreen({
   const [extensionModalVisible, setExtensionModalVisible] = useState(false);
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
   const [bookingReview, setBookingReview] = useState<ReviewItem | null>(null);
+  const [scannerVisible, setScannerVisible] = useState(false);
   const [qrModalVisible, setQrModalVisible] = useState(false);
   const [handoverCameraModalVisible, setHandoverCameraModalVisible] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -206,6 +208,7 @@ export function BookingDetailScreen({
 
   useEffect(() => {
     fetchDetail();
+    return bookingService.onBookingsUpdated(fetchDetail);
   }, [fetchDetail]);
 
   const onRefresh = async () => {
@@ -380,6 +383,7 @@ export function BookingDetailScreen({
     (booking as any).handover?.beforeNote ||
     '';
 
+  const returnPhotosReady = hasRequiredReturnPhotos(booking);
   const afterPhotos: string[] =
     booking.handoverPhotos?.afterRental?.length
       ? booking.handoverPhotos.afterRental
@@ -811,7 +815,7 @@ export function BookingDetailScreen({
                 activeOpacity={0.85}
               >
                 <Ionicons name="qr-code-outline" size={18} color={colors.light.primary} />
-                <Text style={styles.openQrCtaText}>{STRINGS.BOOKING_DETAIL.SHOW_QR_CTA}</Text>
+                <Text style={styles.openQrCtaText}>Show Handover QR</Text>
                 <Ionicons name="chevron-forward" size={16} color={colors.light.primary} />
               </TouchableOpacity>
             )}
@@ -966,52 +970,55 @@ export function BookingDetailScreen({
               {booking.status === 'approved' && (
                 <TouchableOpacity
                   style={[styles.actionPrimaryBtn, isUpdatingStatus && { opacity: 0.6 }]}
-                  onPress={() =>
-                    handleOwnerUpdateStatus(
-                      'active',
-                      'Confirm Device Handover',
-                      `Confirm that you have handed over "${device.name || 'device'}" to the renter?`
-                    )
-                  }
+                  onPress={() => setScannerVisible(true)}
                   disabled={isUpdatingStatus}
                 >
                   <Ionicons name="play-circle" size={18} color={colors.light.white} />
                   <Text style={styles.actionPrimaryBtnText}>
-                    {STRINGS.BOOKING_DETAIL.CONFIRM_HANDOVER_BTN}
+                    Scan Handover QR
                   </Text>
                 </TouchableOpacity>
               )}
 
               {/* Owner Active: Take Return Photos + Receive Device & Complete */}
               {isActive && (
-                <View style={styles.approvedActionRow}>
-                  <TouchableOpacity
-                    style={[styles.cameraSecondaryBtn, { flex: 1 }]}
-                    onPress={() => setHandoverCameraModalVisible(true)}
-                    activeOpacity={0.85}
-                  >
-                    <Ionicons name="camera" size={18} color={colors.light.primary} />
-                    <Text style={styles.cameraSecondaryBtnText}>
-                      {STRINGS.BOOKING_DETAIL.TAKE_RETURN_PHOTOS_BTN}
+                <View>
+                  {!returnPhotosReady && (
+                    <Text style={styles.returnPhotosHint}>
+                      {STRINGS.BOOKING_DETAIL.RETURN_PHOTOS_REQUIRED}
                     </Text>
-                  </TouchableOpacity>
+                  )}
+                  <View style={styles.approvedActionRow}>
+                    <TouchableOpacity
+                      style={[styles.cameraSecondaryBtn, { flex: 1 }]}
+                      onPress={() => setHandoverCameraModalVisible(true)}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="camera" size={18} color={colors.light.primary} />
+                      <Text style={styles.cameraSecondaryBtnText}>
+                        {STRINGS.BOOKING_DETAIL.TAKE_RETURN_PHOTOS_BTN}
+                      </Text>
+                    </TouchableOpacity>
 
-                  <TouchableOpacity
-                    style={[styles.qrPrimaryBtn, { flex: 1.4 }, isUpdatingStatus && { opacity: 0.6 }]}
-                    onPress={() =>
-                      handleOwnerUpdateStatus(
-                        'completed',
-                        'Complete Rental Order',
-                        `Confirm that you have received "${device.name || 'device'}" back in good condition and complete order #${booking.bookingCode}?`
-                      )
-                    }
-                    disabled={isUpdatingStatus}
-                  >
-                    <Ionicons name="checkmark-done-circle" size={18} color={colors.light.white} />
-                    <Text style={styles.qrPrimaryBtnText}>
-                      {STRINGS.BOOKING_DETAIL.COMPLETE_BOOKING_BTN}
-                    </Text>
-                  </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.qrPrimaryBtn, { flex: 1.4 }, (isUpdatingStatus || !returnPhotosReady) && { opacity: 0.6 }]}
+                      onPress={() =>
+                        handleOwnerUpdateStatus(
+                          'completed',
+                          'Complete Rental Order',
+                          `Confirm that you have received "${device.name || 'device'}" back in good condition and complete order #${booking.bookingCode}?`
+                        )
+                      }
+                      disabled={isUpdatingStatus || !returnPhotosReady}
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: isUpdatingStatus || !returnPhotosReady }}
+                    >
+                      <Ionicons name="checkmark-done-circle" size={18} color={colors.light.white} />
+                      <Text style={styles.qrPrimaryBtnText}>
+                        {STRINGS.BOOKING_DETAIL.COMPLETE_BOOKING_BTN}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               )}
 
@@ -1065,7 +1072,7 @@ export function BookingDetailScreen({
                     activeOpacity={0.85}
                   >
                     <Ionicons name="qr-code" size={18} color={colors.light.white} />
-                    <Text style={styles.qrPrimaryBtnText}>{STRINGS.BOOKING_DETAIL.HANDOVER_QR_BTN}</Text>
+                    <Text style={styles.qrPrimaryBtnText}>Show Handover QR</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -1142,6 +1149,7 @@ export function BookingDetailScreen({
         }}
       />
 
+      {scannerVisible && <HandoverScannerModal bookingId={booking._id} onClose={() => setScannerVisible(false)} onSuccess={updated => { setBooking(updated); setScannerVisible(false); }} />}
       <HandoverQrModal
         visible={qrModalVisible}
         booking={booking}
@@ -1831,6 +1839,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: colors.light.error,
+  },
+  returnPhotosHint: {
+    color: colors.light.textSecondary,
+    fontSize: 13,
+    marginBottom: 8,
   },
   approvedActionRow: {
     flexDirection: 'row',
