@@ -667,15 +667,21 @@ export function BookingDetailScreen({
 
           <View style={styles.feeRow}>
             <Text style={styles.feeLabel}>
-              {STRINGS.BOOKING_DETAIL.RENTAL_FEE} ({booking.totalDays}{' '}
-              {STRINGS.BOOKING_DETAIL.DAY_UNIT(booking.totalDays)} ×{' '}
-              {(
-                booking.pricePerDayAtBooking ||
-                device.pricePerDay ||
-                device.dailyRate ||
-                0
-              ).toLocaleString('en-US')}{' '}
-              VND):
+              {STRINGS.BOOKING_DETAIL.RENTAL_FEE} (
+              {durationBetweenDates.totalHours % 24 === 0
+                ? `${durationBetweenDates.days} ${durationBetweenDates.days === 1 ? 'day' : 'days'} × ${(
+                    booking.pricePerDayAtBooking ||
+                    device.pricePerDay ||
+                    device.dailyRate ||
+                    0
+                  ).toLocaleString('en-US')} VND/day`
+                : `${durationBetweenDates.totalHours}h × ${Math.round(
+                    (booking.pricePerDayAtBooking ||
+                      device.pricePerDay ||
+                      device.dailyRate ||
+                      0) / 24
+                  ).toLocaleString('en-US')} VND/h`}
+              ):
             </Text>
             <Text style={styles.feeValue}>
               {(booking.rentalFee || 0).toLocaleString('en-US')} VND

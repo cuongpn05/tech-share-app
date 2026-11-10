@@ -6,7 +6,6 @@ import {
   Modal,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -58,7 +57,6 @@ export function ExtensionModal({
 
     const currentEnd = new Date(booking.endDate);
     const newEnd = new Date(currentEnd.getTime() + additionalDays * 24 * 60 * 60 * 1000);
-
     const fee = additionalDays * dailyRate;
 
     return {
@@ -109,35 +107,42 @@ export function ExtensionModal({
   if (!booking) return null;
 
   return (
-    <Modal visible={visible} transparent={true} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent={true} animationType="fade" statusBarTranslucent onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={[styles.container, { paddingBottom: bottomInset + 16 }]}>
-          {/* Drag Handle */}
-          <View style={styles.dragHandle} />
+          {/* Top Close Button */}
+          <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
+            <Ionicons name="close" size={18} color={colors.light.textSecondary} />
+          </TouchableOpacity>
 
-          {/* Header */}
+          {/* Header with Glowing Icon */}
           <View style={styles.header}>
-            <View style={styles.headerIcon}>
-              <Ionicons name="calendar" size={22} color={colors.light.primary} />
+            <View style={styles.iconRing}>
+              <View style={styles.iconCircle}>
+                <Ionicons name="calendar-outline" size={24} color={colors.light.white} />
+              </View>
             </View>
-            <View style={styles.headerTextContainer}>
-              <Text style={styles.title}>{STRINGS.EXTENSION_MODAL.TITLE}</Text>
-              <Text style={styles.subtitle}>{STRINGS.EXTENSION_MODAL.ORDER_PREFIX}{booking.bookingCode}</Text>
+            <Text style={styles.title}>{STRINGS.EXTENSION_MODAL.TITLE}</Text>
+            <View style={styles.codeBadge}>
+              <Text style={styles.codeBadgeText}>
+                {STRINGS.EXTENSION_MODAL.ORDER_PREFIX}{booking.bookingCode}
+              </Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={20} color={colors.light.textSecondary} />
-            </TouchableOpacity>
           </View>
 
           {isPendingExtension ? (
             <View style={styles.pendingNotice}>
-              <Ionicons name="time" size={28} color={colors.light.warning} />
+              <View style={[styles.iconRing, { backgroundColor: 'rgba(245, 158, 11, 0.12)' }]}>
+                <View style={[styles.iconCircle, { backgroundColor: colors.light.warning }]}>
+                  <Ionicons name="time" size={24} color={colors.light.white} />
+                </View>
+              </View>
               <Text style={styles.pendingTitle}>{STRINGS.EXTENSION_MODAL.PENDING_TITLE}</Text>
               <Text style={styles.pendingDesc}>
                 {STRINGS.EXTENSION_MODAL.PENDING_DESC(booking.extensionRequest?.requestedDays || 0)}
               </Text>
-              <TouchableOpacity style={styles.closeActionButton} onPress={onClose}>
-                <Text style={styles.closeActionButtonText}>{STRINGS.EXTENSION_MODAL.GOT_IT}</Text>
+              <TouchableOpacity style={styles.closeActionBtn} onPress={onClose} activeOpacity={0.85}>
+                <Text style={styles.closeActionBtnText}>{STRINGS.EXTENSION_MODAL.GOT_IT}</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -150,6 +155,7 @@ export function ExtensionModal({
                     style={[styles.stepBtn, additionalDays <= 1 && styles.stepBtnDisabled]}
                     onPress={handleDecrement}
                     disabled={additionalDays <= 1}
+                    activeOpacity={0.7}
                   >
                     <Ionicons name="remove" size={20} color={additionalDays <= 1 ? colors.light.textMuted : colors.light.textPrimary} />
                   </TouchableOpacity>
@@ -163,6 +169,7 @@ export function ExtensionModal({
                     style={[styles.stepBtn, additionalDays >= 30 && styles.stepBtnDisabled]}
                     onPress={handleIncrement}
                     disabled={additionalDays >= 30}
+                    activeOpacity={0.7}
                   >
                     <Ionicons name="add" size={20} color={additionalDays >= 30 ? colors.light.textMuted : colors.light.textPrimary} />
                   </TouchableOpacity>
@@ -232,6 +239,7 @@ export function ExtensionModal({
                   style={styles.cancelBtn}
                   onPress={onClose}
                   disabled={loading}
+                  activeOpacity={0.75}
                 >
                   <Text style={styles.cancelBtnText}>{STRINGS.EXTENSION_MODAL.SKIP}</Text>
                 </TouchableOpacity>
@@ -240,12 +248,13 @@ export function ExtensionModal({
                   style={[styles.confirmBtn, loading && { opacity: 0.7 }]}
                   onPress={handleSubmit}
                   disabled={loading}
+                  activeOpacity={0.85}
                 >
                   {loading ? (
                     <ActivityIndicator size="small" color={colors.light.white} />
                   ) : (
                     <>
-                      <Ionicons name="paper-plane" size={16} color={colors.light.white} />
+                      <Ionicons name="paper-plane" size={15} color={colors.light.white} />
                       <Text style={styles.confirmBtnText}>{STRINGS.EXTENSION_MODAL.CONFIRM}</Text>
                     </>
                   )}
@@ -255,12 +264,25 @@ export function ExtensionModal({
           )}
         </View>
 
-        {/* ── CUSTOM SUCCESS POPUP DIALOG ── */}
+        {/* ── UNIFIED SUCCESS POPUP DIALOG (Soft UI Style) ── */}
         {showSuccessModal && (
           <View style={styles.dialogBackdrop}>
             <View style={styles.dialogCard}>
-              <View style={styles.successIconCircle}>
-                <Ionicons name="sparkles" size={32} color={colors.light.primary} />
+              <TouchableOpacity
+                style={styles.dialogCloseBtn}
+                onPress={() => {
+                  setShowSuccessModal(false);
+                  onClose();
+                  onSuccess();
+                }}
+                activeOpacity={0.6}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="close" size={20} color={colors.light.textMuted} />
+              </TouchableOpacity>
+
+              <View style={[styles.dialogIconCircle, { backgroundColor: colors.light.primaryLight }]}>
+                <Ionicons name="checkmark-sharp" size={26} color={colors.light.primary} />
               </View>
 
               <Text style={styles.dialogTitle}>{STRINGS.EXTENSION_MODAL.REQUEST_SENT_TITLE}</Text>
@@ -275,7 +297,7 @@ export function ExtensionModal({
                   onClose();
                   onSuccess();
                 }}
-                activeOpacity={0.85}
+                activeOpacity={0.8}
               >
                 <Text style={styles.dialogCtaBtnText}>{STRINGS.EXTENSION_MODAL.GOT_IT}</Text>
               </TouchableOpacity>
@@ -283,21 +305,30 @@ export function ExtensionModal({
           </View>
         )}
 
-        {/* ── CUSTOM ALERT / ERROR DIALOG ── */}
+        {/* ── UNIFIED ERROR POPUP DIALOG (Soft UI Style) ── */}
         {Boolean(errorMessage) && (
           <View style={styles.dialogBackdrop}>
             <View style={styles.dialogCard}>
-              <View style={[styles.successIconCircle, { backgroundColor: colors.light.dangerLight }]}>
-                <Ionicons name="alert-circle" size={32} color={colors.light.danger} />
+              <TouchableOpacity
+                style={styles.dialogCloseBtn}
+                onPress={() => setErrorMessage(null)}
+                activeOpacity={0.6}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="close" size={20} color={colors.light.textMuted} />
+              </TouchableOpacity>
+
+              <View style={[styles.dialogIconCircle, { backgroundColor: colors.light.dangerLight }]}>
+                <Ionicons name="alert-circle-outline" size={26} color={colors.light.error} />
               </View>
 
               <Text style={styles.dialogTitle}>{STRINGS.EXTENSION_MODAL.FAILED_TITLE}</Text>
               <Text style={styles.dialogMessage}>{errorMessage}</Text>
 
               <TouchableOpacity
-                style={[styles.dialogCtaBtn, { backgroundColor: colors.light.textPrimary }]}
+                style={[styles.dialogCtaBtn, { backgroundColor: colors.light.error }]}
                 onPress={() => setErrorMessage(null)}
-                activeOpacity={0.85}
+                activeOpacity={0.8}
               >
                 <Text style={styles.dialogCtaBtnText}>{STRINGS.COMMON.OK}</Text>
               </TouchableOpacity>
@@ -320,69 +351,84 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingHorizontal: 20,
-    paddingTop: 8,
+    paddingTop: 24,
     paddingBottom: 24,
     shadowColor: colors.light.shadow,
-    shadowOffset: { width: 0, height: -4 },
+    shadowOffset: { width: 0, height: -6 },
     shadowOpacity: 0.12,
-    shadowRadius: 16,
+    shadowRadius: 18,
     elevation: 16,
+    borderWidth: 1,
+    borderColor: colors.light.borderSubtle,
   },
-  dragHandle: {
-    width: 44,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: colors.light.borderDefault,
-    alignSelf: 'center',
-    marginBottom: 10,
-    marginTop: 4,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 18,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.light.borderSubtle,
-  },
-  headerIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.light.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  headerTextContainer: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.light.textPrimary,
-  },
-  subtitle: {
-    fontSize: 12,
-    color: colors.light.textSecondary,
-    marginTop: 2,
-  },
-  closeButton: {
+  closeBtn: {
+    position: 'absolute',
+    top: 18,
+    right: 18,
     width: 32,
     height: 32,
     borderRadius: 16,
     backgroundColor: colors.light.background,
+    borderWidth: 1,
+    borderColor: colors.light.borderSubtle,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 10,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  iconRing: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.light.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    borderWidth: 3,
+    borderColor: colors.light.background,
+  },
+  iconCircle: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: colors.light.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  title: {
+    fontSize: 19,
+    fontWeight: '800',
+    color: colors.light.textPrimary,
+    textAlign: 'center',
+  },
+  codeBadge: {
+    marginTop: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+  },
+  codeBadgeText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: colors.light.textSecondary,
+    letterSpacing: 0.3,
   },
   section: {
     marginBottom: 16,
   },
   sectionLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: colors.light.textPrimary,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   stepperRow: {
     flexDirection: 'row',
@@ -392,12 +438,12 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   stepBtn: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: colors.light.background,
-    borderWidth: 1,
-    borderColor: colors.light.border,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: colors.light.borderDefault,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -408,20 +454,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     gap: 6,
-    paddingHorizontal: 24,
+    paddingHorizontal: 22,
     paddingVertical: 8,
     backgroundColor: colors.light.primaryLight,
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.light.primaryLight,
   },
   stepValueText: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '800',
     color: colors.light.primaryDark,
   },
   stepValueSub: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: colors.light.primaryDark,
   },
@@ -434,12 +480,12 @@ const styles = StyleSheet.create({
   },
   chip: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 7,
     paddingHorizontal: 4,
-    borderRadius: 9999,
-    backgroundColor: colors.light.background,
+    borderRadius: 8,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: colors.light.border,
+    borderColor: colors.light.borderDefault,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -448,7 +494,7 @@ const styles = StyleSheet.create({
     borderColor: colors.light.primary,
   },
   chipText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '600',
     color: colors.light.textSecondary,
     textAlign: 'center',
@@ -458,53 +504,54 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   previewCard: {
-    backgroundColor: colors.light.background,
+    backgroundColor: '#F8FAFC',
     borderRadius: 16,
-    padding: 16,
+    padding: 14,
     borderWidth: 1,
-    borderColor: colors.light.border,
-    marginBottom: 16,
+    borderColor: '#E2E8F0',
+    marginBottom: 14,
   },
   previewRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginVertical: 4,
+    marginVertical: 3,
   },
   previewLabel: {
-    fontSize: 13,
+    fontSize: 12.5,
     color: colors.light.textSecondary,
   },
   previewValue: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '600',
     color: colors.light.textPrimary,
   },
   previewHighlight: {
-    color: colors.light.primary,
+    color: colors.light.primaryDark,
     fontWeight: '700',
   },
   divider: {
     height: 1,
-    backgroundColor: colors.light.border,
-    marginVertical: 10,
+    backgroundColor: '#E2E8F0',
+    marginVertical: 8,
   },
   previewFeeLabel: {
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '700',
     color: colors.light.textPrimary,
   },
   previewFeeValue: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     color: colors.light.primaryDark,
   },
   noticeText: {
-    fontSize: 12,
-    color: colors.light.textSecondary,
-    lineHeight: 18,
+    fontSize: 11.5,
+    color: colors.light.textMuted,
+    lineHeight: 16,
     marginBottom: 16,
     textAlign: 'center',
+    paddingHorizontal: 12,
   },
   actions: {
     flexDirection: 'row',
@@ -516,9 +563,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 9999,
-    backgroundColor: colors.light.background,
+    backgroundColor: '#F1F5F9',
     borderWidth: 1,
-    borderColor: colors.light.border,
+    borderColor: colors.light.borderDefault,
   },
   cancelBtnText: {
     fontSize: 14,
@@ -536,8 +583,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.light.primary,
     shadowColor: colors.light.primary,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
+    shadowOpacity: 0.22,
+    shadowRadius: 6,
     elevation: 4,
   },
   confirmBtnText: {
@@ -548,24 +595,24 @@ const styles = StyleSheet.create({
   },
   pendingNotice: {
     alignItems: 'center',
-    paddingVertical: 24,
+    paddingVertical: 20,
     paddingHorizontal: 16,
   },
   pendingTitle: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
     color: colors.light.textPrimary,
-    marginTop: 12,
+    marginTop: 8,
     marginBottom: 6,
   },
   pendingDesc: {
     fontSize: 13,
     color: colors.light.textSecondary,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 19,
     marginBottom: 20,
   },
-  closeActionButton: {
+  closeActionBtn: {
     backgroundColor: colors.light.primary,
     paddingHorizontal: 28,
     height: 44,
@@ -573,7 +620,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  closeActionButtonText: {
+  closeActionBtnText: {
     color: colors.light.white,
     fontWeight: '700',
     fontSize: 14,
@@ -584,7 +631,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
@@ -593,57 +640,65 @@ const styles = StyleSheet.create({
   },
   dialogCard: {
     backgroundColor: colors.light.surface,
-    borderRadius: 24,
-    padding: 26,
+    borderRadius: 20,
+    paddingTop: 24,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
     width: '100%',
     maxWidth: 340,
     alignItems: 'center',
-    shadowColor: colors.light.shadow,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 10,
+    borderWidth: 1,
+    borderColor: colors.light.borderDefault,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  successIconCircle: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: colors.light.primaryLight,
+  dialogCloseBtn: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    width: 28,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    zIndex: 1,
+  },
+  dialogIconCircle: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
   },
   dialogTitle: {
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 18,
+    fontWeight: '700',
     color: colors.light.textPrimary,
-    marginBottom: 10,
+    marginBottom: 6,
     textAlign: 'center',
   },
   dialogMessage: {
-    fontSize: 14,
+    fontSize: 13.5,
     color: colors.light.textSecondary,
     textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 24,
+    lineHeight: 19,
+    marginBottom: 18,
+    paddingHorizontal: 4,
   },
   dialogCtaBtn: {
     width: '100%',
-    height: 48,
-    borderRadius: 9999,
+    height: 44,
+    borderRadius: 12,
     backgroundColor: colors.light.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: colors.light.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
   },
   dialogCtaBtnText: {
     color: colors.light.white,
-    fontSize: 15,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

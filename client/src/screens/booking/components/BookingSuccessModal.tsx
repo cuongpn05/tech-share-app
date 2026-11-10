@@ -4,6 +4,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -50,36 +51,36 @@ export function BookingSuccessModal({
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <View style={styles.card}>
-          {/* Close button */}
+        <TouchableWithoutFeedback onPress={onClose}>
+          <View style={StyleSheet.absoluteFill} />
+        </TouchableWithoutFeedback>
+
+        <View style={styles.card} accessibilityRole="alert">
+          {/* Subtle top-right X close button */}
           <TouchableOpacity
             style={styles.closeBtn}
             onPress={onClose}
-            activeOpacity={0.7}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            activeOpacity={0.6}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
           >
-            <Ionicons name="close" size={18} color={colors.light.textSecondary} />
+            <Ionicons name="close" size={20} color={colors.light.textMuted} />
           </TouchableOpacity>
 
-          {/* Success Brand Icon Badge */}
-          <View style={styles.iconOuterRing}>
-            <View style={styles.iconInnerCircle}>
-              <Ionicons name="checkmark-sharp" size={28} color={colors.light.white} />
-            </View>
+          {/* Single soft pastel primary circle */}
+          <View style={styles.iconCircle}>
+            <Ionicons name="checkmark-sharp" size={26} color={colors.light.primary} />
           </View>
 
-          {/* Header Texts */}
+          {/* Header Title */}
           <Text style={styles.title}>Booking Submitted!</Text>
-          <Text style={styles.subtitle}>
-            Your rental request has been sent to the owner. You will receive an update once it is confirmed.
-          </Text>
 
           {/* Summary Details Box */}
           <View style={styles.summaryBox}>
             {deviceTitle ? (
               <View style={styles.summaryRow}>
                 <View style={styles.summaryIconWrap}>
-                  <Ionicons name="phone-portrait-outline" size={16} color={colors.light.primary} />
+                  <Ionicons name="phone-portrait-outline" size={15} color={colors.light.primary} />
                 </View>
                 <View style={styles.summaryTextWrap}>
                   <Text style={styles.summaryLabel}>Device</Text>
@@ -91,7 +92,7 @@ export function BookingSuccessModal({
             {startDate && endDate ? (
               <View style={styles.summaryRow}>
                 <View style={styles.summaryIconWrap}>
-                  <Ionicons name="calendar-outline" size={16} color={colors.light.primary} />
+                  <Ionicons name="calendar-outline" size={15} color={colors.light.primary} />
                 </View>
                 <View style={styles.summaryTextWrap}>
                   <Text style={styles.summaryLabel}>Rental Period</Text>
@@ -105,7 +106,7 @@ export function BookingSuccessModal({
             {totalAmount > 0 ? (
               <View style={[styles.summaryRow, styles.summaryRowLast]}>
                 <View style={styles.summaryIconWrap}>
-                  <Ionicons name="wallet-outline" size={16} color={colors.light.primary} />
+                  <Ionicons name="wallet-outline" size={15} color={colors.light.primary} />
                 </View>
                 <View style={styles.summaryTextWrap}>
                   <Text style={styles.summaryLabel}>Estimated Total</Text>
@@ -116,22 +117,26 @@ export function BookingSuccessModal({
           </View>
 
           {/* Action Buttons */}
-          <TouchableOpacity
-            style={styles.primaryBtn}
-            onPress={onViewBookings}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.primaryBtnText}>View My Bookings</Text>
-            <Ionicons name="arrow-forward" size={18} color={colors.light.white} />
-          </TouchableOpacity>
+          <View style={styles.actionCol}>
+            <TouchableOpacity
+              style={styles.primaryBtn}
+              onPress={onViewBookings}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+            >
+              <Text style={styles.primaryBtnText}>View My Bookings</Text>
+              <Ionicons name="arrow-forward" size={16} color={colors.light.white} />
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.secondaryBtn}
-            onPress={onClose}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.secondaryBtnText}>Done</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.secondaryBtn}
+              onPress={onClose}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+            >
+              <Text style={styles.secondaryBtnText}>Done</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </Modal>
@@ -141,97 +146,71 @@ export function BookingSuccessModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
   },
   card: {
     width: '100%',
-    maxWidth: 360,
+    maxWidth: 340,
     backgroundColor: colors.light.surface,
-    borderRadius: 24,
-    paddingTop: 28,
+    borderRadius: 20,
+    paddingTop: 24,
     paddingBottom: 20,
-    paddingHorizontal: 22,
+    paddingHorizontal: 20,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.light.borderSubtle,
-    shadowColor: colors.light.shadow,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
-    elevation: 8,
+    borderColor: colors.light.borderDefault,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
   },
   closeBtn: {
     position: 'absolute',
-    top: 16,
-    right: 16,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.light.background,
-    borderWidth: 1,
-    borderColor: colors.light.borderSubtle,
+    top: 14,
+    right: 14,
+    width: 28,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 1,
   },
-  iconOuterRing: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+  iconCircle: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     backgroundColor: colors.light.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
-    borderWidth: 3,
-    borderColor: colors.light.primaryBg,
-  },
-  iconInnerCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: colors.light.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.light.primary,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
-    elevation: 4,
+    marginBottom: 14,
   },
   title: {
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 18,
+    fontWeight: '700',
     color: colors.light.textPrimary,
-    marginBottom: 6,
+    marginBottom: 14,
     textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 13,
-    color: colors.light.textSecondary,
-    textAlign: 'center',
-    lineHeight: 18,
-    marginBottom: 20,
-    paddingHorizontal: 6,
   },
   summaryBox: {
     width: '100%',
-    backgroundColor: colors.light.primaryBg,
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 20,
+    backgroundColor: colors.light.background,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
     borderWidth: 1,
-    borderColor: colors.light.primaryLight,
+    borderColor: colors.light.borderDefault,
   },
   summaryRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingBottom: 10,
-    marginBottom: 10,
+    gap: 10,
+    paddingBottom: 8,
+    marginBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: colors.light.primaryLight,
+    borderBottomColor: colors.light.borderSubtle,
   },
   summaryRowLast: {
     borderBottomWidth: 0,
@@ -239,61 +218,61 @@ const styles = StyleSheet.create({
     paddingBottom: 0,
   },
   summaryIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
+    width: 28,
+    height: 28,
+    borderRadius: 8,
     backgroundColor: colors.light.surface,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: colors.light.primaryLight,
+    borderColor: colors.light.borderDefault,
   },
   summaryTextWrap: {
     flex: 1,
   },
   summaryLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: colors.light.textSecondary,
-    marginBottom: 2,
+    marginBottom: 1,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
   summaryValue: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 12.5,
+    fontWeight: '600',
     color: colors.light.textPrimary,
   },
   summaryPriceValue: {
-    fontSize: 15,
-    fontWeight: '800',
+    fontSize: 14,
+    fontWeight: '700',
     color: colors.light.primaryDark,
+  },
+  actionCol: {
+    width: '100%',
+    alignItems: 'center',
+    gap: 8,
   },
   primaryBtn: {
     width: '100%',
-    height: 48,
+    height: 44,
     backgroundColor: colors.light.primary,
-    borderRadius: 14,
+    borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    shadowColor: colors.light.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.28,
-    shadowRadius: 8,
-    elevation: 4,
-    marginBottom: 8,
+    gap: 6,
   },
   primaryBtnText: {
     color: colors.light.white,
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
   },
   secondaryBtn: {
-    paddingVertical: 8,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 16,
-    borderRadius: 8,
   },
   secondaryBtnText: {
     fontSize: 13,
