@@ -47,7 +47,7 @@ export function OwnerProfileScreen({
     setAvatarFailed(false);
 
     if (!/^[a-fA-F0-9]{24}$/.test(ownerId)) {
-      setError('Mã chủ thiết bị không hợp lệ.');
+      setError('Invalid owner ID.');
       setLoading(false);
       setLoadingDevices(false);
       return;
@@ -61,7 +61,7 @@ export function OwnerProfileScreen({
       .catch((requestError: unknown) => {
         if (!active) return;
         const status = (requestError as { response?: { status?: number } })?.response?.status;
-        setError(status === 404 ? 'Không tìm thấy chủ thiết bị.' : 'Không thể tải thông tin chủ thiết bị. Vui lòng thử lại.');
+        setError(status === 404 ? 'Owner not found.' : 'Unable to load owner profile. Please try again.');
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -92,14 +92,14 @@ export function OwnerProfileScreen({
     : owner?.avatar;
 
   const stats = [
-    { label: 'Thiết bị', icon: 'cube-outline' as const, value: owner?.deviceCount ?? devices.length },
-    { label: 'Đánh giá', icon: 'chatbox-ellipses-outline' as const, value: owner?.totalReviews ?? '—' },
+    { label: 'Devices', icon: 'cube-outline' as const, value: owner?.deviceCount ?? devices.length },
+    { label: 'Reviews', icon: 'chatbox-ellipses-outline' as const, value: owner?.totalReviews ?? '—' },
     {
-      label: 'Xếp hạng',
+      label: 'Rating',
       icon: 'star' as const,
       value: typeof owner?.rating === 'number' && Number.isFinite(owner.rating) && (owner.totalReviews ?? 0) > 0
         ? `${owner.rating.toFixed(1)} / 5`
-        : 'Chưa có',
+        : 'No ratings',
     },
   ];
 
@@ -108,17 +108,17 @@ export function OwnerProfileScreen({
     try {
       await Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`);
     } catch {
-      Alert.alert('Không thể mở bản đồ', 'Vui lòng thử lại.');
+      Alert.alert('Unable to open maps', 'Please try again.');
     }
   }
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} accessibilityRole="button" accessibilityLabel="Quay lại" onPress={onBack}>
+        <TouchableOpacity style={styles.backButton} accessibilityRole="button" accessibilityLabel="Back" onPress={onBack}>
           <Ionicons name="chevron-back" size={24} color={colors.light.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Hồ sơ chủ thiết bị</Text>
+        <Text style={styles.headerTitle}>Owner Profile</Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -128,7 +128,7 @@ export function OwnerProfileScreen({
         <View style={styles.panel}>
           <Text style={styles.body}>{error}</Text>
           <TouchableOpacity style={styles.retry} onPress={() => setRetry(value => value + 1)}>
-            <Text style={styles.retryText}>Thử lại</Text>
+            <Text style={styles.retryText}>Retry</Text>
           </TouchableOpacity>
         </View>
       ) : owner ? (
@@ -160,7 +160,7 @@ export function OwnerProfileScreen({
             {owner.trust?.isVerified ? (
               <View style={styles.verifiedBadge}>
                 <Ionicons name="shield-checkmark" size={16} color={colors.light.primaryHover} />
-                <Text style={styles.verified}>Chủ sở hữu đã xác thực</Text>
+                <Text style={styles.verified}>Verified Owner</Text>
               </View>
             ) : null}
 
@@ -176,21 +176,21 @@ export function OwnerProfileScreen({
                 style={styles.messageButton}
                 onPress={onMessage}
                 accessibilityRole="button"
-                accessibilityLabel="Nhắn tin với chủ thiết bị"
+                accessibilityLabel="Message owner"
               >
                 <Ionicons name="chatbubble-ellipses" size={18} color={colors.light.white} />
-                <Text style={styles.messageText}>Nhắn tin</Text>
+                <Text style={styles.messageText}>Message</Text>
               </TouchableOpacity>
 
               {address ? (
                 <TouchableOpacity
                   style={styles.directionButton}
                   accessibilityRole="button"
-                  accessibilityLabel="Chỉ đường trên Google Maps"
+                  accessibilityLabel="Get directions on Google Maps"
                   onPress={openDirections}
                 >
                   <Ionicons name="navigate" size={18} color={colors.light.primaryDark} />
-                  <Text style={styles.directionText}>Chỉ đường</Text>
+                  <Text style={styles.directionText}>Directions</Text>
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -198,7 +198,7 @@ export function OwnerProfileScreen({
 
           {/* Thống kê hoạt động */}
           <View style={styles.panel}>
-            <Text style={styles.heading}>Thông tin uy tín</Text>
+            <Text style={styles.heading}>Reputation & Stats</Text>
             {stats.map((stat, index) => (
               <View key={stat.label} style={styles.statRow}>
                 <View style={[styles.statIcon, index === 1 && styles.reviewIcon, index === 2 && styles.ratingIcon]}>
@@ -217,18 +217,18 @@ export function OwnerProfileScreen({
           {/* Danh sách các thiết bị của chủ sở hữu */}
           <View style={styles.panel}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.heading}>Thiết bị cho thuê ({devices.length})</Text>
+              <Text style={styles.heading}>Rental Devices ({devices.length})</Text>
             </View>
 
             {loadingDevices ? (
               <View style={styles.loadingBox}>
                 <ActivityIndicator size="small" color={colors.light.primaryDark} />
-                <Text style={styles.mutedText}>Đang tải danh sách thiết bị...</Text>
+                <Text style={styles.mutedText}>Loading devices...</Text>
               </View>
             ) : devices.length === 0 ? (
               <View style={styles.emptyBox}>
                 <Ionicons name="cube-outline" size={36} color={colors.light.textMuted} />
-                <Text style={styles.mutedText}>Chủ sở hữu này chưa có thiết bị nào đang cho thuê.</Text>
+                <Text style={styles.mutedText}>This owner has no devices available for rent.</Text>
               </View>
             ) : (
               <View style={styles.deviceList}>
@@ -244,7 +244,7 @@ export function OwnerProfileScreen({
                       onPress={() => onNavigateToDeviceDetail?.(device._id)}
                       activeOpacity={0.7}
                       accessibilityRole="button"
-                      accessibilityLabel={`Xem chi tiết ${device.name || device.title}`}
+                      accessibilityLabel={`View details of ${device.name || device.title}`}
                     >
                       {imgUrl ? (
                         <Image source={{ uri: imgUrl }} style={styles.cardThumb} />
@@ -257,11 +257,11 @@ export function OwnerProfileScreen({
                       <View style={styles.cardContent}>
                         <View style={styles.cardHeader}>
                           <Text style={styles.cardCategory} numberOfLines={1}>
-                            {device.category?.toUpperCase() || 'THIẾT BỊ'}
+                            {device.category?.toUpperCase() || 'DEVICE'}
                           </Text>
                           <View style={[styles.statusBadge, isAvailable ? styles.statusAvailable : styles.statusOther]}>
                             <Text style={[styles.statusText, isAvailable ? styles.statusAvailableText : styles.statusOtherText]}>
-                              {isAvailable ? 'Sẵn sàng' : (device.status === 'rented' ? 'Đang thuê' : 'Bận')}
+                              {isAvailable ? 'Available' : (device.status === 'rented' ? 'Rented' : 'Unavailable')}
                             </Text>
                           </View>
                         </View>
@@ -273,11 +273,11 @@ export function OwnerProfileScreen({
                         <View style={styles.cardFooter}>
                           <Text style={styles.cardPrice}>
                             {typeof rate === 'number' && Number.isFinite(rate)
-                              ? `${rate.toLocaleString('vi-VN')} đ/ngày`
-                              : 'Liên hệ'}
+                              ? `${rate.toLocaleString('en-US')} VND/day`
+                              : 'Contact'}
                           </Text>
                           <View style={styles.viewDetailBtn}>
-                            <Text style={styles.viewDetailText}>Xem chi tiết</Text>
+                            <Text style={styles.viewDetailText}>Details</Text>
                             <Ionicons name="chevron-forward" size={14} color={colors.light.primaryDark} />
                           </View>
                         </View>

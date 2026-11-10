@@ -10,8 +10,9 @@ const CANDIDATE_BASE_URLS: string[] = Array.from(
   new Set(
     [
       process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, ''),
-      Platform.OS === 'android' ? 'http://localhost:5001/api' : undefined,
+      'http://172.22.86.56:5001/api',
       Platform.OS === 'android' ? 'http://10.0.2.2:5001/api' : undefined,
+      Platform.OS === 'android' ? 'http://localhost:5001/api' : undefined,
       'http://10.10.101.212:5001/api',
       'http://localhost:5001/api',
     ].filter(Boolean) as string[]
