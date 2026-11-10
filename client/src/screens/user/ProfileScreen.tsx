@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -23,6 +23,11 @@ import { confirmAndLogout } from '../../services/logoutService';
 import { userService } from '../../services/userService';
 import { getEkycStatus } from '../../services/ekycService';
 import { theme } from '../../constants/theme';
+import {
+  ActionConfirmModal,
+  ActionResultModal,
+  FeedbackSummaryItem,
+} from '../../components/common/ActionFeedbackModals';
 import { STRINGS } from '../../constants/strings';
 import { User } from '../../types';
 
@@ -86,6 +91,22 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
 
   const [ekycStatusVerified, setEkycStatusVerified] = useState<boolean | null>(null);
   const [ownerEkycStatus, setOwnerEkycStatus] = useState<'none' | 'pending' | 'approved' | 'rejected'>('none');
+  const [addressPromptVisible, setAddressPromptVisible] = useState(false);
+  const [editProfileError, setEditProfileError] = useState('');
+  const [saveSuccessItems, setSaveSuccessItems] = useState<FeedbackSummaryItem[] | null>(null);
+  const editModalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveModalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (editModalTimerRef.current) {
+        clearTimeout(editModalTimerRef.current);
+      }
+      if (saveModalTimerRef.current) {
+        clearTimeout(saveModalTimerRef.current);
+      }
+    };
+  }, []);
 
   // Tải lại hồ sơ mới nhất từ API
   const fetchFreshProfile = useCallback(async () => {
@@ -147,22 +168,21 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
         : profile.address?.fullAddress || ''
     );
     setEditAvatar(profile.avatar || '');
+    setEditProfileError('');
     setIsEditModalVisible(true);
   };
 
   // Save profile
   const handleSaveProfile = async () => {
     if (!editName.trim()) {
-      Alert.alert(
-        STRINGS.PROFILE_SCREEN.ALERT_NOTICE_TITLE,
-        STRINGS.PROFILE_SCREEN.ALERT_NAME_REQUIRED
-      );
+      setEditProfileError(STRINGS.PROFILE_SCREEN.ALERT_NAME_REQUIRED);
       return;
     }
 
+    setEditProfileError('');
     setIsSaving(true);
     try {
-      const res = await userService.updateProfile({
+      await userService.updateProfile({
         name: editName.trim(),
         phone: editPhone.trim(),
         address: editAddress.trim(),
@@ -183,13 +203,41 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
       }));
       dispatch(updateUser(updatedData));
       setIsEditModalVisible(false);
-      Alert.alert(
-        STRINGS.PROFILE_SCREEN.ALERT_SUCCESS_TITLE,
-        STRINGS.PROFILE_SCREEN.ALERT_SUCCESS_MSG
-      );
+
+      const summary: FeedbackSummaryItem[] = [
+        {
+          icon: 'person-outline',
+          label: STRINGS.PROFILE_SCREEN.SAVE_SUMMARY_NAME,
+          value: editName.trim(),
+        },
+        ...(editPhone.trim()
+          ? [
+              {
+                icon: 'call-outline' as const,
+                label: STRINGS.PROFILE_SCREEN.SAVE_SUMMARY_PHONE,
+                value: editPhone.trim(),
+              },
+            ]
+          : []),
+        ...(editAddress.trim()
+          ? [
+              {
+                icon: 'location-outline' as const,
+                label: STRINGS.PROFILE_SCREEN.SAVE_SUMMARY_ADDRESS,
+                value: editAddress.trim(),
+              },
+            ]
+          : []),
+      ];
+
+      if (saveModalTimerRef.current) {
+        clearTimeout(saveModalTimerRef.current);
+      }
+      saveModalTimerRef.current = setTimeout(() => {
+        setSaveSuccessItems(summary);
+      }, 180);
     } catch (err: any) {
-      Alert.alert(
-        STRINGS.PROFILE_SCREEN.ALERT_ERROR_TITLE,
+      setEditProfileError(
         err.response?.data?.message || STRINGS.PROFILE_SCREEN.ALERT_SAVE_ERROR_DEFAULT
       );
     } finally {
@@ -242,20 +290,23 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
     const rawAddress = (displayAddress || '').trim();
 
     if (!rawAddress) {
-      Alert.alert(
-        STRINGS.PROFILE_SCREEN.ADDRESS_REQUIRED_TITLE,
-        STRINGS.PROFILE_SCREEN.ADDRESS_REQUIRED_MSG,
-        [
-          { text: STRINGS.PROFILE_SCREEN.LATER, style: 'cancel' },
-          { text: STRINGS.PROFILE_SCREEN.UPDATE_NOW, onPress: openEditModal },
-        ]
-      );
+      setAddressPromptVisible(true);
       return;
     }
 
     if (navigation?.navigate) {
       navigation.navigate(routeName);
     }
+  };
+
+  const handleConfirmAddressPrompt = () => {
+    setAddressPromptVisible(false);
+    if (editModalTimerRef.current) {
+      clearTimeout(editModalTimerRef.current);
+    }
+    editModalTimerRef.current = setTimeout(() => {
+      openEditModal();
+    }, 150);
   };
 
   const handleNavigateToEkyc = () => navigateWithAddressCheck('EkycVerification');
@@ -637,13 +688,23 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
+              {Boolean(editProfileError) && (
+                <View style={styles.editErrorBanner}>
+                  <Ionicons name="alert-circle-outline" size={16} color={theme.danger} />
+                  <Text style={styles.editErrorText}>{editProfileError}</Text>
+                </View>
+              )}
+
               {/* Full Name */}
               <View style={styles.modalField}>
                 <Text style={styles.modalLabel}>{STRINGS.PROFILE_SCREEN.FULL_NAME_LABEL}</Text>
                 <TextInput
                   style={styles.modalInput}
                   value={editName}
-                  onChangeText={setEditName}
+                  onChangeText={(text) => {
+                    setEditName(text);
+                    if (editProfileError) setEditProfileError('');
+                  }}
                   placeholder={STRINGS.PROFILE_SCREEN.FULL_NAME_PLACEHOLDER}
                   placeholderTextColor={theme.textMuted}
                 />
@@ -725,6 +786,38 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
           </View>
         </View>
       </Modal>
+
+      {/* ─── ADDRESS REQUIRED FOR EKYC MODAL ─── */}
+      <ActionConfirmModal
+        visible={addressPromptVisible}
+        title={STRINGS.PROFILE_SCREEN.ADDRESS_REQUIRED_TITLE}
+        message={STRINGS.PROFILE_SCREEN.ADDRESS_REQUIRED_MSG}
+        icon="location-outline"
+        tone="brand"
+        summaryItems={[
+          {
+            icon: 'location-outline',
+            label: STRINGS.PROFILE_SCREEN.ADDRESS_REQUIRED_SUMMARY_LABEL,
+            value: STRINGS.PROFILE_SCREEN.ADDRESS_REQUIRED_SUMMARY_VALUE,
+          },
+        ]}
+        noticeText={STRINGS.PROFILE_SCREEN.ADDRESS_REQUIRED_NOTICE}
+        confirmText={STRINGS.PROFILE_SCREEN.UPDATE_NOW}
+        cancelText={STRINGS.PROFILE_SCREEN.LATER}
+        onCancel={() => setAddressPromptVisible(false)}
+        onConfirm={handleConfirmAddressPrompt}
+      />
+
+      {/* ─── SAVE PROFILE SUCCESS MODAL ─── */}
+      <ActionResultModal
+        visible={Boolean(saveSuccessItems)}
+        type="success"
+        title={STRINGS.PROFILE_SCREEN.ALERT_SUCCESS_TITLE}
+        message={STRINGS.PROFILE_SCREEN.ALERT_SUCCESS_MSG}
+        summaryItems={saveSuccessItems || []}
+        buttonText={STRINGS.PROFILE_SCREEN.SAVE_DONE_BTN}
+        onClose={() => setSaveSuccessItems(null)}
+      />
     </View>
   );
 }
@@ -962,6 +1055,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: theme.spacing.md,
+  },
+  editErrorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: theme.colors.danger[50],
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: theme.radii.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: theme.spacing.sm + 4,
+  },
+  editErrorText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+    color: theme.danger,
   },
   modalTitle: {
     fontSize: 17,

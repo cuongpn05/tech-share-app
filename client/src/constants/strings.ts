@@ -1978,6 +1978,9 @@ export const STRINGS = {
     ADDRESS_REQUIRED_TITLE: 'Address Required',
     ADDRESS_REQUIRED_MSG:
       'You need to update your contact address in your profile before proceeding with identity verification (eKYC).',
+    ADDRESS_REQUIRED_SUMMARY_LABEL: 'Requirement',
+    ADDRESS_REQUIRED_SUMMARY_VALUE: 'Profile Contact Address',
+    ADDRESS_REQUIRED_NOTICE: 'Update your address in your profile to continue eKYC verification.',
     LATER: 'Later',
     UPDATE_NOW: 'Update Now',
 
@@ -1999,6 +2002,10 @@ export const STRINGS = {
     ALERT_SUCCESS_MSG: 'Profile updated successfully.',
     ALERT_ERROR_TITLE: 'Error',
     ALERT_SAVE_ERROR_DEFAULT: 'Unable to save changes.',
+    SAVE_SUMMARY_NAME: 'Full Name',
+    SAVE_SUMMARY_PHONE: 'Phone Number',
+    SAVE_SUMMARY_ADDRESS: 'Contact Address',
+    SAVE_DONE_BTN: 'Done',
   },
 
   EKYC: {
@@ -2066,7 +2073,9 @@ export const STRINGS = {
     PICK_IMAGE_FRONT_DESC: 'Please provide a clear photo of the front side',
     PICK_IMAGE_BACK_DESC: 'Please provide a clear photo of the back side',
     TAKE_PHOTO: 'Take New Photo',
+    TAKE_PHOTO_DESC: 'Capture directly using your camera',
     CHOOSE_FROM_GALLERY: 'Choose from Gallery',
+    CHOOSE_FROM_GALLERY_DESC: 'Pick an existing photo from your library',
 
     // Permissions & Errors
     PERMISSION_TITLE: 'Permission Required',
@@ -2364,6 +2373,11 @@ export const STRINGS = {
       MSG: (name: string) => `Are you sure you want to unlock account "${name}"? The user will be able to log in again.`,
       CANCEL: 'Cancel',
       CONFIRM: 'Unlock Account',
+      NOTICE: 'The user will immediately regain login and rental access.',
+      SUMMARY_MEMBER: 'Member',
+      SUMMARY_EMAIL: 'Email',
+      SUMMARY_ACTION: 'Action',
+      SUMMARY_ACTION_VALUE: 'Unlock & Restore Active Status',
     },
     ALERTS: {
       LOCK_SUCCESS_TITLE: 'Account Locked',
@@ -2377,6 +2391,12 @@ export const STRINGS = {
       ACTION_ERROR: 'Unable to update account status. Please try again.',
       NETWORK_ERROR: 'Network error. Please check your connection.',
       RETRY: 'Retry',
+      SUMMARY_MEMBER: 'Member',
+      SUMMARY_REASON: 'Lock Reason',
+      SUMMARY_STATUS: 'Account Status',
+      SUMMARY_STATUS_LOCKED: 'Locked',
+      SUMMARY_STATUS_ACTIVE: 'Active',
+      DONE_BTN: 'Done',
     },
     EMPTY_STATES: {
       TITLE: 'No members found',
@@ -2386,8 +2406,13 @@ export const STRINGS = {
     },
   },
   AUTH_LOCKED: {
-    ALERT_TITLE: 'Account Locked ⚠️',
+    ALERT_TITLE: 'Account Locked',
     ALERT_MSG: 'Your account has been locked by an administrator.',
+    LOGIN_LOCKED_MSG: 'Unable to sign in because your account has been locked by an administrator.',
     DEFAULT_REASON: 'Violation of platform policies.',
+    REASON_LABEL: 'Lock Reason',
+    STATUS_LABEL: 'Account Status',
+    STATUS_VALUE: 'Locked',
+    ACK_BTN: 'Understood',
   },
 } as const;

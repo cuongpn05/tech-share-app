@@ -30,7 +30,6 @@ import {
   StatusBar,
   ScrollView,
   Modal,
-  Alert,
   KeyboardAvoidingView,
   TouchableWithoutFeedback,
   Keyboard,
@@ -39,6 +38,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, DrawerActions } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../theme/tokens';
+import {
+  ActionConfirmModal,
+  ActionResultModal,
+  ActionResultType,
+  FeedbackSummaryItem,
+} from '../../components/common/ActionFeedbackModals';
 import {
   fetchUsersList,
   toggleUserStatus,
@@ -242,7 +247,24 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
   const [selectedUserForLock, setSelectedUserForLock] = useState<MemberUser | null>(null);
   const [selectedPresetReason, setSelectedPresetReason] = useState<string>(S.LOCK_MODAL.PRESET_REASONS[0]);
   const [customLockReason,    setCustomLockReason]    = useState<string>('');
+  const [lockError,           setLockError]           = useState<string>('');
   const [submittingLock,      setSubmittingLock]      = useState(false);
+
+  // Unlock Confirm & Result Notification Modals
+  const [userToUnlock,        setUserToUnlock]        = useState<MemberUser | null>(null);
+  const [submittingUnlock,    setSubmittingUnlock]    = useState(false);
+  const [resultModal,         setResultModal]         = useState<{
+    visible: boolean;
+    type: ActionResultType;
+    title: string;
+    message: string;
+    summaryItems?: FeedbackSummaryItem[];
+  }>({
+    visible: false,
+    type: 'success',
+    title: '',
+    message: '',
+  });
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -299,6 +321,7 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
     setSelectedUserForLock(user);
     setSelectedPresetReason(S.LOCK_MODAL.PRESET_REASONS[0]);
     setCustomLockReason('');
+    setLockError('');
     setLockModalVisible(true);
   }, []);
 
@@ -307,11 +330,12 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
 
     const finalReason = customLockReason.trim() || selectedPresetReason;
     if (!finalReason) {
-      Alert.alert(S.ALERTS.REASON_REQUIRED_TITLE, S.ALERTS.REASON_REQUIRED_MSG);
+      setLockError(S.ALERTS.REASON_REQUIRED_MSG);
       return;
     }
 
     try {
+      setLockError('');
       setSubmittingLock(true);
       const res = await toggleUserStatus(selectedUserForLock._id, false, finalReason);
 
@@ -329,50 +353,103 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
 
         setLockModalVisible(false);
         setSelectedUserForLock(null);
-        Alert.alert(S.ALERTS.LOCK_SUCCESS_TITLE, S.ALERTS.LOCK_SUCCESS_MSG(targetName));
+        setResultModal({
+          visible: true,
+          type: 'locked',
+          title: S.ALERTS.LOCK_SUCCESS_TITLE,
+          message: S.ALERTS.LOCK_SUCCESS_MSG(targetName),
+          summaryItems: [
+            {
+              icon: 'person-outline',
+              label: S.ALERTS.SUMMARY_MEMBER,
+              value: targetName,
+            },
+            {
+              icon: 'alert-circle-outline',
+              label: S.ALERTS.SUMMARY_REASON,
+              value: finalReason,
+            },
+            {
+              icon: 'lock-closed-outline',
+              label: S.ALERTS.SUMMARY_STATUS,
+              value: S.ALERTS.SUMMARY_STATUS_LOCKED,
+            },
+          ],
+        });
       } else {
-        Alert.alert(S.ALERTS.ERROR_TITLE, res.message || S.ALERTS.ACTION_ERROR);
+        setLockError(res.message || S.ALERTS.ACTION_ERROR);
       }
     } catch (err: any) {
-      Alert.alert(S.ALERTS.ERROR_TITLE, err.response?.data?.message || err.message || S.ALERTS.ACTION_ERROR);
+      setLockError(err.response?.data?.message || err.message || S.ALERTS.ACTION_ERROR);
     } finally {
       setSubmittingLock(false);
     }
   };
 
   const handleConfirmUnlock = useCallback((user: MemberUser) => {
-    Alert.alert(
-      S.UNLOCK_ALERT.TITLE,
-      S.UNLOCK_ALERT.MSG(user.name),
-      [
-        { text: S.UNLOCK_ALERT.CANCEL, style: 'cancel' },
-        {
-          text: S.UNLOCK_ALERT.CONFIRM,
-          style: 'default',
-          onPress: async () => {
-            try {
-              const res = await toggleUserStatus(user._id, true);
-              if (res.success) {
-                // Update local user list state immediately
-                setUsers(prev => prev.map(u => u._id === user._id ? {
-                  ...u,
-                  isActive: true,
-                  lockReason: undefined,
-                  lockedAt: undefined,
-                } : u));
-
-                Alert.alert(S.ALERTS.UNLOCK_SUCCESS_TITLE, S.ALERTS.UNLOCK_SUCCESS_MSG(user.name));
-              } else {
-                Alert.alert(S.ALERTS.ERROR_TITLE, res.message || S.ALERTS.ACTION_ERROR);
-              }
-            } catch (err: any) {
-              Alert.alert(S.ALERTS.ERROR_TITLE, err.response?.data?.message || err.message || S.ALERTS.ACTION_ERROR);
-            }
-          },
-        },
-      ]
-    );
+    setUserToUnlock(user);
   }, []);
+
+  const handleCloseUnlockModal = useCallback(() => {
+    if (submittingUnlock) return;
+    setUserToUnlock(null);
+  }, [submittingUnlock]);
+
+  const handleExecuteUnlock = useCallback(async () => {
+    if (!userToUnlock) return;
+    const targetUser = userToUnlock;
+
+    try {
+      setSubmittingUnlock(true);
+      const res = await toggleUserStatus(targetUser._id, true);
+      if (res.success) {
+        setUsers(prev => prev.map(u => u._id === targetUser._id ? {
+          ...u,
+          isActive: true,
+          lockReason: undefined,
+          lockedAt: undefined,
+        } : u));
+
+        setUserToUnlock(null);
+        setResultModal({
+          visible: true,
+          type: 'success',
+          title: S.ALERTS.UNLOCK_SUCCESS_TITLE,
+          message: S.ALERTS.UNLOCK_SUCCESS_MSG(targetUser.name),
+          summaryItems: [
+            {
+              icon: 'person-outline',
+              label: S.ALERTS.SUMMARY_MEMBER,
+              value: targetUser.name,
+            },
+            {
+              icon: 'lock-open-outline',
+              label: S.ALERTS.SUMMARY_STATUS,
+              value: S.ALERTS.SUMMARY_STATUS_ACTIVE,
+            },
+          ],
+        });
+      } else {
+        setUserToUnlock(null);
+        setResultModal({
+          visible: true,
+          type: 'error',
+          title: S.ALERTS.ERROR_TITLE,
+          message: res.message || S.ALERTS.ACTION_ERROR,
+        });
+      }
+    } catch (err: any) {
+      setUserToUnlock(null);
+      setResultModal({
+        visible: true,
+        type: 'error',
+        title: S.ALERTS.ERROR_TITLE,
+        message: err.response?.data?.message || err.message || S.ALERTS.ACTION_ERROR,
+      });
+    } finally {
+      setSubmittingUnlock(false);
+    }
+  }, [userToUnlock]);
 
   // ── Render ─────────────────────────────────────────────
 
@@ -594,6 +671,7 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
                         onPress={() => {
                           setSelectedPresetReason(reason);
                           setCustomLockReason('');
+                          if (lockError) setLockError('');
                         }}
                         activeOpacity={0.7}
                       >
@@ -616,12 +694,18 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
                     placeholder={S.LOCK_MODAL.CUSTOM_REASON_PLACEHOLDER}
                     placeholderTextColor={theme.colors.text.subtle}
                     value={customLockReason}
-                    onChangeText={setCustomLockReason}
+                    onChangeText={(text) => {
+                      setCustomLockReason(text);
+                      if (lockError) setLockError('');
+                    }}
                     multiline
                     numberOfLines={3}
                     textAlignVertical="top"
                     editable={!submittingLock}
                   />
+                  {Boolean(lockError) && (
+                    <Text style={styles.lockModalErrorText}>{lockError}</Text>
+                  )}
                 </View>
 
                 {/* Footer Buttons */}
@@ -656,6 +740,53 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
           </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* UNLOCK ACCOUNT CONFIRMATION MODAL */}
+      <ActionConfirmModal
+        visible={Boolean(userToUnlock)}
+        title={S.UNLOCK_ALERT.TITLE}
+        message={userToUnlock ? S.UNLOCK_ALERT.MSG(userToUnlock.name) : ''}
+        icon="lock-open-outline"
+        tone="brand"
+        summaryItems={
+          userToUnlock
+            ? [
+                {
+                  icon: 'person-outline',
+                  label: S.UNLOCK_ALERT.SUMMARY_MEMBER,
+                  value: userToUnlock.name,
+                },
+                {
+                  icon: 'mail-outline',
+                  label: S.UNLOCK_ALERT.SUMMARY_EMAIL,
+                  value: userToUnlock.email,
+                },
+                {
+                  icon: 'lock-open-outline',
+                  label: S.UNLOCK_ALERT.SUMMARY_ACTION,
+                  value: S.UNLOCK_ALERT.SUMMARY_ACTION_VALUE,
+                },
+              ]
+            : []
+        }
+        noticeText={S.UNLOCK_ALERT.NOTICE}
+        confirmText={S.UNLOCK_ALERT.CONFIRM}
+        cancelText={S.UNLOCK_ALERT.CANCEL}
+        loading={submittingUnlock}
+        onCancel={handleCloseUnlockModal}
+        onConfirm={handleExecuteUnlock}
+      />
+
+      {/* LOCK / UNLOCK RESULT NOTIFICATION MODAL */}
+      <ActionResultModal
+        visible={resultModal.visible}
+        type={resultModal.type}
+        title={resultModal.title}
+        message={resultModal.message}
+        summaryItems={resultModal.summaryItems}
+        buttonText={S.ALERTS.DONE_BTN}
+        onClose={() => setResultModal((prev) => ({ ...prev, visible: false }))}
+      />
     </View>
   );
 }
@@ -782,6 +913,7 @@ const styles = StyleSheet.create({
   customReasonContainer: { marginBottom: 16 },
   customReasonLabel: { fontSize: 12, fontWeight: '600', color: theme.colors.text.secondary, marginBottom: 6 },
   customReasonInput: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, padding: 10, fontSize: 12, color: theme.colors.text.primary, minHeight: 64 },
+  lockModalErrorText: { fontSize: 12, color: theme.colors.red, marginTop: 6, fontWeight: '500' },
 
   modalFooter     : { flexDirection: 'row', gap: 10 },
   modalCancelBtn  : { flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,9 +6,12 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
-  Alert,
   Modal,
   TextInput,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -25,73 +28,176 @@ export interface PickEkycImageOptions {
 }
 
 /**
- * Hiển thị hộp thoại chọn Camera hoặc Thư viện ảnh cho quy trình eKYC.
+ * Modal chọn nguồn ảnh (Chụp ảnh mới / Chọn từ thư viện) đồng bộ chuẩn Soft-UI cho cả Renter & Owner eKYC.
  */
-export function promptEkycImagePicker({
-  title,
-  description,
-  aspect,
-  cameraType = ImagePicker.CameraType.back,
-  onSelected,
-}: PickEkycImageOptions) {
-  const launchCamera = async () => {
+export function EkycImagePickerModal({
+  options,
+  onClose,
+  onError,
+}: {
+  options: PickEkycImageOptions | null;
+  onClose: () => void;
+  onError: (title: string, message: string) => void;
+}) {
+  const launchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (launchTimerRef.current) {
+        clearTimeout(launchTimerRef.current);
+      }
+    };
+  }, []);
+
+  const launchCamera = async (opts: PickEkycImageOptions) => {
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert(STRINGS.EKYC.PERMISSION_TITLE, STRINGS.EKYC.CAMERA_PERMISSION_MSG);
+        onError(STRINGS.EKYC.PERMISSION_TITLE, STRINGS.EKYC.CAMERA_PERMISSION_MSG);
         return;
       }
 
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
-        aspect,
+        aspect: opts.aspect,
         quality: 0.65,
-        cameraType,
+        cameraType: opts.cameraType ?? ImagePicker.CameraType.back,
       });
 
       if (!result.canceled && result.assets[0]?.uri) {
-        onSelected(result.assets[0].uri);
+        opts.onSelected(result.assets[0].uri);
       }
     } catch (err: any) {
-      Alert.alert(
+      onError(
         STRINGS.COMMON.ERROR,
         STRINGS.EKYC.CAMERA_ERROR_PREFIX + (err.message || STRINGS.EKYC.UNKNOWN_ERROR)
       );
     }
   };
 
-  const launchGallery = async () => {
+  const launchGallery = async (opts: PickEkycImageOptions) => {
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert(STRINGS.EKYC.PERMISSION_TITLE, STRINGS.EKYC.GALLERY_PERMISSION_MSG);
+        onError(STRINGS.EKYC.PERMISSION_TITLE, STRINGS.EKYC.GALLERY_PERMISSION_MSG);
         return;
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
-        aspect,
+        aspect: opts.aspect,
         quality: 0.65,
       });
 
       if (!result.canceled && result.assets[0]?.uri) {
-        onSelected(result.assets[0].uri);
+        opts.onSelected(result.assets[0].uri);
       }
     } catch (err: any) {
-      Alert.alert(
+      onError(
         STRINGS.COMMON.ERROR,
         STRINGS.EKYC.GALLERY_ERROR_PREFIX + (err.message || STRINGS.EKYC.UNKNOWN_ERROR)
       );
     }
   };
 
-  Alert.alert(title, description, [
-    { text: STRINGS.EKYC.TAKE_PHOTO, onPress: launchCamera },
-    { text: STRINGS.EKYC.CHOOSE_FROM_GALLERY, onPress: launchGallery },
-    { text: STRINGS.COMMON.CANCEL, style: 'cancel' },
-  ]);
+  const handleSelectSource = (source: 'camera' | 'gallery') => {
+    if (!options) return;
+    const currentOptions = options;
+    onClose();
+
+    if (launchTimerRef.current) {
+      clearTimeout(launchTimerRef.current);
+    }
+    // Đợi modal đóng hoàn toàn rồi mới bật Camera/Thư viện ảnh để tránh xung đột native controller trên iOS
+    launchTimerRef.current = setTimeout(() => {
+      if (source === 'camera') {
+        launchCamera(currentOptions);
+      } else {
+        launchGallery(currentOptions);
+      }
+    }, 180);
+  };
+
+  return (
+    <Modal
+      visible={Boolean(options)}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
+      <View style={styles.modalBackdrop}>
+        <TouchableWithoutFeedback onPress={onClose}>
+          <View style={StyleSheet.absoluteFill} />
+        </TouchableWithoutFeedback>
+
+        <View style={styles.modalContent} accessibilityRole="alert">
+          <TouchableOpacity
+            style={styles.modalCloseBtn}
+            onPress={onClose}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="close" size={18} color={theme.colors.text.muted} />
+          </TouchableOpacity>
+
+          <View style={styles.modalIconOuterRing}>
+            <View style={styles.modalIconInnerCircle}>
+              <Ionicons name="camera-outline" size={26} color={theme.colors.white} />
+            </View>
+          </View>
+
+          <Text style={styles.modalTitle}>{options?.title || ''}</Text>
+          <Text style={styles.modalSubtitle}>{options?.description || ''}</Text>
+
+          <View style={styles.pickerOptionsList}>
+            <TouchableOpacity
+              style={styles.pickerOptionCard}
+              onPress={() => handleSelectSource('camera')}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+            >
+              <View style={styles.pickerOptionIconWrap}>
+                <Ionicons name="camera-outline" size={20} color={theme.colors.brand[600]} />
+              </View>
+              <View style={styles.pickerOptionTextWrap}>
+                <Text style={styles.pickerOptionTitle}>{STRINGS.EKYC.TAKE_PHOTO}</Text>
+                <Text style={styles.pickerOptionDesc}>{STRINGS.EKYC.TAKE_PHOTO_DESC}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={theme.colors.text.subtle} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.pickerOptionCard}
+              onPress={() => handleSelectSource('gallery')}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+            >
+              <View style={styles.pickerOptionIconWrap}>
+                <Ionicons name="images-outline" size={20} color={theme.colors.brand[600]} />
+              </View>
+              <View style={styles.pickerOptionTextWrap}>
+                <Text style={styles.pickerOptionTitle}>{STRINGS.EKYC.CHOOSE_FROM_GALLERY}</Text>
+                <Text style={styles.pickerOptionDesc}>{STRINGS.EKYC.CHOOSE_FROM_GALLERY_DESC}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={theme.colors.text.subtle} />
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            style={styles.pickerCancelBtn}
+            onPress={onClose}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+          >
+            <Text style={styles.modalCancelBtnText}>{STRINGS.COMMON.CANCEL}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
 }
 
 export type EkycStatusBannerVariant = 'approved' | 'pending' | 'rejected' | 'intro' | 'locked';
@@ -191,15 +297,24 @@ export function EkycStatusBanner({
 export function EkycAddressWarningCard({ onUpdatePress }: { onUpdatePress: () => void }) {
   return (
     <View style={styles.addressWarningCard}>
-      <Ionicons name="warning-outline" size={26} color={theme.colors.amber} />
-      <View style={{ flex: 1, marginLeft: 10 }}>
-        <Text style={styles.warningTitle}>{STRINGS.EKYC.ADDRESS_WARNING_TITLE}</Text>
-        <Text style={styles.warningSubtitle}>{STRINGS.EKYC.ADDRESS_WARNING_SUB}</Text>
-        <TouchableOpacity style={styles.updateAddressButton} onPress={onUpdatePress}>
-          <Ionicons name="location-outline" size={16} color={theme.colors.white} />
-          <Text style={styles.updateAddressButtonText}>{STRINGS.EKYC.UPDATE_ADDRESS_NOW}</Text>
-        </TouchableOpacity>
+      <View style={styles.addressWarningHeader}>
+        <View style={styles.addressWarningIconWrap}>
+          <Ionicons name="location-outline" size={20} color={theme.colors.brand[500]} />
+        </View>
+        <View style={styles.addressWarningTextWrap}>
+          <Text style={styles.warningTitle}>{STRINGS.EKYC.ADDRESS_WARNING_TITLE}</Text>
+          <Text style={styles.warningSubtitle}>{STRINGS.EKYC.ADDRESS_WARNING_SUB}</Text>
+        </View>
       </View>
+      <TouchableOpacity
+        style={styles.updateAddressButton}
+        onPress={onUpdatePress}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+      >
+        <Ionicons name="create-outline" size={16} color={theme.colors.white} />
+        <Text style={styles.updateAddressButtonText}>{STRINGS.EKYC.UPDATE_ADDRESS_NOW}</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -463,31 +578,79 @@ export function EkycAddressModal({
   onSave: () => void;
 }) {
   return (
-    <Modal visible={visible} transparent={true} animationType="fade" onRequestClose={onCancel}>
-      <View style={styles.modalBackdrop}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Ionicons name="location" size={24} color={theme.colors.brand[500]} />
-            <Text style={styles.modalTitle}>{STRINGS.EKYC.ADDRESS_MODAL_TITLE}</Text>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={() => {
+        if (!saving) onCancel();
+      }}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.modalBackdrop}
+      >
+        <TouchableWithoutFeedback
+          onPress={() => {
+            Keyboard.dismiss();
+            if (!saving) onCancel();
+          }}
+        >
+          <View style={StyleSheet.absoluteFill} />
+        </TouchableWithoutFeedback>
+
+        <View style={styles.modalContent} accessibilityRole="alert">
+          <TouchableOpacity
+            style={styles.modalCloseBtn}
+            onPress={onCancel}
+            disabled={saving}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="close" size={18} color={theme.colors.text.muted} />
+          </TouchableOpacity>
+
+          <View style={styles.modalIconOuterRing}>
+            <View style={styles.modalIconInnerCircle}>
+              <Ionicons name="location-outline" size={26} color={theme.colors.white} />
+            </View>
           </View>
+
+          <Text style={styles.modalTitle}>{STRINGS.EKYC.ADDRESS_MODAL_TITLE}</Text>
           <Text style={styles.modalSubtitle}>{STRINGS.EKYC.ADDRESS_MODAL_SUB}</Text>
 
-          <TextInput
-            style={[styles.addressModalInput, Boolean(errorText) && styles.addressModalInputError]}
-            placeholder={STRINGS.EKYC.ADDRESS_MODAL_PLACEHOLDER}
-            placeholderTextColor={theme.colors.text.subtle}
-            value={value}
-            onChangeText={onChangeText}
-            multiline={true}
-            numberOfLines={3}
-          />
-          {Boolean(errorText) && <Text style={styles.addressModalError}>{errorText}</Text>}
+          <View style={styles.addressInputWrap}>
+            <TextInput
+              style={[styles.addressModalInput, Boolean(errorText) && styles.addressModalInputError]}
+              placeholder={STRINGS.EKYC.ADDRESS_MODAL_PLACEHOLDER}
+              placeholderTextColor={theme.colors.text.subtle}
+              value={value}
+              onChangeText={onChangeText}
+              multiline
+              numberOfLines={3}
+              editable={!saving}
+            />
+            {Boolean(errorText) && <Text style={styles.addressModalError}>{errorText}</Text>}
+          </View>
 
           <View style={styles.modalActionRow}>
-            <TouchableOpacity style={styles.modalCancelBtn} onPress={onCancel} disabled={saving}>
+            <TouchableOpacity
+              style={styles.modalCancelBtn}
+              onPress={onCancel}
+              disabled={saving}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+            >
               <Text style={styles.modalCancelBtnText}>{STRINGS.EKYC.LATER}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.modalSaveBtn} onPress={onSave} disabled={saving}>
+            <TouchableOpacity
+              style={[styles.modalSaveBtn, saving && styles.modalSaveBtnDisabled]}
+              onPress={onSave}
+              disabled={saving}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+            >
               {saving ? (
                 <ActivityIndicator size="small" color={theme.colors.white} />
               ) : (
@@ -496,7 +659,7 @@ export function EkycAddressModal({
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -529,10 +692,10 @@ const styles = StyleSheet.create({
   bannerActionBtn: {
     marginTop: 10,
     alignSelf: 'flex-start',
-    backgroundColor: theme.colors.amber,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: theme.radii.sm,
+    backgroundColor: theme.colors.brand[500],
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: theme.radii.md,
   },
   bannerActionBtnText: {
     color: theme.colors.white,
@@ -540,41 +703,55 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   addressWarningCard: {
-    flexDirection: 'row',
-    backgroundColor: theme.colors.amberLight,
+    backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: '#FDE68A',
+    borderColor: theme.colors.brand[200],
     borderRadius: theme.radii.lg,
-    padding: 14,
+    padding: 16,
     marginBottom: 16,
+    ...theme.shadows.card,
+  },
+  addressWarningHeader: {
+    flexDirection: 'row',
     alignItems: 'flex-start',
+  },
+  addressWarningIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: theme.colors.brand[100],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addressWarningTextWrap: {
+    flex: 1,
+    marginLeft: 10,
   },
   warningTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#92400E',
+    color: theme.colors.text.primary,
   },
   warningSubtitle: {
     fontSize: 13,
-    color: '#B45309',
+    color: theme.colors.text.secondary,
     marginTop: 3,
     lineHeight: 18,
   },
   updateAddressButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.amber,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: theme.radii.sm,
-    marginTop: 10,
+    justifyContent: 'center',
+    backgroundColor: theme.colors.brand[500],
+    paddingVertical: 11,
+    borderRadius: theme.radii.md,
+    marginTop: 12,
+    gap: 6,
   },
   updateAddressButtonText: {
     color: theme.colors.white,
-    fontWeight: '600',
-    fontSize: 13,
-    marginLeft: 5,
+    fontWeight: '700',
+    fontSize: 13.5,
   },
   sectionCard: {
     backgroundColor: theme.colors.surface,
@@ -799,80 +976,183 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: theme.colors.overlay,
+    backgroundColor: 'rgba(15, 23, 42, 0.58)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 24,
   },
   modalContent: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radii.lg,
-    padding: 20,
     width: '100%',
-    maxWidth: 420,
-  },
-  modalHeader: {
-    flexDirection: 'row',
+    maxWidth: 360,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii['2xl'],
+    paddingTop: 28,
+    paddingBottom: 20,
+    paddingHorizontal: 22,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.border.divider,
+    ...theme.shadows.cardHover,
+  },
+  modalCloseBtn: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+  },
+  modalIconOuterRing: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: theme.colors.brand[100],
+    borderWidth: 3,
+    borderColor: theme.colors.brand[50],
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  modalIconInnerCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: theme.colors.brand[500],
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalTitle: {
-    fontSize: 17,
+    fontSize: 19,
     fontWeight: '700',
     color: theme.colors.text.primary,
-    marginLeft: 8,
+    marginBottom: 6,
+    textAlign: 'center',
   },
   modalSubtitle: {
-    fontSize: 13,
-    color: theme.colors.text.muted,
-    marginTop: 6,
-    lineHeight: 18,
+    fontSize: 13.5,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 19,
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  addressInputWrap: {
+    width: '100%',
+    marginBottom: 18,
   },
   addressModalInput: {
-    borderWidth: 1,
-    borderColor: theme.colors.border.default,
+    width: '100%',
+    backgroundColor: theme.colors.background,
+    borderWidth: 1.5,
+    borderColor: theme.colors.border.light,
     borderRadius: theme.radii.md,
-    padding: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     fontSize: 14,
     color: theme.colors.text.primary,
-    marginTop: 14,
-    minHeight: 80,
+    minHeight: 84,
     textAlignVertical: 'top',
   },
   addressModalInputError: {
     borderColor: theme.colors.red,
+    backgroundColor: theme.colors.redLight,
   },
   addressModalError: {
     fontSize: 12,
     color: theme.colors.red,
     marginTop: 6,
+    fontWeight: '500',
   },
   modalActionRow: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 16,
+    alignItems: 'center',
+    gap: 10,
+    width: '100%',
   },
   modalCancelBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: theme.radii.sm,
-    marginRight: 10,
+    flex: 1,
+    height: 46,
+    borderRadius: theme.radii.md,
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalCancelBtnText: {
-    color: theme.colors.text.muted,
+    color: theme.colors.text.secondary,
     fontWeight: '600',
     fontSize: 14,
   },
   modalSaveBtn: {
+    flex: 1,
+    height: 46,
+    borderRadius: theme.radii.md,
     backgroundColor: theme.colors.brand[500],
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: theme.radii.sm,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 10,
+  },
+  modalSaveBtnDisabled: {
+    opacity: 0.7,
   },
   modalSaveBtnText: {
     color: theme.colors.white,
     fontWeight: '700',
     fontSize: 14,
+  },
+  pickerOptionsList: {
+    width: '100%',
+    gap: 10,
+    marginBottom: 14,
+  },
+  pickerOptionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.brand[50],
+    borderWidth: 1,
+    borderColor: theme.colors.brand[100],
+    borderRadius: theme.radii.lg,
+    padding: 13,
+    gap: 12,
+  },
+  pickerOptionIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.brand[100],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickerOptionTextWrap: {
+    flex: 1,
+  },
+  pickerOptionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
+  },
+  pickerOptionDesc: {
+    fontSize: 12,
+    color: theme.colors.text.secondary,
+    marginTop: 2,
+  },
+  pickerCancelBtn: {
+    width: '100%',
+    height: 46,
+    borderRadius: theme.radii.md,
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
