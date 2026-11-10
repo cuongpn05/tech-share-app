@@ -316,8 +316,8 @@ export function HomeScreen({
         STRINGS.DEVICE_CARD.LOGIN_REQUIRED_TITLE,
         STRINGS.DEVICE_CARD.LOGIN_REQUIRED_MSG,
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Login', onPress: () => onNavigateToLogin?.() },
+          { text: STRINGS.COMMON.CANCEL, style: 'cancel' },
+          { text: STRINGS.AUTH.LOGIN, onPress: () => onNavigateToLogin?.() },
         ]
       );
       return;
@@ -472,11 +472,11 @@ export function HomeScreen({
   // Giao diện khi gặp lỗi mạng/API
   const renderErrorState = () => (
     <View style={styles.errorContainer}>
-      <Ionicons name="alert-circle-outline" size={40} color="#EF4444" />
+      <Ionicons name="alert-circle-outline" size={40} color={colors.light.error} />
       <Text style={styles.errorTitle}>{STRINGS.HOME_SCREEN.ERROR_TITLE}</Text>
       <Text style={styles.errorSubtitle}>{error}</Text>
       <TouchableOpacity style={styles.retryBtn} onPress={handleRetry} activeOpacity={0.8}>
-        <Ionicons name="reload-outline" size={16} color="#FFFFFF" />
+        <Ionicons name="reload-outline" size={16} color={colors.light.white} />
         <Text style={styles.retryBtnText}>{STRINGS.HOME_SCREEN.TRY_AGAIN}</Text>
       </TouchableOpacity>
     </View>
@@ -516,7 +516,7 @@ export function HomeScreen({
     return (
       <View style={styles.emptyContainer}>
         <View style={styles.emptyIconCircle}>
-          <Ionicons name="hardware-chip-outline" size={36} color="#64748B" />
+          <Ionicons name="hardware-chip-outline" size={36} color={colors.light.textSecondary} />
         </View>
         <Text style={styles.emptyTitle}>{STRINGS.HOME_SCREEN.EMPTY_TITLE}</Text>
         <Text style={styles.emptySubtitle}>
@@ -527,7 +527,7 @@ export function HomeScreen({
 
         {(searchQuery || selectedCategory !== 'all') && (
           <TouchableOpacity style={styles.resetBtn} onPress={handleResetFilters} activeOpacity={0.8}>
-            <Ionicons name="refresh-outline" size={16} color="#FFFFFF" />
+            <Ionicons name="refresh-outline" size={16} color={colors.light.white} />
             <Text style={styles.resetBtnText}>{STRINGS.HOME_SCREEN.SEE_ALL}</Text>
           </TouchableOpacity>
         )}

@@ -313,7 +313,7 @@ export const OwnerSidebarContent: React.FC<OwnerSidebarContentProps> = ({
                 <Ionicons
                   name={item.icon}
                   size={20}
-                  color={isActive ? theme.colors.brand[500] : '#334155'}
+                  color={isActive ? theme.colors.brand[500] : theme.colors.text.secondary}
                   style={styles.menuIcon}
                 />
                 <Text
@@ -423,7 +423,7 @@ const styles = StyleSheet.create({
     marginVertical: 2,
   },
   menuItemActive: {
-    backgroundColor: theme.colors.brand[100], // #E6F7F7
+    backgroundColor: theme.colors.brand[100],
   },
   menuLeft: {
     flexDirection: 'row',
@@ -441,11 +441,11 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.bold,
   },
   menuTitleInactive: {
-    color: '#1E293B',
+    color: theme.colors.text.primary,
     fontWeight: theme.typography.fontWeight.medium,
   },
   badgeContainer: {
-    backgroundColor: '#EF4444',
+    backgroundColor: theme.colors.danger,
     width: 22,
     height: 22,
     borderRadius: 11,
@@ -464,9 +464,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FEE2E2',
+    backgroundColor: theme.colors.dangerLight,
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: theme.colors.redBorder,
     borderRadius: theme.radii.xl,
     paddingVertical: 14,
     paddingHorizontal: theme.spacing.md,
@@ -475,7 +475,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   signOutText: {
-    color: '#DC2626',
+    color: theme.colors.danger,
     fontSize: 14.5,
     fontWeight: theme.typography.fontWeight.bold,
   },

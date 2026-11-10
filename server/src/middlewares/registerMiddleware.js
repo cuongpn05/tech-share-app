@@ -46,7 +46,7 @@ const validateSendOtpInput = (req, res, next) => {
   if (!username || !name || !email || !phone || !password) {
     return res.status(400).json({
       success: false,
-      message: 'Vui lòng điền đầy đủ: Tên đăng nhập, Họ và tên, Email, Số điện thoại và Mật khẩu.',
+      message: 'Please fill in all required fields: Username, Full Name, Email, Phone Number, and Password.',
       missingFields: {
         username: !username,
         name    : !name,
@@ -65,7 +65,7 @@ const validateSendOtpInput = (req, res, next) => {
   if (!REGEX.username.test(trimmedUsername.toLowerCase())) {
     return res.status(400).json({
       success: false,
-      message: 'Tên đăng nhập từ 3–30 ký tự, chỉ chứa chữ cái, số hoặc dấu gạch dưới (_).',
+      message: 'Username must be 3–30 characters, containing only letters, numbers, or underscores (_).',
       field  : 'username',
     });
   }
@@ -74,7 +74,7 @@ const validateSendOtpInput = (req, res, next) => {
   if (!REGEX.email.test(trimmedEmail)) {
     return res.status(400).json({
       success: false,
-      message: 'Địa chỉ email không đúng định dạng. Ví dụ: name@example.com',
+      message: 'Email address is invalid. Example: name@example.com',
       field  : 'email',
     });
   }
@@ -83,7 +83,7 @@ const validateSendOtpInput = (req, res, next) => {
   if (!REGEX.phone.test(trimmedPhone.replace(/[\s.-]/g, ''))) {
     return res.status(400).json({
       success: false,
-      message: 'Số điện thoại không hợp lệ. Vui lòng nhập từ 9–15 chữ số.',
+      message: 'Phone number is invalid. Please enter 9–15 digits.',
       field  : 'phone',
     });
   }
@@ -92,7 +92,7 @@ const validateSendOtpInput = (req, res, next) => {
   if (String(password).length < 6) {
     return res.status(400).json({
       success: false,
-      message: 'Mật khẩu phải có độ dài tối thiểu 6 ký tự.',
+      message: 'Password must be at least 6 characters.',
       field  : 'password',
     });
   }
@@ -119,7 +119,7 @@ const validateVerifyOtpInput = (req, res, next) => {
   if (!email || !otp) {
     return res.status(400).json({
       success: false,
-      message: 'Vui lòng cung cấp đầy đủ email và mã OTP.',
+      message: 'Please provide both email and OTP code.',
     });
   }
 
@@ -130,7 +130,7 @@ const validateVerifyOtpInput = (req, res, next) => {
   if (!REGEX.email.test(trimmedEmail)) {
     return res.status(400).json({
       success: false,
-      message: 'Địa chỉ email không đúng định dạng.',
+      message: 'Invalid email address format.',
       field  : 'email',
     });
   }
@@ -139,7 +139,7 @@ const validateVerifyOtpInput = (req, res, next) => {
   if (!/^\d{6}$/.test(trimmedOtp)) {
     return res.status(400).json({
       success: false,
-      message: 'Mã OTP phải là 6 chữ số. Vui lòng kiểm tra lại.',
+      message: 'OTP code must be 6 digits. Please check and try again.',
       field  : 'otp',
     });
   }

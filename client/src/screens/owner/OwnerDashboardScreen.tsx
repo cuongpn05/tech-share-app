@@ -427,7 +427,7 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
             {/* Inlined Rating & Trust without heavy colored badge backgrounds */}
             <View style={styles.profileMetaRow}>
               <View style={styles.profileMetaItem}>
-                <Ionicons name="star" size={13} color="#F59E0B" />
+                <Ionicons name="star" size={13} color={colors.light.warning} />
                 <Text style={styles.profileMetaText}>
                   {profile.rating} ({profile.reviewsCount})
                 </Text>
@@ -618,7 +618,7 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
                   <SvgGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
                     <Stop offset="0" stopColor={colors.light.primary} stopOpacity="0.3" />
                     <Stop offset="0.8" stopColor={colors.light.primaryLight} stopOpacity="0.08" />
-                    <Stop offset="1" stopColor="#FFFFFF" stopOpacity="0.0" />
+                    <Stop offset="1" stopColor={colors.light.white} stopOpacity="0.0" />
                   </SvgGradient>
                 </Defs>
 
@@ -631,7 +631,7 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
                       <SvgText
                         x={leftAxisWidth - 8}
                         y={yPos + 4}
-                        fill="#94A3B8"
+                        fill={colors.light.textMuted}
                         fontSize={11}
                         fontWeight="500"
                         textAnchor="end"
@@ -643,7 +643,7 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
                         y1={yPos}
                         x2={svgWidth - rightPadding}
                         y2={yPos}
-                        stroke="#F1F5F9"
+                        stroke={colors.light.borderSubtle}
                         strokeWidth={1}
                         strokeDasharray="4, 4"
                       />
@@ -671,14 +671,14 @@ export const OwnerDashboardScreen: React.FC<OwnerDashboardScreenProps> = ({ navi
                       cx={pt.x}
                       cy={pt.y}
                       r={4.5}
-                      fill="#FFFFFF"
+                      fill={colors.light.white}
                       stroke={colors.light.primary}
                       strokeWidth={2}
                     />
                     <SvgText
                       x={pt.x}
                       y={svgHeight - 6}
-                      fill="#64748B"
+                      fill={colors.light.textSecondary}
                       fontSize={11.5}
                       fontWeight="500"
                       textAnchor="middle"
@@ -830,7 +830,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.light.borderSubtle,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
@@ -952,7 +952,7 @@ const styles = StyleSheet.create({
   },
   segmentedContainer: {
     flexDirection: 'row',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.light.borderSubtle,
     borderRadius: 10,
     padding: 3,
     borderWidth: 1,
@@ -1060,7 +1060,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.light.borderSubtle,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,

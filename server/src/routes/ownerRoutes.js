@@ -104,7 +104,7 @@ router.get('/map-owners', asyncHandler(async (req, res) => {
         dDistanceMeters = Math.round(calcDistance(userLat, userLng, dCoords[1], dCoords[0]));
       }
 
-      const dAddress = d.location?.addressText || d.addressText || (typeof user.address === 'string' ? user.address : 'Việt Nam');
+      const dAddress = d.location?.addressText || d.addressText || (typeof user.address === 'string' ? user.address : 'Vietnam');
 
       return {
         ...d,
@@ -139,13 +139,13 @@ router.get('/map-owners', asyncHandler(async (req, res) => {
     results.push({
       _id: String(user._id),
       id: String(user._id),
-      name: user.name || 'Chủ sở hữu',
+      name: user.name || 'Owner',
       avatar: user.avatar,
       phone: user.phone,
       rating: user.rating || 5,
       totalReviews: user.totalReviews || 0,
       isVerified: Boolean(user.trust?.isVerified),
-      address: typeof user.address === 'string' ? user.address : (userDevices[0]?.addressText || 'Việt Nam'),
+      address: typeof user.address === 'string' ? user.address : (userDevices[0]?.addressText || 'Vietnam'),
       coordinates: [coordinates[0], coordinates[1]], // [longitude, latitude]
       deviceCount: processedDevices.length,
       distanceMeters,

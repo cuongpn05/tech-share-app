@@ -24,14 +24,14 @@ const { getIO } = require('../socket');
 const DEFAULT_ROLE_DEFINITIONS = {
   renter: {
     code: 'renter',
-    name: 'Người thuê',
-    description: 'Tài khoản người thuê thiết bị',
+    name: 'Renter',
+    description: 'Device renter account',
     permissions: ['rent_device', 'review_device', 'chat'],
   },
   owner: {
     code: 'owner',
-    name: 'Chủ sở hữu',
-    description: 'Tài khoản chủ sở hữu thiết bị',
+    name: 'Owner',
+    description: 'Device owner account',
     permissions: ['rent_device', 'list_device', 'manage_device', 'review_device', 'chat'],
   },
 };
@@ -42,11 +42,11 @@ function getAuthUserId(req) {
 
 function validateIdCardNumber(idCardNumber) {
   if (!idCardNumber || !String(idCardNumber).trim()) {
-    return { valid: false, message: 'Vui lòng nhập Số Căn cước công dân (CCCD).' };
+    return { valid: false, message: 'Please enter your National ID number.' };
   }
   const cleanIdNumber = String(idCardNumber).trim();
   if (!/^\d{9,12}$/.test(cleanIdNumber)) {
-    return { valid: false, message: 'Số CCCD/CMND không hợp lệ (phải gồm 9 đến 12 chữ số).' };
+    return { valid: false, message: 'Invalid ID number (must contain 9 to 12 digits).' };
   }
   return { valid: true, value: cleanIdNumber };
 }
@@ -161,10 +161,10 @@ async function queryAdminEkycList(Model, queryParams) {
       createdAt: sub.createdAt,
       user: {
         _id: u._id || null,
-        name: u.name || 'Người dùng',
-        email: acc.email || u.email || 'Chưa cập nhật',
-        phone: u.phone || 'Chưa cập nhật',
-        address: u.address || 'Chưa cập nhật',
+        name: u.name || 'User',
+        email: acc.email || u.email || 'Not updated',
+        phone: u.phone || 'Not updated',
+        address: u.address || 'Not updated',
         avatar: u.avatar || null,
         role: acc.roleId?.code || 'renter',
         joinedAt: u.createdAt || null,

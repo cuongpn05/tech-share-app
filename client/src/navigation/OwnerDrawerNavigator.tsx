@@ -26,8 +26,8 @@ const OwnerPlaceholderScreen: React.FC<{
   navigation?: any;
 }> = ({
   title,
-  subtitle = 'Phân hệ đang được hoàn thiện',
-  description = 'Tính năng đang được phát triển và sẽ sớm ra mắt.',
+  subtitle = 'Module under development',
+  description = 'This feature is currently under development and will be available soon.',
   navigation,
 }) => {
     const insets = useSafeAreaInsets();
@@ -122,7 +122,7 @@ export const OwnerDrawerNavigator: React.FC = () => {
         {({ navigation }: any) => (
           <OwnerPlaceholderScreen
             title="Revenue & Deposit Wallet"
-            subtitle="Quản lý số dư khả dụng và tiền cọc ký quỹ Escrow"
+            subtitle="Manage available balance and Escrow deposit funds"
             navigation={navigation}
           />
         )}
@@ -132,7 +132,7 @@ export const OwnerDrawerNavigator: React.FC = () => {
         {({ navigation }: any) => (
           <OwnerPlaceholderScreen
             title="AI Assistant"
-            subtitle="Trợ lý thông minh định giá thiết bị và tối ưu doanh thu"
+            subtitle="Smart assistant for device pricing and revenue optimization"
             navigation={navigation}
           />
         )}
@@ -168,9 +168,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border.default,
     borderRadius: 12,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.colors.background,
     marginRight: 12,
   },
   headerTitleCol: {
@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.radii.xl,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: theme.colors.border.light,
     ...theme.shadows.card,
   },
   placeholderTitle: {

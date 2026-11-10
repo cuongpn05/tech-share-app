@@ -545,8 +545,8 @@ export function BookingDetailScreen({
             {/* Pickup Point */}
             <View style={styles.pickupCard}>
               <View style={styles.nodeHeaderRow}>
-                <View style={[styles.nodeIndicatorDot, { backgroundColor: '#10B981' }]} />
-                <Text style={[styles.nodeTypeLabel, { color: '#059669' }]}>
+                <View style={[styles.nodeIndicatorDot, { backgroundColor: colors.light.success }]} />
+                <Text style={[styles.nodeTypeLabel, { color: colors.light.success }]}>
                   {STRINGS.BOOKING_DETAIL.PICKUP}
                 </Text>
               </View>
@@ -554,7 +554,7 @@ export function BookingDetailScreen({
                 {pickupInfo.dateStr}
               </Text>
               <View style={styles.pickupTimePill}>
-                <Ionicons name="time-outline" size={11} color="#059669" />
+                <Ionicons name="time-outline" size={11} color={colors.light.success} />
                 <Text style={styles.pickupTimeText} numberOfLines={1}>
                   {pickupInfo.weekdayStr} • {pickupInfo.timeStr}
                 </Text>
@@ -574,8 +574,8 @@ export function BookingDetailScreen({
             {/* Return Point */}
             <View style={styles.returnCard}>
               <View style={styles.nodeHeaderRow}>
-                <View style={[styles.nodeIndicatorDot, { backgroundColor: '#F59E0B' }]} />
-                <Text style={[styles.nodeTypeLabel, { color: '#D97706' }]}>
+                <View style={[styles.nodeIndicatorDot, { backgroundColor: colors.light.warning }]} />
+                <Text style={[styles.nodeTypeLabel, { color: colors.light.warning }]}>
                   {STRINGS.BOOKING_DETAIL.RETURN}
                 </Text>
               </View>
@@ -583,7 +583,7 @@ export function BookingDetailScreen({
                 {returnInfo.dateStr}
               </Text>
               <View style={styles.returnTimePill}>
-                <Ionicons name="time-outline" size={11} color="#D97706" />
+                <Ionicons name="time-outline" size={11} color={colors.light.warning} />
                 <Text style={styles.returnTimeText} numberOfLines={1}>
                   {returnInfo.weekdayStr} • {returnInfo.timeStr}
                 </Text>
@@ -1441,7 +1441,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.light.background,
     padding: 10,
     borderRadius: 16,
     borderWidth: 1,
@@ -1455,7 +1455,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.light.borderDefault,
     alignItems: 'flex-start',
     gap: 4,
     shadowColor: colors.light.shadow,
@@ -1471,7 +1471,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.light.borderDefault,
     alignItems: 'flex-start',
     gap: 4,
     shadowColor: colors.light.shadow,
@@ -1504,35 +1504,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3.5,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: colors.light.successLight,
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: colors.light.successLight,
     marginTop: 1,
   },
   pickupTimeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#065F46',
+    color: colors.light.success,
   },
   returnTimePill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3.5,
-    backgroundColor: '#FEF3C7',
+    backgroundColor: colors.light.warningLight,
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#FDE68A',
+    borderColor: colors.light.warningLight,
     marginTop: 1,
   },
   returnTimeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#92400E',
+    color: colors.light.warning,
   },
   routeCenterTrack: {
     alignItems: 'center',

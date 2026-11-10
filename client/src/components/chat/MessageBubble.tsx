@@ -64,7 +64,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             />
           ) : (
             <View style={[styles.avatar, styles.avatarPlaceholder]}>
-              <Ionicons name="person" size={16} color="#64748B" />
+              <Ionicons name="person" size={16} color={theme.colors.text.muted} />
             </View>
           )
         ) : (
@@ -80,7 +80,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       >
 
 
-        {/* 2. Tin nhắn Hình ảnh */}
+        {/* 2. Image Message */}
         {message.messageType === 'image' && message.mediaUrl ? (
           <Image
             source={{ uri: message.mediaUrl }}
@@ -89,7 +89,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           />
         ) : null}
 
-        {/* 3. Tin nhắn Vị trí GPS */}
+        {/* 3. Location Message */}
         {message.messageType === 'location' && message.locationData ? (
           <TouchableOpacity
             style={styles.locationContainer}
@@ -97,21 +97,21 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             activeOpacity={0.8}
           >
             <View style={styles.locationHeader}>
-              <Ionicons name="location" size={18} color="#EF4444" />
-              <Text style={styles.locationTitle}>Vị trí được chia sẻ</Text>
+              <Ionicons name="location" size={18} color={theme.colors.error} />
+              <Text style={styles.locationTitle}>Shared Location</Text>
             </View>
             <Text style={styles.locationAddress} numberOfLines={2}>
               {message.locationData.address ||
                 `${message.locationData.latitude.toFixed(5)}, ${message.locationData.longitude.toFixed(5)}`}
             </Text>
             <View style={styles.locationAction}>
-              <Text style={styles.locationActionText}>Chạm để mở trên Google Maps</Text>
-              <Ionicons name="open-outline" size={14} color="#0D9488" />
+              <Text style={styles.locationActionText}>Tap to open on Google Maps</Text>
+              <Ionicons name="open-outline" size={14} color={theme.colors.brand[500]} />
             </View>
           </TouchableOpacity>
         ) : null}
 
-        {/* 4. Nội dung Text */}
+        {/* 4. Text Content */}
         {message.text ? (
           <Text
             style={[
@@ -123,7 +123,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </Text>
         ) : null}
 
-        {/* Thời gian & Trạng thái gửi */}
+        {/* Timestamp & Status */}
         <View style={styles.metaRow}>
           <Text
             style={[
@@ -137,11 +137,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           {isFromMe && (
             <View style={styles.statusBox}>
               {message.isSending ? (
-                <Ionicons name="time-outline" size={12} color="#99F6E4" />
+                <Ionicons name="time-outline" size={12} color={theme.colors.brand[100]} />
               ) : message.status === 'read' ? (
-                <Ionicons name="checkmark-done" size={13} color="#99F6E4" />
+                <Ionicons name="checkmark-done" size={13} color={theme.colors.brand[100]} />
               ) : (
-                <Ionicons name="checkmark" size={13} color="#99F6E4" />
+                <Ionicons name="checkmark" size={13} color={theme.colors.brand[100]} />
               )}
             </View>
           )}
@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 14,
     marginRight: 8,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: theme.colors.border.default,
   },
   avatarPlaceholder: {
     alignItems: 'center',
@@ -185,14 +185,14 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
   },
   bubbleFromMe: {
-    backgroundColor: '#0D9488', // Brand Teal
+    backgroundColor: theme.colors.brand[500],
     borderBottomRightRadius: 4,
   },
   bubbleFromOther: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.white,
     borderBottomLeftRadius: 4,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: theme.colors.border.light,
     ...theme.shadows.card,
   },
   messageText: {
@@ -200,10 +200,10 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   textFromMe: {
-    color: '#FFFFFF',
+    color: theme.colors.white,
   },
   textFromOther: {
-    color: '#0F172A',
+    color: theme.colors.text.primary,
   },
   metaRow: {
     flexDirection: 'row',
@@ -216,10 +216,10 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   timeFromMe: {
-    color: '#CCFBF1',
+    color: theme.colors.brand[100],
   },
   timeFromOther: {
-    color: '#94A3B8',
+    color: theme.colors.text.subtle,
   },
   statusBox: {
     marginLeft: 2,
@@ -232,12 +232,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   locationContainer: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.colors.background,
     borderRadius: 12,
     padding: 10,
     marginBottom: 4,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border.default,
   },
   locationHeader: {
     flexDirection: 'row',
@@ -247,12 +247,12 @@ const styles = StyleSheet.create({
   locationTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#0F172A',
+    color: theme.colors.text.primary,
     marginLeft: 4,
   },
   locationAddress: {
     fontSize: 12.5,
-    color: '#475569',
+    color: theme.colors.text.secondary,
     marginBottom: 6,
   },
   locationAction: {
@@ -260,13 +260,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: theme.colors.border.default,
     paddingTop: 6,
   },
   locationActionText: {
     fontSize: 11.5,
     fontWeight: '600',
-    color: '#0D9488',
+    color: theme.colors.brand[500],
   },
 });
 

@@ -188,9 +188,9 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.card,          // #FFFFFF
+    backgroundColor: theme.card,
     borderTopWidth: 1,
-    borderTopColor: theme.border,         // #E2E8F0
+    borderTopColor: theme.border,
     paddingTop: 8,
 
     // Cross-platform shadow hướng lên trên
@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
   },
 
   /**
-   * Active pill — nền nhạt primaryLight (brand-100: #E8F6F7).
+   * Active pill — nền nhạt primaryLight (brand-100).
    * Tuân thủ theme-skill.md Nguyên tắc 2: Nền nhạt brand-100, icon đậm brand-500.
    */
   iconPillActive: {

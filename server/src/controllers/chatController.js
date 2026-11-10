@@ -92,7 +92,7 @@ const getConversations = async (req, res) => {
         });
 
         const deviceObj = b.deviceId || {};
-        const deviceTitle = deviceObj.name || deviceObj.title || 'Thiết bị';
+        const deviceTitle = deviceObj.name || deviceObj.title || 'Device';
         const deviceImage =
           deviceObj.images?.[0] ||
           deviceObj.image ||
@@ -105,10 +105,10 @@ const getConversations = async (req, res) => {
             text:
               lastMsg.content ||
               (lastMsg.type === 'image'
-                ? '[Hình ảnh]'
+                ? '[Photo]'
                 : lastMsg.type === 'location'
-                ? '[Vị trí]'
-                : '[Tin nhắn]'),
+                ? '[Location]'
+                : '[Message]'),
             senderId: lastMsg.senderId.toString(),
             isFromMe: lastMsg.senderId.toString() === currentUserId.toString(),
             createdAt: lastMsg.createdAt
@@ -125,7 +125,7 @@ const getConversations = async (req, res) => {
           otherUser: otherUser
             ? {
                 _id: otherUserId,
-                name: otherUser.name || 'Người dùng',
+                name: otherUser.name || 'User',
                 avatar: otherUser.avatar || '',
                 phone: otherUser.phone || '',
                 isVerified: Boolean(otherUser.isVerified),
@@ -194,7 +194,7 @@ const getChatHistory = async (req, res) => {
     if (renterId === ownerId) {
       return res.status(400).json({
         success: false,
-        message: 'Không thể thực hiện cuộc trò chuyện với chính mình',
+        message: 'Cannot start conversation with yourself',
       });
     }
 
@@ -279,7 +279,7 @@ const sendMessage = async (req, res) => {
     if (String(currentUserId) === receiverId) {
       return res.status(400).json({
         success: false,
-        message: 'Không thể thực hiện cuộc trò chuyện với chính mình',
+        message: 'Cannot start conversation with yourself',
       });
     }
     const { text, content, messageType = 'text', mediaUrl = '', locationData } = req.body;
@@ -298,9 +298,9 @@ const sendMessage = async (req, res) => {
 
     const sender = await User.findById(currentUserId).select('name avatar role');
     const device = booking.deviceId;
-    const senderDisplayName = sender?.name || 'Người dùng';
+    const senderDisplayName = sender?.name || 'User';
     const senderDisplayAvatar = sender?.avatar || '';
-    const deviceDisplayTitle = device?.name || device?.title || 'Thiết bị';
+    const deviceDisplayTitle = device?.name || device?.title || 'Device';
 
     const savedMessageResponse = {
       _id: newMessage._id.toString(),
@@ -325,10 +325,10 @@ const sendMessage = async (req, res) => {
       io.to(`user_${receiverId}`).emit('new_notification', {
         _id: `notif_${Date.now()}`,
         userId: receiverId.toString(),
-        title: `${senderDisplayName} đã gửi tin nhắn`,
+        title: `${senderDisplayName} sent a message`,
         body:
           messageContent ||
-          (messageType === 'image' ? '[Hình ảnh]' : '[Vị trí GPS]'),
+          (messageType === 'image' ? '[Photo]' : '[GPS Location]'),
         type: 'message',
         relatedId: bookingId.toString(),
         data: {
@@ -344,10 +344,10 @@ const sendMessage = async (req, res) => {
     // 4. Push Notification nền
     createAndSendNotification({
       userId: receiverId,
-      title: `${senderDisplayName} đã gửi tin nhắn`,
+      title: `${senderDisplayName} sent a message`,
       body:
         messageContent ||
-        (messageType === 'image' ? 'Đã gửi một hình ảnh' : 'Đã chia sẻ vị trí GPS'),
+        (messageType === 'image' ? 'Sent a photo' : 'Shared a GPS location'),
       type: 'message',
       relatedId: bookingId,
       data: { screen: 'ChatDetail', bookingId: bookingId.toString() },

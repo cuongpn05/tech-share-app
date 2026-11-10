@@ -157,8 +157,8 @@ const getDashboardStats = async (req, res) => {
           isSmooth: pendingDisputesCount === 0 && pendingEkycCount === 0 && pendingOwnerEkycCount === 0,
           message:
             pendingDisputesCount === 0 && pendingEkycCount === 0 && pendingOwnerEkycCount === 0
-              ? 'Hệ thống vận hành ổn định • Không có tranh chấp hoặc yêu cầu xác minh chờ xử lý'
-              : `Cần chú ý: ${pendingDisputesCount} tranh chấp chờ xử lý • ${pendingEkycCount} eKYC Renter • ${pendingOwnerEkycCount} eKYC nâng cấp Owner`,
+              ? 'All systems operational • No unresolved disputes or verification requests pending'
+              : `Action required: ${pendingDisputesCount} dispute(s) pending • ${pendingEkycCount} Renter eKYC • ${pendingOwnerEkycCount} Owner upgrade eKYC`,
         },
         categoryBreakdown,
         lastUpdated: new Date().toISOString(),
@@ -168,7 +168,7 @@ const getDashboardStats = async (req, res) => {
     console.error('[Admin Dashboard Error]:', error);
     return res.status(500).json({
       success: false,
-      message: 'Lỗi máy chủ khi truy vấn số liệu thống kê quản trị.',
+      message: 'Server error querying admin dashboard statistics.',
       error: error.message,
     });
   }
@@ -281,7 +281,7 @@ const getModerationDevices = async (req, res) => {
         addressText: doc.addressText || doc.location?.addressText || '',
         owner: {
           _id: owner?._id ? owner._id.toString() : '',
-          name: owner?.name || 'Chủ máy TechShare',
+          name: owner?.name || 'TechShare Owner',
           avatar: owner?.avatar || '',
           phone: owner?.phone || '',
           trustScore: owner?.trustScore ?? owner?.trust?.score ?? 100,
@@ -309,7 +309,7 @@ const getModerationDevices = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Lấy danh sách thiết bị kiểm duyệt thành công',
+      message: 'Moderation device list fetched successfully',
       data: {
         devices: formattedDevices,
         counts,
@@ -323,7 +323,7 @@ const getModerationDevices = async (req, res) => {
     console.error('[Admin Moderation Error]:', error);
     return res.status(500).json({
       success: false,
-      message: 'Lỗi máy chủ khi truy vấn danh sách thiết bị kiểm duyệt.',
+      message: 'Server error querying moderation device list.',
       error: error.message,
     });
   }
@@ -348,20 +348,20 @@ const approveDevice = async (req, res) => {
     if (!device) {
       return res.status(404).json({
         success: false,
-        message: 'Không tìm thấy thiết bị cần duyệt.',
+        message: 'Device not found.',
       });
     }
 
     return res.status(200).json({
       success: true,
-      message: 'Phê duyệt thiết bị thành công.',
+      message: 'Device approved successfully.',
       data: device,
     });
   } catch (error) {
     console.error('[Approve Device Error]:', error);
     return res.status(500).json({
       success: false,
-      message: 'Lỗi máy chủ khi phê duyệt thiết bị.',
+      message: 'Server error approving device.',
       error: error.message,
     });
   }
@@ -374,13 +374,13 @@ const approveDevice = async (req, res) => {
 const rejectDevice = async (req, res) => {
   try {
     const { id } = req.params;
-    const { reason = 'Không đạt tiêu chuẩn kiểm duyệt.' } = req.body;
+    const { reason = 'Does not meet moderation standards.' } = req.body;
 
     const device = await Device.findByIdAndUpdate(
       id,
       {
         moderationStatus: 'rejected',
-        rejectReason: String(reason).trim() || 'Không đạt tiêu chuẩn kiểm duyệt.',
+        rejectReason: String(reason).trim() || 'Does not meet moderation standards.',
       },
       { new: true }
     );
@@ -388,20 +388,20 @@ const rejectDevice = async (req, res) => {
     if (!device) {
       return res.status(404).json({
         success: false,
-        message: 'Không tìm thấy thiết bị cần từ chối.',
+        message: 'Device not found.',
       });
     }
 
     return res.status(200).json({
       success: true,
-      message: 'Đã từ chối thiết bị.',
+      message: 'Device rejected successfully.',
       data: device,
     });
   } catch (error) {
     console.error('[Reject Device Error]:', error);
     return res.status(500).json({
       success: false,
-      message: 'Lỗi máy chủ khi từ chối thiết bị.',
+      message: 'Server error rejecting device.',
       error: error.message,
     });
   }
@@ -417,7 +417,7 @@ const getDeviceDetail = async (req, res) => {
     if (!/^[a-fA-F0-9]{24}$/.test(id)) {
       return res.status(400).json({
         success: false,
-        message: 'ID thiết bị không hợp lệ',
+        message: 'Invalid device ID.',
       });
     }
 
@@ -432,7 +432,7 @@ const getDeviceDetail = async (req, res) => {
     if (!device) {
       return res.status(404).json({
         success: false,
-        message: 'Không tìm thấy thiết bị kiểm duyệt',
+        message: 'Moderation device not found.',
       });
     }
 
@@ -462,7 +462,7 @@ const getDeviceDetail = async (req, res) => {
       stats: device.stats,
       owner: {
         _id: owner?._id ? owner._id.toString() : '',
-        name: owner?.name || 'Chủ máy TechShare',
+        name: owner?.name || 'TechShare Owner',
         avatar: owner?.avatar || '',
         phone: owner?.phone || '',
         email: owner?.email || '',
@@ -475,14 +475,14 @@ const getDeviceDetail = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Lấy chi tiết thiết bị thành công',
+      message: 'Device details fetched successfully',
       data: formattedDevice,
     });
   } catch (error) {
     console.error('[Admin Device Detail Error]:', error);
     return res.status(500).json({
       success: false,
-      message: 'Lỗi máy chủ khi lấy chi tiết thiết bị.',
+      message: 'Server error retrieving device details.',
       error: error.message,
     });
   }

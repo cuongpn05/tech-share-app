@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.light.borderDefault,
     // Đổ bóng siêu nhẹ, tự nhiên
-    shadowColor: '#000',
+    shadowColor: colors.light.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 6,

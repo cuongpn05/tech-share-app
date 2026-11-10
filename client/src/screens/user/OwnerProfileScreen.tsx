@@ -53,7 +53,7 @@ export function OwnerProfileScreen({
       return;
     }
 
-    // 1. Tải thông tin hồ sơ chủ sở hữu
+    // 1. Load owner profile
     userService.getOwnerProfile(ownerId)
       .then(data => {
         if (active) setOwner(data);
@@ -67,7 +67,7 @@ export function OwnerProfileScreen({
         if (active) setLoading(false);
       });
 
-    // 2. Tải danh sách các thiết bị thuộc chủ sở hữu này
+    // 2. Load owner devices
     userService.getOwnerDevices(ownerId)
       .then(data => {
         if (active && Array.isArray(data)) {
@@ -75,7 +75,7 @@ export function OwnerProfileScreen({
         }
       })
       .catch(() => {
-        // Lỗi lấy thiết bị giữ danh sách rỗng
+        // Keep empty devices array on error
       })
       .finally(() => {
         if (active) setLoadingDevices(false);
@@ -99,7 +99,7 @@ export function OwnerProfileScreen({
       icon: 'star' as const,
       value: typeof owner?.rating === 'number' && Number.isFinite(owner.rating) && (owner.totalReviews ?? 0) > 0
         ? `${owner.rating.toFixed(1)} / 5`
-        : 'No ratings',
+        : 'None',
     },
   ];
 
@@ -108,7 +108,7 @@ export function OwnerProfileScreen({
     try {
       await Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`);
     } catch {
-      Alert.alert('Unable to open maps', 'Please try again.');
+      Alert.alert('Unable to open map', 'Please try again.');
     }
   }
 
@@ -133,7 +133,7 @@ export function OwnerProfileScreen({
         </View>
       ) : owner ? (
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
-          {/* Thông tin hồ sơ chính */}
+          {/* Main Profile Info */}
           <View style={styles.profilePanel}>
             <View style={styles.cover} pointerEvents="none">
               <View style={styles.coverWaveLeft} />
@@ -186,7 +186,7 @@ export function OwnerProfileScreen({
                 <TouchableOpacity
                   style={styles.directionButton}
                   accessibilityRole="button"
-                  accessibilityLabel="Get directions on Google Maps"
+                  accessibilityLabel="Directions on Google Maps"
                   onPress={openDirections}
                 >
                   <Ionicons name="navigate" size={18} color={colors.light.primaryDark} />
@@ -196,7 +196,7 @@ export function OwnerProfileScreen({
             </View>
           </View>
 
-          {/* Thống kê hoạt động */}
+          {/* Reputation & Activity Stats */}
           <View style={styles.panel}>
             <Text style={styles.heading}>Reputation & Stats</Text>
             {stats.map((stat, index) => (
@@ -214,10 +214,10 @@ export function OwnerProfileScreen({
             ))}
           </View>
 
-          {/* Danh sách các thiết bị của chủ sở hữu */}
+          {/* Owner Devices */}
           <View style={styles.panel}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.heading}>Rental Devices ({devices.length})</Text>
+              <Text style={styles.heading}>Available Devices ({devices.length})</Text>
             </View>
 
             {loadingDevices ? (
@@ -228,7 +228,7 @@ export function OwnerProfileScreen({
             ) : devices.length === 0 ? (
               <View style={styles.emptyBox}>
                 <Ionicons name="cube-outline" size={36} color={colors.light.textMuted} />
-                <Text style={styles.mutedText}>This owner has no devices available for rent.</Text>
+                <Text style={styles.mutedText}>This owner has no devices listed for rent.</Text>
               </View>
             ) : (
               <View style={styles.deviceList}>
@@ -244,7 +244,7 @@ export function OwnerProfileScreen({
                       onPress={() => onNavigateToDeviceDetail?.(device._id)}
                       activeOpacity={0.7}
                       accessibilityRole="button"
-                      accessibilityLabel={`View details of ${device.name || device.title}`}
+                      accessibilityLabel={`View details for ${device.name || device.title}`}
                     >
                       {imgUrl ? (
                         <Image source={{ uri: imgUrl }} style={styles.cardThumb} />
@@ -277,7 +277,7 @@ export function OwnerProfileScreen({
                               : 'Contact'}
                           </Text>
                           <View style={styles.viewDetailBtn}>
-                            <Text style={styles.viewDetailText}>Details</Text>
+                            <Text style={styles.viewDetailText}>View Details</Text>
                             <Ionicons name="chevron-forward" size={14} color={colors.light.primaryDark} />
                           </View>
                         </View>
@@ -324,7 +324,7 @@ const styles = StyleSheet.create({
   directionText: { fontSize: 13, fontWeight: '700', color: colors.light.primaryDark },
   statRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 12, backgroundColor: colors.light.background },
   statIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.light.primaryLight },
-  reviewIcon: { backgroundColor: '#EAF4FD' },
+  reviewIcon: { backgroundColor: colors.light.primaryLight },
   ratingIcon: { backgroundColor: colors.light.warningLight },
   statLabel: { flex: 1, fontSize: 13, color: colors.light.textSecondary },
   statValue: { fontSize: 14, fontWeight: '800', color: colors.light.textPrimary, flexShrink: 1 },
@@ -338,16 +338,16 @@ const styles = StyleSheet.create({
   /* Device card styles */
   deviceList: { gap: 10 },
   deviceCard: { flexDirection: 'row', gap: 12, padding: 10, borderRadius: 14, backgroundColor: colors.light.background, borderWidth: 1, borderColor: colors.light.borderDefault },
-  cardThumb: { width: 80, height: 80, borderRadius: 10, backgroundColor: '#E2E8F0' },
+  cardThumb: { width: 80, height: 80, borderRadius: 10, backgroundColor: colors.light.borderDefault },
   cardThumbPlaceholder: { alignItems: 'center', justifyContent: 'center' },
   cardContent: { flex: 1, justifyContent: 'space-between' },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardCategory: { fontSize: 10, fontWeight: '700', color: colors.light.textSecondary, letterSpacing: 0.5 },
   statusBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  statusAvailable: { backgroundColor: '#DCFCE7' },
-  statusOther: { backgroundColor: '#F1F5F9' },
+  statusAvailable: { backgroundColor: colors.light.successLight },
+  statusOther: { backgroundColor: colors.light.borderSubtle },
   statusText: { fontSize: 10, fontWeight: '700' },
-  statusAvailableText: { color: '#166534' },
+  statusAvailableText: { color: colors.light.success },
   statusOtherText: { color: colors.light.textSecondary },
   cardTitle: { fontSize: 14, fontWeight: '700', color: colors.light.textPrimary, lineHeight: 19 },
   cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

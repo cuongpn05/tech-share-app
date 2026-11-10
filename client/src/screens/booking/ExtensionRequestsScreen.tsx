@@ -51,7 +51,7 @@ const formatDate = (value?: string) => {
 };
 
 const formatAmount = (value?: number) => (
-  `${Number(value || 0).toLocaleString('vi-VN')} đ`
+  `${Number(value || 0).toLocaleString('en-US')} VND`
 );
 
 const getRequestDate = (booking: Booking) => {
@@ -74,9 +74,9 @@ const getOriginalEndDate = (booking: Booking) => {
 };
 
 const statusColor = (status?: string) => {
-  if (status === 'approved') return { background: '#DCFCE7', text: '#166534' };
-  if (status === 'rejected') return { background: '#FEE2E2', text: '#991B1B' };
-  return { background: '#FEF3C7', text: '#92400E' };
+  if (status === 'approved') return { background: theme.colors.successLight, text: theme.colors.success };
+  if (status === 'rejected') return { background: theme.colors.dangerLight, text: theme.colors.danger };
+  return { background: theme.colors.warningLight, text: theme.colors.warning };
 };
 
 const statusLabel = (status?: string) => {
@@ -218,7 +218,7 @@ const ExtensionRequestsScreen: React.FC<Props> = ({ navigation }) => {
               onPress={() => confirmDecision(item, 'reject')}
             >
               {isProcessing
-                ? <ActivityIndicator size="small" color="#B91C1C" />
+                ? <ActivityIndicator size="small" color={theme.colors.text.secondary} />
                 : <Text style={styles.rejectButtonText}>{STRINGS.ACTIONS.REJECT}</Text>}
             </TouchableOpacity>
             <TouchableOpacity
@@ -227,7 +227,7 @@ const ExtensionRequestsScreen: React.FC<Props> = ({ navigation }) => {
               onPress={() => confirmDecision(item, 'approve')}
             >
               {isProcessing
-                ? <ActivityIndicator size="small" color="#FFFFFF" />
+                ? <ActivityIndicator size="small" color={theme.colors.white} />
                 : <Text style={styles.approveButtonText}>{STRINGS.ACTIONS.APPROVE}</Text>}
             </TouchableOpacity>
           </View>
@@ -430,7 +430,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border.default,
     borderRadius: 13,
     backgroundColor: theme.colors.surface,
     marginRight: 12,
@@ -460,7 +460,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border.default,
   },
   filterButtonActive: {
     backgroundColor: theme.colors.brand[500],
@@ -472,7 +472,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   filterTextActive: {
-    color: '#FFFFFF',
+    color: theme.colors.white,
   },
   listContent: {
     paddingHorizontal: 16,
@@ -488,7 +488,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: '#E9EEF5',
+    borderColor: theme.colors.border.light,
     ...theme.shadows.card,
   },
   cardHeader: {
@@ -523,7 +523,7 @@ const styles = StyleSheet.create({
   },
   cardRule: {
     height: 1,
-    backgroundColor: '#EEF2F7',
+    backgroundColor: theme.colors.border.light,
     marginVertical: 12,
   },
   infoRow: {
@@ -557,10 +557,10 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     marginTop: 10,
     borderRadius: 12,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: theme.colors.brand[50],
   },
   detailsButtonText: {
-    color: theme.colors.brand[500],
+    color: theme.colors.brand[600],
     fontSize: 13,
     fontWeight: '700',
   },
@@ -577,12 +577,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   rejectButton: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: theme.colors.surfaceMuted,
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: theme.colors.border.default,
   },
   rejectButtonText: {
-    color: '#B91C1C',
+    color: theme.colors.text.secondary,
     fontSize: 13,
     fontWeight: '700',
   },
@@ -590,7 +590,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.brand[500],
   },
   approveButtonText: {
-    color: '#FFFFFF',
+    color: theme.colors.white,
     fontSize: 13,
     fontWeight: '700',
   },
@@ -620,18 +620,18 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     padding: 12,
     borderRadius: 12,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: theme.colors.errorLight,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   errorText: {
     flex: 1,
-    color: '#991B1B',
+    color: theme.colors.error,
     fontSize: 12,
   },
   retryText: {
-    color: '#1D4ED8',
+    color: theme.colors.brand[600],
     fontSize: 12,
     fontWeight: '700',
     marginLeft: 10,
@@ -639,7 +639,7 @@ const styles = StyleSheet.create({
   modalBackdrop: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(15, 23, 42, 0.48)',
+    backgroundColor: theme.colors.backdrop,
   },
   modalCard: {
     maxHeight: '88%',
@@ -656,7 +656,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#E9EEF5',
+    borderBottomColor: theme.colors.border.light,
   },
   modalTitleGroup: {
     flex: 1,
@@ -679,7 +679,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 44,
     borderRadius: 12,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: theme.colors.surfaceMuted,
   },
   modalCloseText: {
     color: theme.colors.text.primary,

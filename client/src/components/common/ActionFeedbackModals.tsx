@@ -43,7 +43,7 @@ const TONE_CONFIG: Record<
     summaryIconBorder: theme.colors.brand[100],
   },
   success: {
-    outerBg: '#D1FAE5',
+    outerBg: theme.colors.greenLight,
     outerBorder: theme.colors.greenLight,
     innerBg: theme.colors.green,
     accentColor: theme.colors.brand[500],
@@ -53,21 +53,21 @@ const TONE_CONFIG: Record<
   },
   warning: {
     outerBg: theme.colors.amberLight,
-    outerBorder: '#FFFBEB',
+    outerBorder: theme.colors.amberLight,
     innerBg: theme.colors.amber,
     accentColor: theme.colors.amber,
-    summaryBg: '#FFFBEB',
+    summaryBg: theme.colors.amberLight,
     summaryBorder: theme.colors.amberLight,
     summaryIconBorder: theme.colors.amberLight,
   },
   danger: {
-    outerBg: '#FEE2E2',
+    outerBg: theme.colors.dangerLight,
     outerBorder: theme.colors.redLight,
     innerBg: theme.colors.red,
     accentColor: theme.colors.red,
     summaryBg: theme.colors.redLight,
-    summaryBorder: '#FECACA',
-    summaryIconBorder: '#FECACA',
+    summaryBorder: theme.colors.redBorder,
+    summaryIconBorder: theme.colors.redBorder,
   },
 };
 

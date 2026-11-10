@@ -2,14 +2,9 @@ import React from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../theme/tokens';
+import { STRINGS } from '../../constants/strings';
 
-const DEFAULT_QUICK_MESSAGES = [
-  'Tôi đã đến điểm bàn giao.',
-  'Thiết bị hoạt động bình thường.',
-  'Vui lòng kiểm tra ngoại quan trước khi nhận.',
-  'Bạn đã tới điểm hẹn chưa?',
-  'Cảm ơn bạn đã sử dụng dịch vụ.',
-];
+const DEFAULT_QUICK_MESSAGES = STRINGS.CHAT.QUICK_MESSAGES;
 
 interface QuickMessageBarProps {
   onSelectTemplate: (template: string) => void;
@@ -58,7 +53,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surface,
     paddingVertical: 6,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: theme.colors.border.light,
   },
   scrollContent: {
     paddingHorizontal: 16,

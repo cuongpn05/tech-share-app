@@ -22,7 +22,7 @@ import { STRINGS } from '../../constants/strings';
 
 type DeviceSlot = 'device1' | 'device2';
 
-const formatPrice = (price: number) => `${price.toLocaleString('en-US')} ₫/day`;
+const formatPrice = (price: number) => `${price.toLocaleString('en-US')} VND/day`;
 const getImageUri = (image?: string) => {
   if (!image) {
     return 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=600';

@@ -15,7 +15,7 @@ const requireAuth = async (req, res, next) => {
     if (!token) {
       return res.status(401).json({
         success: false,
-        message: 'Bạn chưa đăng nhập hoặc phiên đăng nhập đã hết hạn.',
+        message: 'You are not logged in or your session has expired.',
       });
     }
 
@@ -29,7 +29,7 @@ const requireAuth = async (req, res, next) => {
       } catch {
         return res.status(401).json({
           success: false,
-          message: 'Token không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập lại.',
+          message: 'Invalid or expired token. Please log in again.',
         });
       }
     }
@@ -56,7 +56,7 @@ const requireAuth = async (req, res, next) => {
     if (!user && !account) {
       return res.status(401).json({
         success: false,
-        message: 'Tài khoản không tồn tại trên hệ thống.',
+        message: 'Account does not exist in the system.',
       });
     }
 
@@ -94,7 +94,7 @@ const requireAuth = async (req, res, next) => {
     console.error('requireAuth error:', error);
     return res.status(500).json({
       success: false,
-      message: 'Lỗi xác thực người dùng.',
+      message: 'User authentication error.',
       error: error.message,
     });
   }
@@ -105,7 +105,7 @@ const requireRole = (...allowedRoles) => {
     if (!req.userRole || !allowedRoles.includes(req.userRole)) {
       return res.status(403).json({
         success: false,
-        message: 'Bạn không có quyền truy cập chức năng này.',
+        message: 'You do not have permission to access this resource.',
       });
     }
     next();

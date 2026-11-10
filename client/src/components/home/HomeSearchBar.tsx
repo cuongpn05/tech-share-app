@@ -40,7 +40,7 @@ export function HomeSearchBar({
   return (
     <View style={styles.searchContainer}>
       <View style={styles.searchBar}>
-        <Ionicons name="search-outline" size={20} color="#94A3B8" />
+        <Ionicons name="search-outline" size={20} color={colors.light.textMuted} />
 
         <TextInput
           style={styles.searchInput}
