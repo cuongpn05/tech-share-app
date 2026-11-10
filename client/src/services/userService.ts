@@ -1,5 +1,6 @@
 import apiClient from '../config/api';
 import { Device, User } from '../types';
+import { uploadImageWithCloudinary } from './cloudinaryUploadService';
 
 export interface UpdateProfileParams {
   name?: string;
@@ -81,6 +82,27 @@ export const userService = {
   async updateProfile(params: UpdateProfileParams): Promise<{ success: boolean; user: User; message: string }> {
     const response = await apiClient.put('/auth/me', params);
     return response.data;
+  },
+
+  /**
+   * Tải ảnh đại diện trực tiếp lên Cloudinary (1-hop, cấu hình lấy từ server/.env)
+   * rồi đồng bộ URL vào MongoDB, tự động fallback qua /auth/me/avatar nếu cần.
+   */
+  async uploadAvatar(uri: string): Promise<{ avatar: string }> {
+    const result = await uploadImageWithCloudinary({
+      uri,
+      folder: 'techshare/avatars',
+      filenamePrefix: 'avatar',
+      fallbackEndpoint: '/auth/me/avatar',
+      fallbackFieldName: 'avatar',
+      directTimeoutMs: 12000,
+    });
+
+    if (!result.usedFallback) {
+      await apiClient.put('/auth/me', { avatar: result.url });
+    }
+
+    return { avatar: result.url };
   },
 };
 
