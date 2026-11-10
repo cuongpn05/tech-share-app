@@ -230,35 +230,6 @@ export function createGoogleMapHtml(): string {
       border-color: #E07A5F;
     }
 
-    /* Nút chuyển chế độ bản đồ (Bản đồ / Vệ tinh) */
-    .layer-toggle {
-      position: absolute;
-      top: 12px;
-      left: 12px;
-      z-index: 999;
-      background: #FFFFFF;
-      border-radius: 8px;
-      display: flex;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-      overflow: hidden;
-      border: 1px solid #D1D5DB;
-    }
-    .layer-btn {
-      border: none;
-      background: #FFFFFF;
-      padding: 7px 12px;
-      font-size: 12px;
-      font-weight: 600;
-      color: #4B5563;
-      cursor: pointer;
-      outline: none;
-      transition: all 0.15s;
-    }
-    .layer-btn.active {
-      background: #286E74;
-      color: #FFFFFF;
-    }
-
     /* Nhãn hiệu Google Maps */
     .google-badge {
       position: absolute;
@@ -329,10 +300,6 @@ export function createGoogleMapHtml(): string {
 </head>
 <body>
   <div id="map"></div>
-  <div class="layer-toggle">
-    <button id="btn-road" class="layer-btn active" onclick="switchLayer('road')">Bản đồ</button>
-    <button id="btn-sat" class="layer-btn" onclick="switchLayer('sat')">Vệ tinh</button>
-  </div>
   <div class="google-badge">
     <span class="g-blue">G</span><span class="g-red">o</span><span class="g-yellow">o</span><span class="g-blue">g</span><span class="g-green">l</span><span class="g-red">e</span> Maps
   </div>
@@ -340,7 +307,7 @@ export function createGoogleMapHtml(): string {
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" onerror="this.onerror=null;this.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';"></script>
   <script>
     (function () {
-      var map, roadLayer, satLayer, currentLayer = 'road';
+      var map, roadLayer;
       var userMarker = null;
       var markersMap = {};
       var deviceMarkersMap = {};
@@ -384,23 +351,6 @@ export function createGoogleMapHtml(): string {
           isFinite(coords[1]) && Math.abs(coords[1]) <= 90;
       }
 
-      window.switchLayer = function (type) {
-        if (type === currentLayer || !map) return;
-        if (type === 'sat') {
-          map.removeLayer(roadLayer);
-          map.addLayer(satLayer);
-          document.getElementById('btn-sat').className = 'layer-btn active';
-          document.getElementById('btn-road').className = 'layer-btn';
-          currentLayer = 'sat';
-        } else {
-          map.removeLayer(satLayer);
-          map.addLayer(roadLayer);
-          document.getElementById('btn-road').className = 'layer-btn active';
-          document.getElementById('btn-sat').className = 'layer-btn';
-          currentLayer = 'road';
-        }
-      };
-
       function renderMarkers() {
         if (!map || !window.L) return;
 
@@ -434,7 +384,7 @@ export function createGoogleMapHtml(): string {
 
           var isSelected = (item.id === selectedId);
           var pinColor = isSelected ? '#E07A5F' : '#286E74';
-          var countText = (item.count || 0) + ' máy';
+          var countText = (item.count || 0) + (item.count === 1 ? ' device' : ' devices');
 
           var pinHtml = '<div class="owner-pin-wrap ' + (isSelected ? 'selected' : '') + '">' +
             '<div class="owner-badge-pill">' + countText + '</div>' +
@@ -602,27 +552,20 @@ export function createGoogleMapHtml(): string {
 
       function initMap() {
         if (!window.L) {
-          fail('Không thể khởi tạo thư viện bản đồ.');
+          fail('Unable to initialize map library.');
           return;
         }
 
         try {
-          // Google Maps chuẩn tiếng Việt
-          roadLayer = L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&hl=vi&x={x}&y={y}&z={z}', {
-            subdomains: ['0', '1', '2', '3'],
-            maxZoom: 20,
-            attribution: 'Google Maps'
-          });
-
-          // Google Maps vệ tinh kết hợp nhãn đường
-          satLayer = L.tileLayer('https://mt{s}.google.com/vt/lyrs=y&hl=vi&x={x}&y={y}&z={z}', {
+          // Google Maps Standard Roadmap (English)
+          roadLayer = L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}', {
             subdomains: ['0', '1', '2', '3'],
             maxZoom: 20,
             attribution: 'Google Maps'
           });
 
           map = L.map('map', {
-            center: [16.047, 107.5], // Toàn cảnh Việt Nam (không hardcode Hà Nội)
+            center: [16.047, 107.5], // Vietnam overview
             zoom: 6,
             zoomControl: false,
             layers: [roadLayer],
@@ -653,7 +596,7 @@ export function createGoogleMapHtml(): string {
           ready = true;
           send({ type: 'ready' });
         } catch (e) {
-          fail('Không thể khởi tạo Google Maps: ' + (e && e.message ? e.message : 'Lỗi không xác định'));
+          fail('Unable to initialize Google Maps: ' + (e && e.message ? e.message : 'Unknown error'));
         }
       }
 
