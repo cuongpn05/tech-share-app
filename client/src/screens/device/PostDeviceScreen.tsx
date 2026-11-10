@@ -52,6 +52,8 @@ type DeleteDialogState =
   | { type: 'success'; device: Device }
   | { type: 'error'; device: Device; message: string };
 
+type PublishSuccessType = 'created' | 'updated';
+
 function SectionTitle({ title, description }: { title: string; description?: string }) {
   return (
     <View style={styles.sectionHeading}>
@@ -90,6 +92,7 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
   const [isLoadingDevices, setIsLoadingDevices] = useState(false);
   const [deletingDeviceId, setDeletingDeviceId] = useState<string | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState | null>(null);
+  const [publishSuccessType, setPublishSuccessType] = useState<PublishSuccessType | null>(null);
   const [devicesError, setDevicesError] = useState('');
   const [editingDevice, setEditingDevice] = useState<Device | null>(null);
   const [specificationFormKey, setSpecificationFormKey] = useState(0);
@@ -366,16 +369,9 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
 
       if (editingDevice) {
         cancelEdit();
-        Alert.alert(
-          STRINGS.POST_DEVICE.SUCCESS_UPDATED_TITLE,
-          STRINGS.POST_DEVICE.SUCCESS_UPDATED_MSG,
-        );
+        setPublishSuccessType('updated');
       } else {
-        Alert.alert(
-          STRINGS.POST_DEVICE.SUCCESS_PUBLISHED_TITLE,
-          STRINGS.POST_DEVICE.SUCCESS_PUBLISHED_MSG,
-          [{ text: STRINGS.POST_DEVICE.DONE, onPress: navigation?.goBack }],
-        );
+        setPublishSuccessType('created');
       }
     } catch (error: unknown) {
       console.error('[PostDeviceScreen] Cannot publish device:', error);
@@ -722,6 +718,54 @@ export function PostDeviceScreen({ accessToken: suppliedAccessToken = '', naviga
         ) : null}
       </ScrollView>
       <Modal
+        visible={publishSuccessType !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setPublishSuccessType(null);
+          if (publishSuccessType === 'created') navigation?.goBack?.();
+        }}
+      >
+        <View style={styles.publishSuccessOverlay}>
+          <View
+            accessibilityRole="alert"
+            accessibilityViewIsModal
+            style={styles.publishSuccessCard}
+          >
+            <View style={styles.publishSuccessIcon}>
+              <Ionicons
+                name="checkmark"
+                size={28}
+                color={colors.light.success}
+              />
+            </View>
+            <Text style={styles.publishSuccessTitle}>
+              {publishSuccessType === 'updated'
+                ? STRINGS.POST_DEVICE.SUCCESS_UPDATED_TITLE
+                : STRINGS.POST_DEVICE.SUCCESS_PUBLISHED_TITLE}
+            </Text>
+            <Text style={styles.publishSuccessMessage}>
+              {publishSuccessType === 'updated'
+                ? STRINGS.POST_DEVICE.SUCCESS_UPDATED_MSG
+                : STRINGS.POST_DEVICE.SUCCESS_PUBLISHED_MSG}
+            </Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              onPress={() => {
+                const successType = publishSuccessType;
+                setPublishSuccessType(null);
+                if (successType === 'created') navigation?.goBack?.();
+              }}
+              style={styles.publishSuccessButton}
+            >
+              <Text style={styles.publishSuccessButtonText}>
+                {STRINGS.POST_DEVICE.DONE}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      <Modal
         visible={deleteDialog !== null}
         transparent
         animationType="fade"
@@ -924,6 +968,67 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 24,
     backgroundColor: 'rgba(15, 23, 42, 0.55)',
+  },
+  publishSuccessOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+  },
+  publishSuccessCard: {
+    width: '100%',
+    maxWidth: 340,
+    alignItems: 'center',
+    paddingHorizontal: 22,
+    paddingTop: 22,
+    paddingBottom: 18,
+    borderRadius: 20,
+    backgroundColor: colors.light.surface,
+    borderWidth: 1,
+    borderColor: colors.light.borderSubtle,
+    shadowColor: colors.light.shadow,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+  publishSuccessIcon: {
+    width: 56,
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    borderRadius: 28,
+    backgroundColor: colors.light.successLight,
+  },
+  publishSuccessTitle: {
+    color: colors.light.textPrimary,
+    fontSize: 18,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  publishSuccessMessage: {
+    marginTop: 7,
+    marginBottom: 18,
+    color: colors.light.textSecondary,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  publishSuccessButton: {
+    minWidth: 112,
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    backgroundColor: colors.light.primary,
+  },
+  publishSuccessButtonText: {
+    color: colors.light.white,
+    fontSize: 14,
+    fontWeight: '800',
   },
   deleteDialogCard: {
     width: '100%',
