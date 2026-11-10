@@ -38,6 +38,7 @@ import { DrawerActions, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../theme/tokens';
 import { STRINGS } from '../../constants/strings';
+import { optimizeCloudinaryUrl } from '../../services/cloudinaryUploadService';
 import {
   EkycConfirmModal,
   EkycModalSummaryItem,
@@ -104,7 +105,7 @@ function AdminEkycAvatar({ uri }: { uri?: string | null }) {
 
   return (
     <Image
-      source={{ uri }}
+      source={{ uri: optimizeCloudinaryUrl(uri, 160) }}
       style={styles.userAvatar}
       onError={() => setFailed(true)}
     />
@@ -134,7 +135,7 @@ function AdminEkycPhotoTile({
     >
       {isValidRemoteUrl(uri) && !failed ? (
         <Image
-          source={{ uri }}
+          source={{ uri: optimizeCloudinaryUrl(uri, 720) }}
           style={styles.idCardImage}
           resizeMode="cover"
           onError={() => setFailed(true)}
@@ -174,7 +175,7 @@ function AdminEkycPortraitThumb({ uri }: { uri: string }) {
 
   return (
     <Image
-      source={{ uri }}
+      source={{ uri: optimizeCloudinaryUrl(uri, 240) }}
       style={styles.portraitThumb}
       resizeMode="cover"
       onError={() => setFailed(true)}

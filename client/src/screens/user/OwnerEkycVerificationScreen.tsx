@@ -33,6 +33,7 @@ import {
   EkycProfile,
   OwnerEkycRequestData,
 } from '../../services/ekycService';
+import { preloadCloudinaryConfig } from '../../services/cloudinaryUploadService';
 import { userService } from '../../services/userService';
 import { STRINGS } from '../../constants/strings';
 import {
@@ -124,6 +125,7 @@ export function OwnerEkycVerificationScreen({
   });
 
   const fetchStatus = useCallback(async () => {
+    preloadCloudinaryConfig();
     try {
       setLoading(true);
       const res = await getOwnerEkycStatus();
@@ -212,6 +214,7 @@ export function OwnerEkycVerificationScreen({
         title: STRINGS.OWNER_EKYC.PICK_SELFIE_TITLE,
         description: STRINGS.OWNER_EKYC.PICK_SELFIE_DESC,
         aspect: [3, 4],
+        quality: 0.5,
         cameraType: ImagePicker.CameraType.front,
         onSelected: (uri) => handleSelectedUri('selfie', uri),
       });
@@ -223,6 +226,7 @@ export function OwnerEkycVerificationScreen({
       description:
         slot === 'front' ? STRINGS.EKYC.PICK_IMAGE_FRONT_DESC : STRINGS.EKYC.PICK_IMAGE_BACK_DESC,
       aspect: [85, 54],
+      quality: 0.55,
       onSelected: (uri) => handleSelectedUri(slot, uri),
     });
   };

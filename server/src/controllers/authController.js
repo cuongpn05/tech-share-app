@@ -6,6 +6,7 @@ const Role = require('../models/Role');
 const EkycRequest = require('../models/EkycRequest');
 const Otp = require('../models/Otp');
 const emailService = require('../services/emailService');
+const { uploadToCloudinary } = require('../utils/cloudinary');
 
 /**
  * Controller đăng nhập người dùng từ collection accounts
@@ -481,12 +482,7 @@ const verifyRegisterOtp = async (req, res) => {
       lastLogin: new Date(),
     });
 
-    // 5. Sinh mã giới thiệu duy nhất
-    const cleanPrefix = registrationData.username.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
-    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-    const referralCode = `TS${cleanPrefix}${randomSuffix}`;
-
-    // 6. Tạo thông tin hồ sơ tương ứng trong collection users (trùng accountId)
+    // 5. Tạo thông tin hồ sơ tương ứng trong collection users (trùng accountId)
     // Các thông tin như địa chỉ mặc định null, người dùng sẽ tự cập nhật trong profile sau
     const newUser = await User.create({
       accountId: newAccount._id,
@@ -514,8 +510,6 @@ const verifyRegisterOtp = async (req, res) => {
         coordinates: [105.7826, 21.0285], // Mặc định Hà Nội, Việt Nam
       },
       wishlist: [],
-      referralCode,
-      referredBy: null,
       rating: 5.0,
       totalReviews: 0,
     });
@@ -618,9 +612,20 @@ const resendRegisterOtp = async (req, res) => {
   }
 };
 
+const getCloudinaryConfig = (req, res) => {
+  return res.status(200).json({
+    success: true,
+    data: {
+      cloudName: process.env.CLOUDINARY_CLOUD_NAME || '',
+      uploadPreset: process.env.CLOUDINARY_UPLOAD_PRESET || '',
+    },
+  });
+};
+
 module.exports = {
   login,
   getMe,
+  getCloudinaryConfig,
   updateAvatar,
   updateMe,
   sendRegisterOtp,

@@ -134,8 +134,6 @@ export interface User {
   pushConfig?: UserPushConfig;
   biometricEnabled?: boolean;
   wishlist?: string[];
-  referralCode?: string;
-  referredBy?: string | null;
   favoriteDevices?: string[];
   rating?: number;
   ownerRating?: number;
