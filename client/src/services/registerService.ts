@@ -100,42 +100,42 @@ export function validateRegisterForm(data: RegisterFormData): RegisterValidation
 
   // Validate username
   if (!trimmedUsername) {
-    usernameError = 'Vui lòng nhập tên đăng nhập.';
+    usernameError = 'Please enter a username.';
   } else if (!/^[a-zA-Z0-9_]{3,30}$/.test(trimmedUsername)) {
-    usernameError = 'Tên đăng nhập 3–30 ký tự, chỉ dùng chữ cái, số hoặc dấu gạch dưới (_).';
+    usernameError = 'Username must be 3–30 characters, letters, numbers, or underscores (_).';
   }
 
-  // Validate họ và tên
+  // Validate full name
   if (!data.name.trim()) {
-    nameError = 'Vui lòng nhập họ và tên của bạn.';
+    nameError = 'Please enter your full name.';
   }
 
   // Validate email
   if (!trimmedEmail) {
-    emailError = 'Vui lòng nhập địa chỉ email.';
+    emailError = 'Please enter your email address.';
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-    emailError = 'Địa chỉ email không đúng định dạng.';
+    emailError = 'Invalid email address format.';
   }
 
-  // Validate số điện thoại
+  // Validate phone number
   if (!trimmedPhone) {
-    phoneError = 'Vui lòng nhập số điện thoại.';
+    phoneError = 'Please enter your phone number.';
   } else if (!/^[0-9+]{9,15}$/.test(trimmedPhone.replace(/[\s.-]/g, ''))) {
-    phoneError = 'Số điện thoại không hợp lệ. Vui lòng nhập 9–15 chữ số.';
+    phoneError = 'Invalid phone number. Please enter 9–15 digits.';
   }
 
-  // Validate mật khẩu
+  // Validate password
   if (!data.password) {
-    passwordError = 'Vui lòng nhập mật khẩu.';
+    passwordError = 'Please enter a password.';
   } else if (data.password.length < 6) {
-    passwordError = 'Mật khẩu phải có ít nhất 6 ký tự.';
+    passwordError = 'Password must be at least 6 characters.';
   }
 
-  // Validate xác nhận mật khẩu
+  // Validate password confirmation
   if (!data.confirmPassword) {
-    confirmPwError = 'Vui lòng nhập lại mật khẩu để xác nhận.';
+    confirmPwError = 'Please confirm your password.';
   } else if (data.password !== data.confirmPassword) {
-    confirmPwError = 'Mật khẩu và xác nhận mật khẩu không trùng khớp.';
+    confirmPwError = 'Passwords do not match.';
   }
 
   return {

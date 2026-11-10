@@ -523,7 +523,7 @@ const styles = StyleSheet.create({
   guestLoginButtonText: {
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.bold,
-    color: '#FFFFFF',
+    color: theme.colors.white,
   },
   guestBackButton: {
     width: '100%',

@@ -98,7 +98,7 @@ const RoleBadge: React.FC<{ role: string }> = ({ role }) => {
   const isOwner = role === 'owner';
   return (
     <View style={[styles.badge, isOwner ? styles.badgeOwner : styles.badgeRenter]}>
-      <Ionicons name={isOwner ? 'key-outline' : 'person-outline'} size={10} color={isOwner ? '#7C3AED' : '#0EA5E9'} />
+      <Ionicons name={isOwner ? 'key-outline' : 'person-outline'} size={10} color={isOwner ? theme.colors.brand[800] : theme.colors.text.secondary} />
       <Text style={[styles.badgeText, isOwner ? styles.badgeTextOwner : styles.badgeTextRenter]}>
         {isOwner ? S.CARD.ROLE_OWNER : S.CARD.ROLE_RENTER}
       </Text>
@@ -128,7 +128,7 @@ const UserListItem: React.FC<UserListItemProps> = ({ item, onLockPress, onUnlock
       {/* Avatar + status dot */}
       <View style={styles.avatarWrapper}>
         <UserAvatar avatar={item.avatar} name={item.name} />
-        <View style={[styles.statusDot, { backgroundColor: item.isActive ? '#10B981' : '#EF4444' }]} />
+        <View style={[styles.statusDot, { backgroundColor: item.isActive ? theme.colors.success : theme.colors.danger }]} />
       </View>
 
       {/* Info */}
@@ -140,12 +140,12 @@ const UserListItem: React.FC<UserListItemProps> = ({ item, onLockPress, onUnlock
         <Text style={styles.userEmail} numberOfLines={1}>@{item.username}  ·  {item.email}</Text>
         <View style={styles.userMeta}>
           <View style={styles.metaItem}>
-            <Ionicons name="star" size={11} color="#F59E0B" />
+            <Ionicons name="star" size={11} color={theme.colors.warning} />
             <Text style={styles.metaText}>{item.rating.toFixed(1)}</Text>
           </View>
           <View style={styles.metaItem}>
-            <Ionicons name="shield-checkmark-outline" size={11} color={item.isVerified ? '#10B981' : '#94A3B8'} />
-            <Text style={[styles.metaText, { color: item.isVerified ? '#10B981' : '#94A3B8' }]}>
+            <Ionicons name="shield-checkmark-outline" size={11} color={item.isVerified ? theme.colors.success : theme.colors.text.subtle} />
+            <Text style={[styles.metaText, { color: item.isVerified ? theme.colors.success : theme.colors.text.subtle }]}>
               {item.isVerified ? S.STATUS_LABELS.VERIFIED : S.STATUS_LABELS.UNVERIFIED}
             </Text>
           </View>
@@ -166,7 +166,7 @@ const UserListItem: React.FC<UserListItemProps> = ({ item, onLockPress, onUnlock
     {/* Locked Reason Warning Banner */}
     {!item.isActive && (
       <View style={styles.lockReasonBanner}>
-        <Ionicons name="alert-circle" size={14} color="#DC2626" />
+        <Ionicons name="alert-circle" size={14} color={theme.colors.danger} />
         <Text style={styles.lockReasonText} numberOfLines={2}>
           {S.CARD.LOCK_REASON_PREFIX(item.lockReason || 'Policy violation')}
         </Text>
@@ -176,8 +176,8 @@ const UserListItem: React.FC<UserListItemProps> = ({ item, onLockPress, onUnlock
     {/* Card Action Footer */}
     <View style={styles.cardActionRow}>
       <View style={styles.statusIndicatorRow}>
-        <View style={[styles.miniStatusDot, { backgroundColor: item.isActive ? '#10B981' : '#EF4444' }]} />
-        <Text style={[styles.miniStatusText, { color: item.isActive ? '#059669' : '#DC2626' }]}>
+        <View style={[styles.miniStatusDot, { backgroundColor: item.isActive ? theme.colors.success : theme.colors.danger }]} />
+        <Text style={[styles.miniStatusText, { color: item.isActive ? theme.colors.success : theme.colors.danger }]}>
           {item.isActive ? S.STATUS_LABELS.ACTIVE : S.STATUS_LABELS.LOCKED}
         </Text>
       </View>
@@ -188,7 +188,7 @@ const UserListItem: React.FC<UserListItemProps> = ({ item, onLockPress, onUnlock
           onPress={() => onLockPress(item)}
           activeOpacity={0.7}
         >
-          <Ionicons name="lock-closed-outline" size={13} color="#DC2626" />
+          <Ionicons name="lock-closed-outline" size={13} color={theme.colors.danger} />
           <Text style={styles.actionBtnLockText}>{S.CARD.ACTION_LOCK}</Text>
         </TouchableOpacity>
       ) : (
@@ -197,7 +197,7 @@ const UserListItem: React.FC<UserListItemProps> = ({ item, onLockPress, onUnlock
           onPress={() => onUnlockPress(item)}
           activeOpacity={0.7}
         >
-          <Ionicons name="lock-open-outline" size={13} color="#16A34A" />
+          <Ionicons name="lock-open-outline" size={13} color={theme.colors.success} />
           <Text style={styles.actionBtnUnlockText}>{S.CARD.ACTION_UNLOCK}</Text>
         </TouchableOpacity>
       )}
@@ -632,7 +632,7 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
                 {/* Header */}
                 <View style={styles.modalHeader}>
                   <View style={styles.modalHeaderTitleRow}>
-                    <Ionicons name="lock-closed" size={20} color="#DC2626" />
+                    <Ionicons name="lock-closed" size={20} color={theme.colors.danger} />
                     <Text style={styles.modalTitle}>{S.LOCK_MODAL.TITLE}</Text>
                   </View>
                   <TouchableOpacity
@@ -647,7 +647,7 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
                 {/* Target User Banner */}
                 {selectedUserForLock && (
                   <View style={styles.modalUserBanner}>
-                    <Ionicons name="person-circle-outline" size={28} color="#DC2626" />
+                    <Ionicons name="person-circle-outline" size={28} color={theme.colors.danger} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.modalUserName} numberOfLines={1}>{selectedUserForLock.name}</Text>
                       <Text style={styles.modalUserSub} numberOfLines={1}>
@@ -726,10 +726,10 @@ export function UserManagementScreen({ navigation }: UserManagementScreenProps) 
                     activeOpacity={0.8}
                   >
                     {submittingLock ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
+                      <ActivityIndicator size="small" color={theme.colors.white} />
                     ) : (
                       <>
-                        <Ionicons name="lock-closed" size={16} color="#FFFFFF" />
+                        <Ionicons name="lock-closed" size={16} color={theme.colors.white} />
                         <Text style={styles.modalConfirmBtnText}>{S.LOCK_MODAL.CONFIRM_BTN}</Text>
                       </>
                     )}
@@ -819,8 +819,8 @@ const styles = StyleSheet.create({
   filterTabTextActive: { color: theme.colors.brand[700], fontWeight: theme.typography.fontWeight.bold },
 
   // Error
-  errorBanner     : { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF2F2', marginHorizontal: theme.spacing.lg, marginTop: 12, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, gap: 8, borderLeftWidth: 4, borderLeftColor: theme.colors.red },
-  errorText       : { flex: 1, fontSize: 13, color: theme.colors.red },
+  errorBanner     : { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.dangerLight, marginHorizontal: theme.spacing.lg, marginTop: 12, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, gap: 8, borderLeftWidth: 4, borderLeftColor: theme.colors.danger },
+  errorText       : { flex: 1, fontSize: 13, color: theme.colors.danger },
   errorRetry      : { fontSize: 13, fontWeight: '700', color: theme.colors.brand[600] },
 
   // Loading
@@ -831,15 +831,15 @@ const styles = StyleSheet.create({
   listContent     : { paddingHorizontal: theme.spacing.lg, paddingTop: 12 },
 
   // User card
-  userCard        : { backgroundColor: '#FFFFFF', borderRadius: 16, paddingVertical: 14, paddingHorizontal: 14, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2, borderWidth: 1, borderColor: '#F1F5F9', gap: 10 },
-  userCardLocked  : { borderColor: '#FECACA', backgroundColor: '#FFFDFD' },
+  userCard        : { backgroundColor: theme.colors.surface, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 14, shadowColor: theme.colors.text.primary, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2, borderWidth: 1, borderColor: theme.colors.borderSubtle, gap: 10 },
+  userCardLocked  : { borderColor: theme.colors.redBorder, backgroundColor: theme.colors.dangerLight },
   cardMainRow     : { flexDirection: 'row', alignItems: 'center', gap: 12 },
 
   avatarWrapper   : { position: 'relative' },
-  avatarImg       : { width: 44, height: 44, borderRadius: 22, backgroundColor: '#E2E8F0' },
-  avatarPlaceholder: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center' },
-  avatarInitials  : { fontSize: 15, fontWeight: '700', color: theme.colors.brand[600] },
-  statusDot       : { position: 'absolute', bottom: 0, right: 0, width: 11, height: 11, borderRadius: 6, borderWidth: 2, borderColor: '#FFFFFF' },
+  avatarImg       : { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.colors.borderDefault },
+  avatarPlaceholder: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.colors.brand[50], alignItems: 'center', justifyContent: 'center' },
+  avatarInitials  : { fontSize: 15, fontWeight: '700', color: theme.colors.brand[700] },
+  statusDot       : { position: 'absolute', bottom: 0, right: 0, width: 11, height: 11, borderRadius: 6, borderWidth: 2, borderColor: theme.colors.surface },
 
   userInfo        : { flex: 1, gap: 3 },
   userTopRow      : { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -851,32 +851,32 @@ const styles = StyleSheet.create({
 
   // Badge
   badge           : { flexDirection: 'row', alignItems: 'center', borderRadius: 20, paddingHorizontal: 7, paddingVertical: 2, gap: 3 },
-  badgeRenter     : { backgroundColor: '#E0F2FE' },
-  badgeOwner      : { backgroundColor: '#EDE9FE' },
+  badgeRenter     : { backgroundColor: theme.colors.surfaceMuted },
+  badgeOwner      : { backgroundColor: theme.colors.brand[100] },
   badgeText       : { fontSize: 10, fontWeight: '700' },
-  badgeTextRenter : { color: '#0284C7' },
-  badgeTextOwner  : { color: '#7C3AED' },
+  badgeTextRenter : { color: theme.colors.text.secondary },
+  badgeTextOwner  : { color: theme.colors.brand[800] },
 
   // Wallet
   walletBadge     : { alignItems: 'flex-end', minWidth: 56 },
-  walletAmount    : { fontSize: 12, fontWeight: '700', color: '#10B981' },
+  walletAmount    : { fontSize: 12, fontWeight: '700', color: theme.colors.success },
   walletLabel     : { fontSize: 9, color: theme.colors.text.muted, fontWeight: '500' },
 
   // Lock Reason Banner
-  lockReasonBanner: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FEF2F2', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#FCA5A5' },
-  lockReasonText  : { flex: 1, fontSize: 11, color: '#B91C1C', fontWeight: '500' },
+  lockReasonBanner: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: theme.colors.dangerLight, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: theme.colors.redBorder },
+  lockReasonText  : { flex: 1, fontSize: 11, color: theme.colors.danger, fontWeight: '500' },
 
   // Card Action Footer
-  cardActionRow   : { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 8, marginTop: 2 },
+  cardActionRow   : { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: theme.colors.borderSubtle, paddingTop: 8, marginTop: 2 },
   statusIndicatorRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   miniStatusDot   : { width: 6, height: 6, borderRadius: 3 },
   miniStatusText  : { fontSize: 11, fontWeight: '600' },
 
-  actionBtnLock   : { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA' },
-  actionBtnLockText: { fontSize: 11, fontWeight: '700', color: '#DC2626' },
+  actionBtnLock   : { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, backgroundColor: theme.colors.dangerLight, borderWidth: 1, borderColor: theme.colors.redBorder },
+  actionBtnLockText: { fontSize: 11, fontWeight: '700', color: theme.colors.danger },
 
-  actionBtnUnlock : { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, backgroundColor: '#F0FDF4', borderWidth: 1, borderColor: '#BBF7D0' },
-  actionBtnUnlockText: { fontSize: 11, fontWeight: '700', color: '#16A34A' },
+  actionBtnUnlock : { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, backgroundColor: theme.colors.successLight, borderWidth: 1, borderColor: theme.colors.brand[200] },
+  actionBtnUnlockText: { fontSize: 11, fontWeight: '700', color: theme.colors.success },
 
   // Empty
   emptyContainer  : { alignItems: 'center', justifyContent: 'center', paddingTop: 60, paddingHorizontal: 40, gap: 12 },
@@ -888,39 +888,39 @@ const styles = StyleSheet.create({
   loadMoreText     : { fontSize: 13, color: theme.colors.text.muted },
 
   // ── Modal Styles ─────────────────────────────────────────
-  modalOverlay    : { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(15, 23, 42, 0.65)' },
+  modalOverlay    : { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.overlay },
   modalBackdrop   : { width: '100%', paddingHorizontal: 20, alignItems: 'center' },
-  modalCard       : { width: '100%', maxWidth: 440, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 16, elevation: 10, maxHeight: '88%' },
+  modalCard       : { width: '100%', maxWidth: 440, backgroundColor: theme.colors.surface, borderRadius: 20, padding: 20, shadowColor: theme.colors.text.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 16, elevation: 10, maxHeight: '88%' },
 
   modalHeader     : { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   modalHeaderTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  modalTitle      : { fontSize: 16, fontWeight: '700', color: '#0F172A' },
+  modalTitle      : { fontSize: 16, fontWeight: '700', color: theme.colors.text.primary },
 
-  modalUserBanner : { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FEF2F2', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: '#FECACA', marginBottom: 12 },
-  modalUserName   : { fontSize: 13, fontWeight: '700', color: '#991B1B' },
-  modalUserSub    : { fontSize: 11, color: '#B91C1C', marginTop: 1 },
+  modalUserBanner : { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: theme.colors.dangerLight, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: theme.colors.redBorder, marginBottom: 12 },
+  modalUserName   : { fontSize: 13, fontWeight: '700', color: theme.colors.danger },
+  modalUserSub    : { fontSize: 11, color: theme.colors.danger, marginTop: 1 },
 
   modalGuideText  : { fontSize: 12, color: theme.colors.text.muted, marginBottom: 10, lineHeight: 17 },
 
   presetList      : { maxHeight: 180, marginBottom: 12 },
-  radioItem       : { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7, paddingHorizontal: 10, borderRadius: 8, marginBottom: 4, backgroundColor: '#F8FAFC' },
-  radioItemSelected: { backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA' },
-  radioCircle     : { width: 16, height: 16, borderRadius: 8, borderWidth: 1.5, borderColor: '#94A3B8', alignItems: 'center', justifyContent: 'center' },
-  radioCircleSelected: { borderColor: '#DC2626' },
-  radioInnerDot   : { width: 8, height: 8, borderRadius: 4, backgroundColor: '#DC2626' },
+  radioItem       : { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7, paddingHorizontal: 10, borderRadius: 8, marginBottom: 4, backgroundColor: theme.colors.background },
+  radioItemSelected: { backgroundColor: theme.colors.dangerLight, borderWidth: 1, borderColor: theme.colors.redBorder },
+  radioCircle     : { width: 16, height: 16, borderRadius: 8, borderWidth: 1.5, borderColor: theme.colors.text.subtle, alignItems: 'center', justifyContent: 'center' },
+  radioCircleSelected: { borderColor: theme.colors.danger },
+  radioInnerDot   : { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.danger },
   radioLabel      : { fontSize: 12, color: theme.colors.text.primary, flex: 1 },
-  radioLabelSelected: { color: '#991B1B', fontWeight: '600' },
+  radioLabelSelected: { color: theme.colors.danger, fontWeight: '600' },
 
   customReasonContainer: { marginBottom: 16 },
   customReasonLabel: { fontSize: 12, fontWeight: '600', color: theme.colors.text.secondary, marginBottom: 6 },
-  customReasonInput: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, padding: 10, fontSize: 12, color: theme.colors.text.primary, minHeight: 64 },
+  customReasonInput: { backgroundColor: theme.colors.background, borderWidth: 1, borderColor: theme.colors.borderDefault, borderRadius: 10, padding: 10, fontSize: 12, color: theme.colors.text.primary, minHeight: 64 },
   lockModalErrorText: { fontSize: 12, color: theme.colors.red, marginTop: 6, fontWeight: '500' },
 
   modalFooter     : { flexDirection: 'row', gap: 10 },
-  modalCancelBtn  : { flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
+  modalCancelBtn  : { flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: theme.colors.surfaceMuted, alignItems: 'center', justifyContent: 'center' },
   modalCancelBtnText: { fontSize: 13, fontWeight: '600', color: theme.colors.text.secondary },
-  modalConfirmBtn : { flex: 1.5, paddingVertical: 11, borderRadius: 10, backgroundColor: '#DC2626', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  modalConfirmBtnText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
+  modalConfirmBtn : { flex: 1.5, paddingVertical: 11, borderRadius: 10, backgroundColor: theme.colors.danger, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  modalConfirmBtnText: { fontSize: 13, fontWeight: '700', color: theme.colors.white },
   btnDisabled     : { opacity: 0.6 },
 });
 

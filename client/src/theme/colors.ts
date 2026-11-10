@@ -35,6 +35,7 @@ export const colors = {
     error: '#EF4444',          // Red: Lỗi, hủy, đăng xuất
     danger: '#EF4444',         // Alias cho error
     dangerLight: '#FEE2E2',    // Red-50: Nền nút đăng xuất/xóa
+    redBorder: '#FECACA',
     ratingStar: '#F59E0B',
 
     // Google Gemini AI
@@ -64,6 +65,7 @@ export const colors = {
     error: '#EF4444',
     danger: '#EF4444',
     dangerLight: '#7F1D1D',
+    redBorder: '#7F1D1D',
     ratingStar: '#F59E0B',
     ai: '#6366F1',
     aiLight: '#312E81',

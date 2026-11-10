@@ -43,7 +43,7 @@ export const PROMO_BANNERS: PromoBannerItem[] = [
     title: STRINGS.PROMO_BANNERS.BANNER_2.TITLE,
     subtitle: STRINGS.PROMO_BANNERS.BANNER_2.SUBTITLE,
     imageUrl: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=800&auto=format&fit=crop&q=80',
-    accentColor: '#8B5CF6',
+    accentColor: colors.light.ai,
   },
   {
     id: 'banner_3',

@@ -94,7 +94,7 @@ export function RegisterScreen({
         validation.phoneError ||
         validation.passwordError ||
         validation.confirmPwError ||
-        'Vui lòng kiểm tra lại thông tin.'
+        'Please review the required information.'
       );
       return;
     }
@@ -103,7 +103,7 @@ export function RegisterScreen({
     setErrorMessage(null);
 
     try {
-      // ── Bước 2: Gọi registerService → POST /api/register/send-otp ──
+      // ── Step 2: Send OTP via registerService → POST /api/register/send-otp ──
       const data = await registerService.sendOtp({
         username: username.trim(),
         name    : name.trim(),
@@ -118,27 +118,27 @@ export function RegisterScreen({
         setCanResend(false);
         setOtp('');
       } else {
-        setErrorMessage(data.message || 'Không thể gửi mã OTP. Vui lòng thử lại.');
+        setErrorMessage(data.message || 'Unable to send OTP. Please try again.');
       }
     } catch (err: any) {
-      console.error('[RegisterScreen] Lỗi gửi OTP:', err.response?.data || err.message);
+      console.error('[RegisterScreen] Send OTP error:', err.response?.data || err.message);
       if (err.response?.data?.message) {
         setErrorMessage(err.response.data.message);
       } else if (err.message === 'Network Error' || !err.response) {
-        setErrorMessage('Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại kết nối mạng.');
+        setErrorMessage('Unable to connect to the server. Please check your internet connection.');
       } else {
-        setErrorMessage('Đã xảy ra lỗi khi đăng ký. Vui lòng thử lại sau.');
+        setErrorMessage('An error occurred during registration. Please try again later.');
       }
     } finally {
       setLoading(false);
     }
   };
 
-  // Xử lý xác nhận OTP bước 2
+  // Step 2: Verify OTP
   const handleVerifyOtp = async () => {
     const trimmedOtp = otp.trim();
     if (trimmedOtp.length !== 6) {
-      setErrorMessage('Vui lòng nhập đúng và đủ mã OTP 6 chữ số.');
+      setErrorMessage('Please enter the complete 6-digit OTP code.');
       return;
     }
 
@@ -146,47 +146,47 @@ export function RegisterScreen({
     setErrorMessage(null);
 
     try {
-      // ── Gọi registerService → POST /api/register/verify-otp ──
+      // ── Verify OTP via registerService → POST /api/register/verify-otp ──
       const data = await registerService.verifyOtp({
         email: email.trim(),
         otp  : trimmedOtp,
       });
 
       if (data.success && data.token && data.user) {
-        // Lưu token vào axios headers
+        // Save token to axios headers
         setAuthToken(data.token);
 
-        // Kết nối Socket.IO
+        // Connect Socket.IO
         const userId = data.user._id || (data.user as any).id;
         if (userId) {
           socketService.connect(userId);
         }
 
-        // Cập nhật Redux store
+        // Update Redux store
         dispatch(setAuth({ token: data.token, user: data.user }));
 
-        // Chuyển màn hình theo role
+        // Role-based navigation
         if (onRegisterSuccess) {
           onRegisterSuccess(data.user.role || 'renter');
         } else if (navigation?.navigate) {
           navigation.navigate('Home');
         }
       } else {
-        setErrorMessage(data.message || 'Mã OTP không hợp lệ hoặc đã hết hạn.');
+        setErrorMessage(data.message || 'Invalid or expired OTP code.');
       }
     } catch (err: any) {
-      console.error('[RegisterScreen] Lỗi xác thực OTP:', err.response?.data || err.message);
+      console.error('[RegisterScreen] Verify OTP error:', err.response?.data || err.message);
       if (err.response?.data?.message) {
         setErrorMessage(err.response.data.message);
       } else {
-        setErrorMessage('Lỗi xác thực mã OTP. Vui lòng thử lại.');
+        setErrorMessage('Error verifying OTP code. Please try again.');
       }
     } finally {
       setLoading(false);
     }
   };
 
-  // Gửi lại mã OTP
+  // Resend OTP
   const handleResendOtp = async () => {
     if (!canResend || loading) return;
 
@@ -194,22 +194,22 @@ export function RegisterScreen({
     setErrorMessage(null);
 
     try {
-      // ── Gọi registerService → POST /api/register/resend-otp ──
+      // ── Resend OTP via registerService → POST /api/register/resend-otp ──
       const data = await registerService.resendOtp(email.trim());
 
       if (data.success) {
         setCountdown(60);
         setCanResend(false);
         setOtp('');
-        Alert.alert('Thành công', 'Mã OTP mới đã được gửi vào email của bạn.');
+        Alert.alert('Success', 'A new OTP code has been sent to your email.');
       } else {
-        setErrorMessage(data.message || 'Không thể gửi lại mã OTP.');
+        setErrorMessage(data.message || 'Unable to resend OTP code.');
       }
     } catch (err: any) {
       if (err.response?.data?.message) {
         setErrorMessage(err.response.data.message);
       } else {
-        setErrorMessage('Lỗi gửi lại mã OTP. Vui lòng thử lại.');
+        setErrorMessage('Error resending OTP code. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -263,14 +263,14 @@ export function RegisterScreen({
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Header: Logo & Tên ứng dụng */}
+            {/* Header: Logo & Brand */}
             <View style={styles.header}>
               <View style={styles.logoBadge}>
-                <Ionicons name="hardware-chip-outline" size={30} color="#ffffff" />
+                <Ionicons name="hardware-chip-outline" size={30} color={theme.colors.white} />
               </View>
               <Text style={styles.brandTitle}>TechShare</Text>
               <Text style={styles.brandSubtitle}>
-                Nền tảng chia sẻ và thuê thiết bị công nghệ hàng đầu
+                Leading technology sharing and rental platform
               </Text>
             </View>
 
@@ -279,11 +279,11 @@ export function RegisterScreen({
               {step === 'form' ? (
                 <>
                   <View style={styles.cardHeader}>
-                    <Text style={styles.cardTitle}>Đăng ký tài khoản</Text>
-                    <Text style={styles.cardSubtitle}>Điền thông tin bên dưới để bắt đầu</Text>
+                    <Text style={styles.cardTitle}>Create Account</Text>
+                    <Text style={styles.cardSubtitle}>Fill in your details below to get started</Text>
                   </View>
 
-                  {/* Thông báo lỗi */}
+                  {/* Error Alert */}
                   {errorMessage ? (
                     <View style={styles.alertError}>
                       <Ionicons name="alert-circle-outline" size={20} color={theme.colors.red} />
@@ -293,7 +293,7 @@ export function RegisterScreen({
 
                   {/* Username */}
                   <View style={styles.formGroup}>
-                    <Text style={styles.inputLabel}>Tên đăng nhập</Text>
+                    <Text style={styles.inputLabel}>Username</Text>
                     <View style={styles.inputWrapper}>
                       <Ionicons
                         name="person-outline"
@@ -303,7 +303,7 @@ export function RegisterScreen({
                       />
                       <TextInput
                         style={styles.inputField}
-                        placeholder="Ví dụ: username123"
+                        placeholder="e.g. username123"
                         placeholderTextColor={theme.colors.text.subtle}
                         value={username}
                         onChangeText={(text) => {
@@ -316,9 +316,9 @@ export function RegisterScreen({
                     </View>
                   </View>
 
-                  {/* Họ và tên */}
+                  {/* Full Name */}
                   <View style={styles.formGroup}>
-                    <Text style={styles.inputLabel}>Họ và tên</Text>
+                    <Text style={styles.inputLabel}>Full Name</Text>
                     <View style={styles.inputWrapper}>
                       <Ionicons
                         name="id-card-outline"
@@ -328,7 +328,7 @@ export function RegisterScreen({
                       />
                       <TextInput
                         style={styles.inputField}
-                        placeholder="Ví dụ: Nguyễn Văn A"
+                        placeholder="e.g. John Doe"
                         placeholderTextColor={theme.colors.text.subtle}
                         value={name}
                         onChangeText={(text) => {
@@ -342,7 +342,7 @@ export function RegisterScreen({
 
                   {/* Email */}
                   <View style={styles.formGroup}>
-                    <Text style={styles.inputLabel}>Email</Text>
+                    <Text style={styles.inputLabel}>Email Address</Text>
                     <View style={styles.inputWrapper}>
                       <Ionicons
                         name="mail-outline"
@@ -366,9 +366,9 @@ export function RegisterScreen({
                     </View>
                   </View>
 
-                  {/* Số điện thoại */}
+                  {/* Phone */}
                   <View style={styles.formGroup}>
-                    <Text style={styles.inputLabel}>Số điện thoại</Text>
+                    <Text style={styles.inputLabel}>Phone Number</Text>
                     <View style={styles.inputWrapper}>
                       <Ionicons
                         name="call-outline"
@@ -390,9 +390,9 @@ export function RegisterScreen({
                     </View>
                   </View>
 
-                  {/* Mật khẩu */}
+                  {/* Password */}
                   <View style={styles.formGroup}>
-                    <Text style={styles.inputLabel}>Mật khẩu</Text>
+                    <Text style={styles.inputLabel}>Password</Text>
                     <View style={styles.inputWrapper}>
                       <Ionicons
                         name="lock-closed-outline"
@@ -402,7 +402,7 @@ export function RegisterScreen({
                       />
                       <TextInput
                         style={styles.inputField}
-                        placeholder="Tối thiểu 6 ký tự"
+                        placeholder="At least 6 characters"
                         placeholderTextColor={theme.colors.text.subtle}
                         value={password}
                         onChangeText={(text) => {
@@ -426,9 +426,9 @@ export function RegisterScreen({
                     </View>
                   </View>
 
-                  {/* Xác nhận mật khẩu */}
+                  {/* Confirm Password */}
                   <View style={styles.formGroup}>
-                    <Text style={styles.inputLabel}>Xác nhận mật khẩu</Text>
+                    <Text style={styles.inputLabel}>Confirm Password</Text>
                     <View style={styles.inputWrapper}>
                       <Ionicons
                         name="shield-checkmark-outline"
@@ -438,7 +438,7 @@ export function RegisterScreen({
                       />
                       <TextInput
                         style={styles.inputField}
-                        placeholder="Nhập lại mật khẩu"
+                        placeholder="Re-enter password"
                         placeholderTextColor={theme.colors.text.subtle}
                         value={confirmPassword}
                         onChangeText={(text) => {
@@ -462,7 +462,7 @@ export function RegisterScreen({
                     </View>
                   </View>
 
-                  {/* Nút gửi OTP */}
+                  {/* Send OTP Button */}
                   <TouchableOpacity
                     style={[styles.btnSubmit, loading && styles.btnSubmitDisabled]}
                     onPress={handleSendOtp}
@@ -470,25 +470,25 @@ export function RegisterScreen({
                     activeOpacity={0.85}
                   >
                     {loading ? (
-                      <ActivityIndicator color="#ffffff" size="small" />
+                      <ActivityIndicator color={theme.colors.white} size="small" />
                     ) : (
                       <View style={styles.btnSubmitContent}>
-                        <Text style={styles.btnSubmitText}>TIẾP TỤC & NHẬN OTP</Text>
-                        <Ionicons name="arrow-forward" size={18} color="#ffffff" style={styles.btnArrowIcon} />
+                        <Text style={styles.btnSubmitText}>CONTINUE & GET OTP</Text>
+                        <Ionicons name="arrow-forward" size={18} color={theme.colors.white} style={styles.btnArrowIcon} />
                       </View>
                     )}
                   </TouchableOpacity>
                 </>
               ) : (
-                /* Bước 2: Nhập OTP xác thực */
+                /* Step 2: OTP Verification */
                 <>
                   <View style={styles.otpHeader}>
                     <View style={styles.otpIconBadge}>
                       <Ionicons name="mail-unread-outline" size={32} color={theme.colors.brand[500]} />
                     </View>
-                    <Text style={styles.cardTitle}>Xác thực Email</Text>
+                    <Text style={styles.cardTitle}>Email Verification</Text>
                     <Text style={styles.otpInstruction}>
-                      Chúng tôi đã gửi mã xác thực 6 chữ số đến email:
+                      We sent a 6-digit verification code to:
                     </Text>
                     <Text style={styles.otpEmailHighlight}>{email.trim()}</Text>
 
@@ -500,11 +500,11 @@ export function RegisterScreen({
                       style={styles.changeEmailBtn}
                     >
                       <Ionicons name="pencil-outline" size={14} color={theme.colors.brand[600]} />
-                      <Text style={styles.changeEmailText}>Thay đổi thông tin</Text>
+                      <Text style={styles.changeEmailText}>Change Information</Text>
                     </TouchableOpacity>
                   </View>
 
-                  {/* Thông báo lỗi */}
+                  {/* Error banner */}
                   {errorMessage ? (
                     <View style={styles.alertError}>
                       <Ionicons name="alert-circle-outline" size={20} color={theme.colors.red} />
@@ -520,7 +520,6 @@ export function RegisterScreen({
                       placeholderTextColor={theme.colors.text.subtle}
                       value={otp}
                       onChangeText={(text) => {
-                        // Chỉ cho phép nhập số, tối đa 6 chữ số
                         const cleaned = text.replace(/[^0-9]/g, '').slice(0, 6);
                         setOtp(cleaned);
                         if (errorMessage) setErrorMessage(null);
@@ -532,20 +531,20 @@ export function RegisterScreen({
                     />
                   </View>
 
-                  {/* Đếm ngược gửi lại OTP */}
+                  {/* Resend OTP countdown */}
                   <View style={styles.resendRow}>
                     {canResend ? (
                       <TouchableOpacity onPress={handleResendOtp} disabled={loading} activeOpacity={0.7}>
-                        <Text style={styles.resendActiveText}>Gửi lại mã OTP</Text>
+                        <Text style={styles.resendActiveText}>Resend OTP</Text>
                       </TouchableOpacity>
                     ) : (
                       <Text style={styles.resendTimerText}>
-                        Gửi lại mã sau <Text style={styles.countdownNumber}>{countdown}s</Text>
+                        Resend code in <Text style={styles.countdownNumber}>{countdown}s</Text>
                       </Text>
                     )}
                   </View>
 
-                  {/* Nút xác nhận đăng ký */}
+                  {/* Confirm Registration Button */}
                   <TouchableOpacity
                     style={[
                       styles.btnSubmit,
@@ -556,11 +555,11 @@ export function RegisterScreen({
                     activeOpacity={0.85}
                   >
                     {loading ? (
-                      <ActivityIndicator color="#ffffff" size="small" />
+                      <ActivityIndicator color={theme.colors.white} size="small" />
                     ) : (
                       <View style={styles.btnSubmitContent}>
-                        <Text style={styles.btnSubmitText}>XÁC NHẬN ĐĂNG KÝ</Text>
-                        <Ionicons name="checkmark-circle-outline" size={18} color="#ffffff" style={styles.btnArrowIcon} />
+                        <Text style={styles.btnSubmitText}>CONFIRM REGISTRATION</Text>
+                        <Ionicons name="checkmark-circle-outline" size={18} color={theme.colors.white} style={styles.btnArrowIcon} />
                       </View>
                     )}
                   </TouchableOpacity>
@@ -568,11 +567,11 @@ export function RegisterScreen({
               )}
             </View>
 
-            {/* Footer chuyển sang đăng nhập */}
+            {/* Footer navigate to Login */}
             <View style={styles.footerRow}>
-              <Text style={styles.footerText}>Đã có tài khoản?</Text>
+              <Text style={styles.footerText}>Already have an account?</Text>
               <TouchableOpacity onPress={handleBackToLogin} activeOpacity={0.7}>
-                <Text style={styles.loginLink}>Đăng nhập ngay</Text>
+                <Text style={styles.loginLink}>Log in now</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -585,7 +584,7 @@ export function RegisterScreen({
 const styles = StyleSheet.create({
   rootContainer: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.colors.background,
   },
   screenWrapper: {
     flex: 1,
@@ -630,9 +629,9 @@ const styles = StyleSheet.create({
   cardFrame: {
     width: '100%',
     maxWidth: 420,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.colors.white,
     borderWidth: 1.5,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border.default,
     borderRadius: 24,
     paddingVertical: 24,
     paddingHorizontal: 20,
@@ -681,9 +680,9 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.white,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border.default,
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 46,
@@ -718,7 +717,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   btnSubmitText: {
-    color: '#ffffff',
+    color: theme.colors.white,
     fontSize: 14,
     fontWeight: '700',
     letterSpacing: 0.5,
@@ -790,7 +789,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: theme.colors.brand[400],
     borderRadius: 14,
-    backgroundColor: '#F0FAF9',
+    backgroundColor: theme.colors.brand[50],
     fontSize: 26,
     fontWeight: '800',
     letterSpacing: 10,

@@ -1,25 +1,22 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
+import { NETWORK_CONFIG } from '../constants/app';
 
 declare const process: {
   env: Record<string, string | undefined>;
 };
 
-// Candidate base URLs: Tự động phát hiện và thử lần lượt nếu gặp Network Error
-const CANDIDATE_BASE_URLS: string[] = Array.from(
-  new Set(
-    [
-      process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, ''),
-      'http://172.22.86.56:5001/api',
-      Platform.OS === 'android' ? 'http://10.0.2.2:5001/api' : undefined,
-      Platform.OS === 'android' ? 'http://localhost:5001/api' : undefined,
-      'http://10.10.101.212:5001/api',
-      'http://localhost:5001/api',
-    ].filter(Boolean) as string[]
-  )
-);
+const configuredApiUrl = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '');
+const localApiUrl = `http://${NETWORK_CONFIG.DEFAULT_LOCALHOST}:${NETWORK_CONFIG.FALLBACK_PORT}/api`;
+const emulatorApiUrl = `http://${NETWORK_CONFIG.DEFAULT_EMULATOR_HOST}:${NETWORK_CONFIG.FALLBACK_PORT}/api`;
 
-export const API_BASE_URL = CANDIDATE_BASE_URLS[0] || 'http://localhost:5001/api';
+const candidateBaseUrls = configuredApiUrl
+  ? [configuredApiUrl]
+  : Platform.OS === 'android'
+    ? [emulatorApiUrl, localApiUrl]
+    : [localApiUrl];
+
+export const API_BASE_URL = candidateBaseUrls[0];
 
 let currentToken: string | null = null;
 
@@ -36,7 +33,7 @@ export const getAuthToken = () => currentToken;
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 8000,
+  timeout: NETWORK_CONFIG.API_TIMEOUT_MS,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -83,11 +80,12 @@ apiClient.interceptors.response.use(
     const originalConfig = error.config as (typeof error.config & { _attemptIndex?: number });
     // Nếu gặp Network Error (máy ảo / máy thật không kết nối được IP hiện tại), tự động thử URL dự phòng
     if (!error.response && originalConfig) {
-      const nextIndex = (originalConfig._attemptIndex ?? 0) + 1;
-      if (nextIndex < CANDIDATE_BASE_URLS.length) {
-        const nextUrl = CANDIDATE_BASE_URLS[nextIndex];
+      const currentIndex = originalConfig._attemptIndex ?? candidateBaseUrls.indexOf(originalConfig.baseURL);
+      const nextIndex = currentIndex + 1;
+      if (currentIndex >= 0 && nextIndex < candidateBaseUrls.length) {
+        const nextUrl = candidateBaseUrls[nextIndex];
         if (typeof __DEV__ !== 'undefined' && __DEV__) {
-          console.log(`[apiClient] Lỗi kết nối với ${originalConfig.baseURL}. Đang thử URL dự phòng (${nextIndex + 1}/${CANDIDATE_BASE_URLS.length}): ${nextUrl}`);
+          console.log(`[apiClient] Lỗi kết nối với ${originalConfig.baseURL}. Đang thử URL dự phòng (${nextIndex + 1}/${candidateBaseUrls.length}): ${nextUrl}`);
         }
         originalConfig._attemptIndex = nextIndex;
         originalConfig.baseURL = nextUrl;

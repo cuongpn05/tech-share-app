@@ -1,65 +1,93 @@
 /**
- * Design Tokens chuẩn cho TechShare Mobile App
- * Tuân thủ theme-skill.md và web-coding-rules.md
+ * TechShare Design System Tokens
+ * Canonical Source of Truth for TechShare Mobile Application
+ * Brand Palette: Soft Teal / Cyan (#67BEC3) & Slate Neutrals
  */
 
 export const colors = {
-  // Brand Primary (Soft Teal)
+  // Brand Primary (Soft Teal/Cyan) - Canonical TechShare Palette
   brand: {
-    50: '#F0FDFA',
-    100: '#E6F7F7',
-    200: '#99F6E4',
-    300: '#5EEAD4',
-    400: '#2DD4BF',
-    500: '#0D9488',
-    600: '#0F766E',
-    700: '#115E59',
-    800: '#134E4A',
-    900: '#042F2E',
+    50: '#F0FAF9',   // Very light background, hover state
+    100: '#E8F6F7',  // Soft accent surface, active tab pill
+    200: '#D0EFF1',  // Subtle accent border
+    300: '#A4DEE2',  // Secondary brand element
+    400: '#84CFD3',  // Tinted brand border
+    500: '#67BEC3',  // Core Brand Color (#67BEC3)
+    600: '#4CA6AC',  // Brand hover / active state
+    700: '#388E94',  // Medium teal accent
+    800: '#286E74',  // Dark teal for accessible text contrast
+    900: '#1E4E52',  // Deep teal
   },
+
+  // Primary Color Aliases
+  primary: '#67BEC3',
+  primaryHover: '#4CA6AC',
+  primaryDark: '#286E74',
+  primaryLight: '#E8F6F7',
+  primaryBg: '#F0FAF9',
+  primaryRgb: '103, 190, 195',
 
   // Surfaces & Backgrounds
-  background: '#F8FAFC', // Slate-50
-  surface: '#FFFFFF',    // Pure White
-  surfaceMuted: '#F1F5F9', // Slate-100
+  background: '#F8FAFC',    // Slate-50: Main app background
+  surface: '#FFFFFF',       // Pure White: Card, modal, sheet surfaces
+  surfaceMuted: '#F1F5F9',  // Slate-100: Input background, inactive pill
+  card: '#FFFFFF',          // Card surface
   white: '#FFFFFF',
+  black: '#000000',
   overlay: 'rgba(15, 23, 42, 0.45)',
+  backdrop: 'rgba(15, 23, 42, 0.55)',
+  transparent: 'transparent',
 
-  // Text Colors
+  // Text Colors (Accessible Slate Neutrals)
   text: {
-    primary: '#0F172A',   // Slate-900 (Đậm sắc nét)
-    secondary: '#475569', // Slate-600
-    muted: '#64748B',     // Slate-500
-    subtle: '#94A3B8',    // Slate-400
-    inverse: '#FFFFFF',
+    primary: '#0F172A',   // Slate-900: High-contrast headings and primary text
+    secondary: '#475569', // Slate-600: Secondary descriptions
+    muted: '#64748B',     // Slate-500: Muted metadata, timestamps
+    subtle: '#94A3B8',    // Slate-400: Inactive icons, placeholder text
+    inverse: '#FFFFFF',   // White text on dark/brand backgrounds
   },
 
-  // Semantic Accents
+  // Semantic Status Colors
+  success: '#10B981',       // Emerald green
+  successLight: '#ECFDF5',  // Emerald-50
+  warning: '#F59E0B',       // Amber warning
+  warningLight: '#FEF3C7',  // Amber-50
+  danger: '#EF4444',        // Red destructive
+  dangerLight: '#FEE2E2',   // Red-50
+  error: '#EF4444',         // Red error
+  errorLight: '#FEE2E2',    // Red-50
+  red: '#EF4444',
+  redLight: '#FEE2E2',
+  redBorder: '#FECACA',
   blue: '#2563EB',
   blueLight: '#EBF5FF',
   green: '#10B981',
-  greenLight: '#E6FBF5',
+  greenLight: '#ECFDF5',
   amber: '#D97706',
   amberLight: '#FEF3C7',
+
+  // AI Assistant Accents
+  ai: '#6366F1',
+  aiLight: '#EEF2FF',
   purple: '#6366F1',
   purpleLight: '#EEF2FF',
-  red: '#DC2626',
-  redLight: '#FEF2F2',
-  redBorder: '#FCA5A5',
-
-  // Category Accents
-  categories: {
-    cameras: '#6366F1',
-    laptops: '#14B8A6',
-    smartphones: '#10B981',
-    gaming: '#D97706',
-  },
 
   // Borders
   border: {
-    light: '#E2E8F0',
-    default: '#CBD5E1',
-    divider: '#F1F5F9',
+    light: '#F1F5F9',    // Slate-100: Ultra-light separator
+    subtle: '#F1F5F9',   // Slate-100
+    default: '#E2E8F0',  // Slate-200: Default card and input border
+    divider: '#F1F5F9',  // List item separator
+  },
+  borderSubtle: '#F1F5F9',
+  borderDefault: '#E2E8F0',
+
+  // Category Accents (Minimal, brand-aligned)
+  categories: {
+    cameras: '#67BEC3',
+    laptops: '#388E94',
+    smartphones: '#10B981',
+    gaming: '#F59E0B',
   },
 } as const;
 
@@ -70,6 +98,7 @@ export const spacing = {
   lg: 20,
   xl: 24,
   '2xl': 32,
+  '3xl': 40,
 } as const;
 
 export const radii = {
@@ -98,9 +127,9 @@ export const shadows = {
     elevation: 4,
   },
   floatButton: {
-    shadowColor: '#2563EB',
+    shadowColor: '#67BEC3',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 6,
   },
@@ -126,7 +155,12 @@ export const typography = {
 } as const;
 
 export const theme = {
-  colors,
+  colors: {
+    ...colors,
+    primary: colors.brand,
+  },
+  primary: colors.primary,
+  primaryDark: colors.primaryDark,
   spacing,
   radii,
   shadows,

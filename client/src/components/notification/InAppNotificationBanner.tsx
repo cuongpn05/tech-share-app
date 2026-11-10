@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { theme } from '../../theme/tokens';
 import { socketService } from '../../services/socketService';
 import { useAppSelector } from '../../store';
 import { ChatMessage } from '../../types';
@@ -113,21 +114,21 @@ export const InAppNotificationBanner: React.FC = () => {
       const snippet =
         msg.text ||
         (msg.messageType === 'image'
-          ? 'Đã gửi một hình ảnh'
+          ? 'Sent a photo'
           : msg.messageType === 'location'
-          ? 'Đã chia sẻ vị trí GPS'
-          : 'Tin nhắn mới');
+          ? 'Shared a GPS location'
+          : 'New message');
 
       showBanner({
         id: msg._id,
         bookingId: msg.bookingId,
-        senderName: msg.senderName || 'Tin nhắn mới',
+        senderName: msg.senderName || 'New Message',
         senderAvatar: msg.senderAvatar || '',
         text: snippet,
       });
     });
 
-    // 2. Lắng nghe thông báo đẩy dạng notification event
+    // 2. Listen to push notification events
     const unsubNotif = socketService.onNotification((notif) => {
       if (!notif) return;
       const bId = notif.data?.bookingId || notif.relatedId;
@@ -141,7 +142,7 @@ export const InAppNotificationBanner: React.FC = () => {
         bookingId: bId,
         senderName: notif.data?.senderName || notif.title || 'TechShare',
         senderAvatar: notif.data?.senderAvatar || '',
-        text: notif.body || 'Bạn có tin nhắn mới',
+        text: notif.body || 'You have a new message',
       });
     });
 
@@ -214,19 +215,19 @@ export const InAppNotificationBanner: React.FC = () => {
           />
         ) : (
           <View style={[styles.avatar, styles.avatarPlaceholder]}>
-            <Ionicons name="chatbubble-ellipses" size={20} color="#0D9488" />
+            <Ionicons name="chatbubble-ellipses" size={20} color={theme.colors.brand[500]} />
           </View>
         )}
 
         <View style={styles.content}>
           <View style={styles.topRow}>
-            <Text style={styles.appName}>TechShare • Vừa xong</Text>
+            <Text style={styles.appName}>TechShare • Just now</Text>
             <TouchableOpacity
               onPress={dismissBanner}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               style={styles.closeBtn}
             >
-              <Ionicons name="close" size={14} color="#94A3B8" />
+              <Ionicons name="close" size={14} color={theme.colors.text.subtle} />
             </TouchableOpacity>
           </View>
 
@@ -240,7 +241,7 @@ export const InAppNotificationBanner: React.FC = () => {
         </View>
 
         <View style={styles.actionIconBox}>
-          <Ionicons name="chevron-forward" size={18} color="#2DD4BF" />
+          <Ionicons name="chevron-forward" size={18} color={theme.colors.brand[400]} />
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -258,13 +259,13 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0F172A', // Sleek dark card
+    backgroundColor: theme.colors.text.primary,
     borderRadius: 18,
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: '#1E293B',
-    shadowColor: '#000000',
+    borderColor: theme.colors.text.primary,
+    shadowColor: theme.colors.black,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
     shadowRadius: 10,
@@ -274,13 +275,13 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: '#334155',
+    backgroundColor: theme.colors.text.secondary,
     marginRight: 12,
   },
   avatarPlaceholder: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#1E293B',
+    backgroundColor: theme.colors.text.primary,
   },
   content: {
     flex: 1,
@@ -295,7 +296,7 @@ const styles = StyleSheet.create({
   appName: {
     fontSize: 10.5,
     fontWeight: '600',
-    color: '#2DD4BF', // Brand teal
+    color: theme.colors.brand[400],
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -305,12 +306,12 @@ const styles = StyleSheet.create({
   senderName: {
     fontSize: 14.5,
     fontWeight: '700',
-    color: '#F8FAFC',
+    color: theme.colors.white,
     marginBottom: 2,
   },
   messageText: {
     fontSize: 12.5,
-    color: '#CBD5E1',
+    color: theme.colors.border.default,
     lineHeight: 16,
   },
   actionIconBox: {
