@@ -17,6 +17,7 @@ import OwnerDrawerNavigator from './OwnerDrawerNavigator';
 import AdminDrawerNavigator from './AdminDrawerNavigator';
 import { HomeRoute } from './HomeRoute';
 import OwnerMessagesScreen from '../screens/owner/OwnerMessagesScreen';
+import MessagesScreen from '../screens/chat/MessagesScreen';
 import OwnerPendingBookingsScreen from '../screens/owner/OwnerPendingBookingsScreen';
 import ChatDetailScreen from '../screens/chat/ChatDetailScreen';
 import NotificationScreen from '../screens/notification/NotificationScreen';
@@ -55,6 +56,7 @@ export type RootStackParamList = {
   OwnerPendingBookings: undefined;
   EkycVerification: undefined;
   OwnerMessages: undefined;
+  Messages: undefined;
   ChatDetail: ChatDetailParams | undefined;
   Notification: undefined;
   BookingCreate: { deviceId: string };
@@ -307,6 +309,7 @@ export function RootNavigator() {
           {/* Các màn hình chức năng khi đã đăng nhập */}
           <Stack.Screen name="OwnerPendingBookings" component={OwnerPendingBookingsScreen} />
           <Stack.Screen name="OwnerMessages" component={OwnerMessagesScreen} />
+          <Stack.Screen name="Messages" component={MessagesScreen} />
           <Stack.Screen name="ChatDetail" component={ChatDetailScreen} />
           <Stack.Screen name="Notification" component={NotificationScreen} />
           <Stack.Screen name="Profile">
@@ -385,6 +388,7 @@ export function RootNavigator() {
           {/* Các màn hình chức năng khách có thể bấm xem */}
           <Stack.Screen name="OwnerPendingBookings" component={OwnerPendingBookingsScreen} />
           <Stack.Screen name="OwnerMessages" component={OwnerMessagesScreen} />
+          <Stack.Screen name="Messages" component={MessagesScreen} />
           <Stack.Screen name="ChatDetail" component={ChatDetailScreen} />
           <Stack.Screen name="Notification" component={NotificationScreen} />
           <Stack.Screen name="Profile">

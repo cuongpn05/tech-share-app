@@ -11,9 +11,9 @@ const getBaseUrl = () => {
   }
 
   if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:5001/api';
+    return 'http://10.0.2.2:5000/api';
   }
-  return 'http://localhost:5001/api';
+  return 'http://localhost:5000/api';
 };
 
 export const API_BASE_URL = getBaseUrl();
@@ -42,8 +42,17 @@ export const apiClient = axios.create({
 // Interceptor tự động gán token xác thực cho mọi HTTP request
 apiClient.interceptors.request.use(
   async (config) => {
-    if (currentToken && !config.headers.Authorization) {
-      config.headers.Authorization = `Bearer ${currentToken}`;
+    let token = currentToken;
+    if (!token) {
+      try {
+        const { store } = require('../store');
+        token = store.getState()?.auth?.token || null;
+      } catch {
+        // Store not yet available
+      }
+    }
+    if (token && !config.headers.Authorization) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },

@@ -112,6 +112,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
       if (!effectiveBookingId) return;
 
       loadChatHistory();
+      chatService.markChatAsRead(effectiveBookingId);
 
       // Kết nối socket cá nhân nếu chưa kết nối
       if (currentUserId) {

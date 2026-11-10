@@ -399,12 +399,16 @@ async function markMessagesRead(bookingId, readerId, senderId) {
     { $set: { status: 'read' } }
   );
 
-  if (result?.modifiedCount) {
-    getIO()?.to(`user_${senderId}`).emit('messages_read', {
+  const io = getIO();
+  if (io) {
+    const payload = {
       bookingId: String(bookingId),
-      readBy: readerId,
-    });
+      readBy: String(readerId),
+      unreadCount: 0,
+    };
+    io.to(`user_${senderId}`).to(`user_${readerId}`).emit('messages_read', payload);
   }
+  return result;
 }
 
 /**
@@ -426,7 +430,14 @@ const markChatMessagesAsRead = async (req, res) => {
       await markMessagesRead(booking._id, String(currentUserId), otherUserId);
     }
 
-    return res.status(200).json({ success: true, message: 'Messages marked as read' });
+    return res.status(200).json({
+      success: true,
+      message: 'Messages marked as read',
+      data: {
+        bookingId: String(bookingId),
+        unreadCount: 0,
+      },
+    });
   } catch (error) {
     console.error('[Chat Controller] Lỗi markChatMessagesAsRead:', error);
     return res.status(500).json({ success: false, message: error.message });
