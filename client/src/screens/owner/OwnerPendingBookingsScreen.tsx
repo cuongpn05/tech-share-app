@@ -170,10 +170,7 @@ export const OwnerPendingBookingsScreen: React.FC<OwnerPendingBookingsScreenProp
   // Open chat with renter
   const handleChat = (booking: Booking) => {
     if (!navigation) return;
-    navigation.navigate('ChatDetail', {
-      bookingId: booking._id,
-      otherBookings: [booking],
-    });
+    navigation.navigate('ChatDetail', { bookingId: booking._id });
   };
 
   // Handover device (approved -> active)

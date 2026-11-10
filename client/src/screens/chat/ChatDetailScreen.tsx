@@ -29,13 +29,14 @@ import { ChatMessagesSkeleton } from '../../components/common/ShimmerPlaceholder
 import {
   ChatMessage,
   ChatBookingInfo,
+  ChatDetailParams,
   ChatOtherUser,
   LocationData,
   ChatMessageType,
 } from '../../types';
 
 export interface ChatDetailScreenProps {
-  route?: any;
+  route?: { params?: ChatDetailParams };
   navigation?: any;
   bookingId?: string;
   onBack?: () => void;
@@ -49,7 +50,9 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
 }) => {
   const initialBookingId = propBookingId || route?.params?.bookingId || '';
   const [effectiveBookingId, setEffectiveBookingId] = useState(initialBookingId);
-  const otherBookings = route?.params?.otherBookings || [];
+  const otherBookings = (route?.params?.otherBookings ?? []).filter(
+    option => typeof option?.bookingId === 'string' && option.bookingId.length > 0
+  );
   const [showBookingModal, setShowBookingModal] = useState(false);
 
   useEffect(() => {
@@ -384,7 +387,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
                 </Text>
               </View>
 
-              {Boolean(otherBookings && otherBookings.length > 1) && (
+              {otherBookings.length > 1 && (
                 <TouchableOpacity
                   style={styles.switchBookingBtn}
                   onPress={() => setShowBookingModal(true)}
@@ -505,7 +508,7 @@ export const ChatDetailScreen: React.FC<ChatDetailScreenProps> = ({
             </View>
 
             <ScrollView style={styles.modalList} showsVerticalScrollIndicator={false}>
-              {otherBookings.map((b: any) => {
+              {showBookingModal && otherBookings.map((b) => {
                 const isSelected = b.bookingId === effectiveBookingId;
                 return (
                   <TouchableOpacity

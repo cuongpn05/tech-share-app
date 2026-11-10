@@ -1,4 +1,5 @@
-import { apiClient } from '../config/api';
+import { isAxiosError } from 'axios';
+import { apiClient, getAuthToken } from '../config/api';
 
 export interface AppNotification {
   _id: string;
@@ -55,17 +56,28 @@ export const notificationService = {
   },
 
   fetchUnreadCount: async (userId?: string): Promise<number> => {
-    try {
-      const res = await apiClient.get('/notifications', {
-        params: { isRead: false, limit: 1, ...(userId ? { userId } : {}) },
-      });
-      const unread = typeof res.data?.unreadCount === 'number' ? res.data.unreadCount : 0;
-      notificationService.setUnreadCount(unread);
-      return unread;
-    } catch (error) {
-      console.warn('[NotificationService] Lỗi tải số thông báo chưa đọc:', error);
-      return cachedUnreadCount;
+    const sessionToken = getAuthToken();
+    const params = { isRead: false, limit: 1, ...(userId ? { userId } : {}) };
+
+    for (let attempt = 0; attempt < 2 && getAuthToken() === sessionToken; attempt++) {
+      try {
+        const res = await apiClient.get('/notifications', { params });
+        if (getAuthToken() === sessionToken && typeof res.data?.unreadCount === 'number') {
+          notificationService.setUnreadCount(res.data.unreadCount);
+        }
+        break;
+      } catch (error) {
+        const connectionFailed = isAxiosError(error) &&
+          (error.code === 'ERR_NETWORK' || error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT');
+        if (!connectionFailed) {
+          const status = isAxiosError(error) ? error.response?.status ?? error.code : undefined;
+          console.warn('[NotificationService] Lỗi tải số thông báo chưa đọc:', status ?? 'Unexpected error');
+          break;
+        }
+        if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 750));
+      }
     }
+    return cachedUnreadCount;
   },
 
   getMyNotifications: async (params?: { type?: string; isRead?: boolean; page?: number; limit?: number }) => {

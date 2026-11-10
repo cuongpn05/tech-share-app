@@ -166,48 +166,88 @@ exports.getOwnerDashboardStats = async (req, res) => {
       );
     const monthlyRevenueFormatted = monthlyRevenue.toLocaleString('vi-VN') + ' đ';
 
-    // 4. Biểu đồ doanh thu 7 ngày gần nhất tính toán 100% từ các đơn thuê thực tế trong DB
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    // 4. Biểu đồ doanh thu tuần/tháng tính toán 100% từ các đơn thuê thực tế trong DB
+    const timeframe = req.query.timeframe === 'month' ? 'month' : 'week';
     const dataPoints = [];
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setHours(0, 0, 0, 0);
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
 
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(sevenDaysAgo);
-      d.setDate(d.getDate() + i);
-      const dayStart = new Date(d);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(d);
-      dayEnd.setHours(23, 59, 59, 999);
+    if (timeframe === 'month') {
+      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+      const weeksCount = Math.min(5, Math.ceil(daysInMonth / 7));
+      for (let w = 0; w < weeksCount; w++) {
+        const startDay = w * 7 + 1;
+        const endDay = Math.min((w + 1) * 7, daysInMonth);
+        const weekStart = new Date(currentYear, currentMonth, startDay, 0, 0, 0, 0);
+        const weekEnd = new Date(currentYear, currentMonth, endDay, 23, 59, 59, 999);
 
-      const dayRevenue = completedBookings
-        .filter((b) => {
-          const bookingDate = new Date(b.updatedAt || b.createdAt);
-          return bookingDate >= dayStart && bookingDate <= dayEnd;
-        })
-        .reduce(
-          (sum, b) =>
-            sum +
-            (b.pricing?.totalAmount ||
-              b.pricing?.rentalFee ||
-              b.totalAmount ||
-              b.rentalFee ||
-              0),
-          0
-        );
+        const weekRevenue = completedBookings
+          .filter((b) => {
+            const bd = new Date(b.updatedAt || b.createdAt);
+            return bd >= weekStart && bd <= weekEnd;
+          })
+          .reduce(
+            (sum, b) =>
+              sum +
+              (b.pricing?.totalAmount ||
+                b.pricing?.rentalFee ||
+                b.totalAmount ||
+                b.rentalFee ||
+                0),
+            0
+          );
 
-      const dayLabel = dayNames[d.getDay()];
-      dataPoints.push({
-        day: dayLabel,
-        revenue: dayRevenue,
-        label:
-          dayRevenue === 0
-            ? '0'
-            : dayRevenue >= 1000000
-            ? (dayRevenue / 1000000).toFixed(1) + 'M'
-            : (dayRevenue / 1000).toFixed(0) + 'k',
-      });
+        dataPoints.push({
+          day: `W${w + 1}`,
+          revenue: weekRevenue,
+          label:
+            weekRevenue === 0
+              ? '0'
+              : weekRevenue >= 1000000
+              ? (weekRevenue / 1000000).toFixed(1) + 'M'
+              : (weekRevenue / 1000).toFixed(0) + 'k',
+        });
+      }
+    } else {
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setHours(0, 0, 0, 0);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(sevenDaysAgo);
+        d.setDate(d.getDate() + i);
+        const dayStart = new Date(d);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(d);
+        dayEnd.setHours(23, 59, 59, 999);
+
+        const dayRevenue = completedBookings
+          .filter((b) => {
+            const bookingDate = new Date(b.updatedAt || b.createdAt);
+            return bookingDate >= dayStart && bookingDate <= dayEnd;
+          })
+          .reduce(
+            (sum, b) =>
+              sum +
+              (b.pricing?.totalAmount ||
+                b.pricing?.rentalFee ||
+                b.totalAmount ||
+                b.rentalFee ||
+                0),
+            0
+          );
+
+        const dayLabel = dayNames[d.getDay()];
+        dataPoints.push({
+          day: dayLabel,
+          revenue: dayRevenue,
+          label:
+            dayRevenue === 0
+              ? '0'
+              : dayRevenue >= 1000000
+              ? (dayRevenue / 1000000).toFixed(1) + 'M'
+              : (dayRevenue / 1000).toFixed(0) + 'k',
+        });
+      }
     }
 
     const peakValue = Math.max(...dataPoints.map((p) => p.revenue), 0);
@@ -231,7 +271,7 @@ exports.getOwnerDashboardStats = async (req, res) => {
         : ['0', '0', '0', '0', '0'];
 
     const weeklyChart = {
-      title: 'Revenue last 7 days (VND)',
+      title: timeframe === 'month' ? 'Weekly revenue this month (VND)' : 'Revenue last 7 days (VND)',
       peakFormatted,
       peakValue,
       yMax,
@@ -279,6 +319,8 @@ exports.getOwnerDashboardStats = async (req, res) => {
       },
       chart: weeklyChart,
       pendingBookingsCount: pendingBookings.length,
+      awaitingHandoverCount: bookings.filter((b) => b.status === 'approved').length,
+      activeRentalsCount: activeBookings.length,
       lastUpdated: new Date().toISOString(),
     };
 

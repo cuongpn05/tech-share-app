@@ -196,10 +196,7 @@ export const OwnerApprovalCard: React.FC<OwnerApprovalCardProps> = ({
     if (onChat) {
       onChat(booking);
     } else {
-      navigation.navigate('ChatDetail', {
-        bookingId: booking._id,
-        otherBookings: [booking],
-      });
+      navigation.navigate('ChatDetail', { bookingId: booking._id });
     }
   };
 

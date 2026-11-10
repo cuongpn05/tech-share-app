@@ -34,7 +34,7 @@ import { notificationService } from '../services/notificationService';
 import { setAuthToken, setAccountLockedHandler } from '../config/api';
 import { navigationRef } from './navigationRef';
 import { theme } from '../theme/tokens';
-import { ScreenType } from '../types';
+import { ChatDetailParams, ScreenType } from '../types';
 
 import { Ionicons } from '@expo/vector-icons';
 import { Text, TouchableOpacity } from 'react-native';
@@ -55,7 +55,7 @@ export type RootStackParamList = {
   OwnerPendingBookings: undefined;
   EkycVerification: undefined;
   OwnerMessages: undefined;
-  ChatDetail: { bookingId?: string; otherBookings?: any[] } | undefined;
+  ChatDetail: ChatDetailParams | undefined;
   Notification: undefined;
   BookingCreate: { deviceId: string };
   DeviceDetail: { deviceId: string };

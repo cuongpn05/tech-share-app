@@ -7,11 +7,10 @@
  *
  *  Các bước thực hiện khi logout:
  *   1. Gửi request POST /api/logout tới máy chủ (gỡ FCM token / ghi log)
- *   2. Hủy phiên Firebase Auth (nếu đăng nhập qua Google / Firebase)
- *   3. Ngắt kết nối Socket.IO thời gian thực (rời khỏi các phòng chat / room user)
- *   4. Xóa Authorization Token khỏi cấu hình apiClient (Axios headers)
- *   5. Xóa dữ liệu cache danh sách yêu thích (Wishlist cache)
- *   6. Reset toàn bộ trạng thái xác thực trong Redux store (clearAuth)
+ *   2. Ngắt kết nối Socket.IO thời gian thực (rời khỏi các phòng chat / room user)
+ *   3. Xóa Authorization Token khỏi cấu hình apiClient (Axios headers)
+ *   4. Xóa dữ liệu cache danh sách yêu thích (Wishlist cache)
+ *   5. Reset toàn bộ trạng thái xác thực trong Redux store (clearAuth)
  *
  *  Các hàm export:
  *   - logoutUser(dispatch, options)    Thực hiện toàn bộ quy trình logout
@@ -26,7 +25,6 @@ import socketService from './socketService';
 import { clearAuth } from '../store/slices/authSlice';
 import { clearWishlist } from '../store/slices/wishlistSlice';
 import wishlistService from './wishlistService';
-import { auth as firebaseAuth } from '../config/firebase';
 import { STRINGS } from '../constants/strings';
 
 export interface LogoutOptions {
@@ -92,23 +90,14 @@ export async function clearLocalSession(dispatch?: any): Promise<void> {
   }
 
   try {
-    // 2. Đăng xuất Firebase Auth nếu có
-    if (firebaseAuth?.currentUser) {
-      await firebaseAuth.signOut();
-    }
-  } catch (err) {
-    console.warn('[LogoutService] Lỗi đăng xuất Firebase Auth:', err);
-  }
-
-  try {
-    // 3. Xóa header Authorization trong Axios
+    // 2. Xóa header Authorization trong Axios
     setAuthToken(null);
   } catch (err) {
     console.warn('[LogoutService] Lỗi xóa axios auth token:', err);
   }
 
   try {
-    // 4. Xóa cache và state wishlist
+    // 3. Xóa cache và state wishlist
     wishlistService.clearCache();
     if (dispatch) {
       dispatch(clearWishlist());
@@ -118,7 +107,7 @@ export async function clearLocalSession(dispatch?: any): Promise<void> {
   }
 
   try {
-    // 5. Reset Auth Redux Store (đặt isAuthenticated = false, user = null, token = null)
+    // 4. Reset Auth Redux Store (đặt isAuthenticated = false, user = null, token = null)
     if (dispatch) {
       dispatch(clearAuth());
     }
