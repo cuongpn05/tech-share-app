@@ -171,7 +171,7 @@ const getUsersList = async (req, res) => {
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 })
-      .select('accountId username name phone address avatar trust wallet rating totalReviews isActive lockReason lockedAt createdAt')
+      .select('accountId username name phone address avatar trust wallet rating totalReviews createdAt')
       .lean();
 
     // ── Bước 7: Ghép dữ liệu từ Account vào User (Enrichment) ──
@@ -187,9 +187,9 @@ const getUsersList = async (req, res) => {
         avatar       : user.avatar || null,
         role         : account.roleId?.code || 'renter',
         roleName     : account.roleId?.name || (account.roleId?.code === 'owner' ? 'Chủ sở hữu' : 'Người thuê'),
-        isActive     : account.isActive ?? user.isActive ?? true,
-        lockReason   : account.lockReason || user.lockReason || '',
-        lockedAt     : account.lockedAt || user.lockedAt || null,
+        isActive     : account.isActive ?? true,
+        lockReason   : account.lockReason || '',
+        lockedAt     : account.lockedAt || null,
         isVerified   : user.trust?.isVerified ?? false,
         trustScore   : user.trust?.score ?? 100,
         walletBalance: user.wallet?.balance ?? 0,
@@ -299,7 +299,15 @@ const toggleUserStatus = async (req, res) => {
       });
     }
 
-    const targetStatus = typeof isActive === 'boolean' ? isActive : !user.isActive;
+    const account = await Account.findById(user.accountId);
+    if (!account) {
+      return res.status(404).json({
+        success: false,
+        message: 'Account record not found.',
+      });
+    }
+
+    const targetStatus = typeof isActive === 'boolean' ? isActive : !account.isActive;
 
     if (!targetStatus && !reason) {
       return res.status(400).json({
@@ -311,13 +319,8 @@ const toggleUserStatus = async (req, res) => {
     const now = new Date();
 
     if (!targetStatus) {
-      // ── Khóa tài khoản (Lock) ─────────────────────────────────
-      user.isActive = false;
-      user.lockReason = reason;
-      user.lockedAt = now;
-      await user.save();
-
-      await Account.findByIdAndUpdate(user.accountId, {
+      // ── Khóa tài khoản (Lock) - chỉ lưu trạng thái trên Account ──
+      await Account.findByIdAndUpdate(account._id, {
         isActive: false,
         lockReason: reason,
         lockedAt: now,
@@ -369,13 +372,8 @@ const toggleUserStatus = async (req, res) => {
         },
       });
     } else {
-      // ── Mở khóa tài khoản (Unlock) ───────────────────────────
-      user.isActive = true;
-      user.lockReason = '';
-      user.lockedAt = null;
-      await user.save();
-
-      await Account.findByIdAndUpdate(user.accountId, {
+      // ── Mở khóa tài khoản (Unlock) - chỉ lưu trạng thái trên Account ──
+      await Account.findByIdAndUpdate(account._id, {
         isActive: true,
         lockReason: '',
         lockedAt: null,

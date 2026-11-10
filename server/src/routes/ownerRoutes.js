@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const ownerController = require('../controllers/ownerController');
 const User = require('../models/User');
+const Account = require('../models/Account');
 const Device = require('../models/Device');
 const { asyncHandler } = require('../middlewares/asyncHandler');
 
@@ -39,13 +40,22 @@ router.get('/map-owners', asyncHandler(async (req, res) => {
     return res.json({ success: true, count: 0, data: [] });
   }
 
-  // Lấy thông tin người dùng / chủ sở hữu
-  const users = await User.find({
+  // Lấy thông tin người dùng / chủ sở hữu còn active trên Account
+  const rawUsers = await User.find({
     _id: { $in: ownerIds },
+  })
+    .select('_id accountId name avatar address phone email rating totalReviews trust.isVerified location')
+    .lean();
+
+  const accountIds = rawUsers.map(u => u.accountId).filter(Boolean);
+  const activeAccounts = await Account.find({
+    _id: { $in: accountIds },
     isActive: true,
   })
-    .select('_id name avatar address phone email rating totalReviews trust.isVerified location')
+    .select('_id')
     .lean();
+  const activeAccountIdSet = new Set(activeAccounts.map(a => String(a._id)));
+  const users = rawUsers.filter(u => u.accountId && activeAccountIdSet.has(String(u.accountId)));
 
   const userLat = Number(lat);
   const userLng = Number(lng);
@@ -111,9 +121,19 @@ router.get('/:id/profile', asyncHandler(async (req, res) => {
   if (!/^[a-fA-F0-9]{24}$/.test(req.params.id)) {
     return res.status(400).json({ success: false, message: 'Invalid owner ID' });
   }
-  const owner = await User.findOne({ _id: req.params.id, isActive: true })
-    .select('name avatar address rating totalReviews phone email trust.isVerified createdAt').lean();
-  if (!owner) return res.status(404).json({ success: false, message: 'Owner not found' });
+  const ownerDoc = await User.findById(req.params.id)
+    .select('accountId name avatar address rating totalReviews phone email trust.isVerified createdAt')
+    .lean();
+  if (!ownerDoc || !ownerDoc.accountId) {
+    return res.status(404).json({ success: false, message: 'Owner not found' });
+  }
+  const ownerAccount = await Account.findOne({ _id: ownerDoc.accountId, isActive: true })
+    .select('_id')
+    .lean();
+  if (!ownerAccount) {
+    return res.status(404).json({ success: false, message: 'Owner not found' });
+  }
+  const { accountId: _ignoredAccountId, ...owner } = ownerDoc;
   const deviceCount = await Device.countDocuments({
     ownerId: req.params.id,
     isDeleted: false,
