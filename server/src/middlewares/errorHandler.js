@@ -2,7 +2,7 @@
  * Middleware xử lý route không tồn tại (404 Not Found)
  */
 const notFound = (req, res, next) => {
-  const error = new Error(`Không tìm thấy endpoint: ${req.method} ${req.originalUrl}`);
+  const error = new Error(`Endpoint not found: ${req.method} ${req.originalUrl}`);
   res.status(404);
   next(error);
 };
@@ -13,12 +13,12 @@ const notFound = (req, res, next) => {
  */
 const errorHandler = (err, req, res, next) => {
   let statusCode = res.statusCode === 200 ? 500 : res.statusCode;
-  let message = err.message || 'Lỗi máy chủ nội bộ';
+  let message = err.message || 'Internal server error';
 
   // 1. Mongoose Bad ObjectId (CastError)
   if (err.name === 'CastError' && err.kind === 'ObjectId') {
     statusCode = 404;
-    message = 'Không tìm thấy tài nguyên (Định dạng ID không hợp lệ)';
+    message = 'Resource not found (Invalid ID format)';
   }
 
   // 2. Mongoose Validation Error
@@ -32,8 +32,8 @@ const errorHandler = (err, req, res, next) => {
   // 3. Mongoose Duplicate Key Error (E11000)
   if (err.code === 11000) {
     statusCode = 400;
-    const field = Object.keys(err.keyValue || {})[0] || 'Dữ liệu';
-    message = `${field} đã tồn tại trong hệ thống`;
+    const field = Object.keys(err.keyValue || {})[0] || 'Data';
+    message = `${field} already exists in the system`;
   }
 
   if (err.name === 'MulterError') {

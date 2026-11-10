@@ -62,12 +62,12 @@ const toBlockedDateRanges = (dates: string[]): BlockedDate[] => {
       return;
     }
 
-    ranges.push({ startDate, endDate, reason: 'Chủ máy bận' });
+    ranges.push({ startDate, endDate, reason: 'Owner busy' });
     startDate = date;
     endDate = date;
   });
 
-  ranges.push({ startDate, endDate, reason: 'Chủ máy bận' });
+  ranges.push({ startDate, endDate, reason: 'Owner busy' });
   return ranges;
 };
 

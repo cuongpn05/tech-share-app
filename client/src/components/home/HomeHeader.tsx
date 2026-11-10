@@ -70,7 +70,7 @@ export function HomeHeader({
       {/* 1. BRAND LOGO & DYNAMIC GPS LOCATION */}
       <View style={styles.brandContainer}>
         <View style={styles.logoBadge}>
-          <Ionicons name="hardware-chip" size={18} color="#FFFFFF" />
+          <Ionicons name="hardware-chip" size={18} color={colors.light.white} />
         </View>
 
         <View>
@@ -124,7 +124,7 @@ export function HomeHeader({
           accessibilityRole="button"
           accessibilityLabel="Login"
         >
-          <Ionicons name="log-in-outline" size={16} color="#FFFFFF" style={styles.headerLoginIcon} />
+          <Ionicons name="log-in-outline" size={16} color={colors.light.white} style={styles.headerLoginIcon} />
           <Text style={styles.headerLoginText}>Login</Text>
         </TouchableOpacity>
       )}
@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   headerLoginText: {
-    color: '#FFFFFF',
+    color: colors.light.white,
     fontSize: 13,
     fontWeight: '700',
     letterSpacing: 0.2,

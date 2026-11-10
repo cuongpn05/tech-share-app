@@ -16,7 +16,7 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
   fileFilter: (req, file, callback) => {
     if (!allowedMimeTypes.has(file.mimetype)) {
-      return callback(new Error('Chỉ chấp nhận file ảnh định dạng JPG, PNG, WEBP hoặc GIF'));
+      return callback(new Error('Only JPG, PNG, WEBP, or GIF image files are accepted.'));
     }
     callback(null, true);
   },

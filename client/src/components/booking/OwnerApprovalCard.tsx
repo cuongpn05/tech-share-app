@@ -10,6 +10,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../theme/colors';
+import { theme } from '../../theme';
 import { Booking, hasRequiredReturnPhotos } from '../../services/bookingService';
 
 export interface OwnerApprovalCardProps {
@@ -117,7 +118,7 @@ export const OwnerApprovalCard: React.FC<OwnerApprovalCardProps> = ({
           icon: 'time-outline' as const,
           color: colors.light.warning,
           bgColor: colors.light.warningLight,
-          borderColor: '#FDE68A',
+          borderColor: colors.light.warningLight,
         };
       case 'approved':
         return {
@@ -125,15 +126,15 @@ export const OwnerApprovalCard: React.FC<OwnerApprovalCardProps> = ({
           icon: 'checkmark-circle-outline' as const,
           color: colors.light.primaryDark,
           bgColor: colors.light.primaryLight,
-          borderColor: '#A4DEE2',
+          borderColor: theme.colors.brand[300],
         };
       case 'active':
         return {
           label: 'Active',
           icon: 'play-circle-outline' as const,
-          color: '#2563EB',
-          bgColor: '#EBF5FF',
-          borderColor: '#BFDBFE',
+          color: theme.colors.blue,
+          bgColor: theme.colors.blueLight,
+          borderColor: theme.colors.blueLight,
         };
       case 'completed':
         return {
@@ -141,15 +142,15 @@ export const OwnerApprovalCard: React.FC<OwnerApprovalCardProps> = ({
           icon: 'checkmark-done-circle-outline' as const,
           color: colors.light.success,
           bgColor: colors.light.successLight,
-          borderColor: '#A7F3D0',
+          borderColor: colors.light.successLight,
         };
       case 'cancelled':
         return {
           label: 'Cancelled',
           icon: 'close-circle-outline' as const,
           color: colors.light.textSecondary,
-          bgColor: '#F1F5F9',
-          borderColor: '#E2E8F0',
+          bgColor: colors.light.borderSubtle,
+          borderColor: colors.light.borderDefault,
         };
       case 'rejected':
         return {
@@ -157,7 +158,7 @@ export const OwnerApprovalCard: React.FC<OwnerApprovalCardProps> = ({
           icon: 'close-circle-outline' as const,
           color: colors.light.error,
           bgColor: colors.light.dangerLight,
-          borderColor: '#FECACA',
+          borderColor: colors.light.dangerLight,
         };
       case 'disputed':
         return {
@@ -165,15 +166,15 @@ export const OwnerApprovalCard: React.FC<OwnerApprovalCardProps> = ({
           icon: 'warning-outline' as const,
           color: colors.light.error,
           bgColor: colors.light.dangerLight,
-          borderColor: '#FECACA',
+          borderColor: colors.light.dangerLight,
         };
       default:
         return {
           label: status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown',
           icon: 'information-circle-outline' as const,
           color: colors.light.textSecondary,
-          bgColor: '#F1F5F9',
-          borderColor: '#E2E8F0',
+          bgColor: colors.light.borderSubtle,
+          borderColor: colors.light.borderDefault,
         };
     }
   };
@@ -637,7 +638,7 @@ const styles = StyleSheet.create({
     flex: 0.38,
     height: 40,
     borderRadius: 10,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: theme.colors.surfaceMuted,
     borderWidth: 1,
     borderColor: colors.light.borderDefault,
     alignItems: 'center',
@@ -646,7 +647,7 @@ const styles = StyleSheet.create({
   declineBtnText: {
     fontSize: 13.5,
     fontWeight: '600',
-    color: '#475569',
+    color: theme.colors.text.secondary,
   },
   // Critical Approve button: Solid TechShare primary (62% width)
   approveBtn: {
@@ -685,7 +686,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: colors.light.primaryLight,
     borderWidth: 1,
-    borderColor: '#A4DEE2',
+    borderColor: theme.colors.brand[300],
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -741,7 +742,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: colors.light.warningLight,
     borderWidth: 1,
-    borderColor: '#FDE68A',
+    borderColor: colors.light.warningLight,
   },
   reviewBtnText: {
     fontSize: 12,

@@ -106,7 +106,7 @@ export function CategoryBar({ selectedCategory, onSelectCategory, categories }: 
                 <Ionicons
                   name={category.icon}
                   size={20}
-                  color={isSelected ? '#FFFFFF' : colors.light.primary}
+                  color={isSelected ? colors.light.white : colors.light.primary}
                 />
               </View>
               <Text
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   categoryNameActive: {
-    color: '#FFFFFF',
+    color: colors.light.white,
     fontWeight: '700',
   },
 });

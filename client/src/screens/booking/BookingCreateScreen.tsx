@@ -499,8 +499,8 @@ export function BookingCreateScreen({
             >
               <View style={styles.scheduleCardHeader}>
                 <View style={styles.scheduleStepBadgeRow}>
-                  <View style={[styles.stepDot, { backgroundColor: '#10B981' }]} />
-                  <Text style={[styles.scheduleStepBadgeText, { color: '#047857' }]}>
+                  <View style={[styles.stepDot, { backgroundColor: colors.light.success }]} />
+                  <Text style={[styles.scheduleStepBadgeText, { color: colors.light.success }]}>
                     {STRINGS.BOOKING_CREATE.STEP_PICKUP}
                   </Text>
                 </View>
@@ -517,8 +517,8 @@ export function BookingCreateScreen({
               </View>
 
               <View style={styles.scheduleCardBody}>
-                <View style={[styles.scheduleIconCircle, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}>
-                  <Ionicons name="log-in" size={20} color="#059669" />
+                <View style={[styles.scheduleIconCircle, { backgroundColor: colors.light.successLight, borderColor: colors.light.successLight }]}>
+                  <Ionicons name="log-in" size={20} color={colors.light.success} />
                 </View>
                 <View style={styles.scheduleTextContent}>
                   {startDate ? (
@@ -577,8 +577,8 @@ export function BookingCreateScreen({
             >
               <View style={styles.scheduleCardHeader}>
                 <View style={styles.scheduleStepBadgeRow}>
-                  <View style={[styles.stepDot, { backgroundColor: '#F59E0B' }]} />
-                  <Text style={[styles.scheduleStepBadgeText, { color: '#B45309' }]}>
+                  <View style={[styles.stepDot, { backgroundColor: colors.light.warning }]} />
+                  <Text style={[styles.scheduleStepBadgeText, { color: colors.light.warning }]}>
                     {STRINGS.BOOKING_CREATE.STEP_RETURN}
                   </Text>
                 </View>
@@ -595,8 +595,8 @@ export function BookingCreateScreen({
               </View>
 
               <View style={styles.scheduleCardBody}>
-                <View style={[styles.scheduleIconCircle, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
-                  <Ionicons name="log-out" size={20} color="#D97706" />
+                <View style={[styles.scheduleIconCircle, { backgroundColor: colors.light.warningLight, borderColor: colors.light.warningLight }]}>
+                  <Ionicons name="log-out" size={20} color={colors.light.warning} />
                 </View>
                 <View style={styles.scheduleTextContent}>
                   {endDate ? (
@@ -606,8 +606,8 @@ export function BookingCreateScreen({
                         <Text style={styles.scheduleDayName}>({getDayOfWeekName(endDate)})</Text>
                       </Text>
                       <View style={styles.scheduleTimeRow}>
-                        <Ionicons name="time-outline" size={13} color="#D97706" />
-                        <Text style={[styles.scheduleTimeBadge, { color: '#B45309' }]}>
+                        <Ionicons name="time-outline" size={13} color={colors.light.warning} />
+                        <Text style={[styles.scheduleTimeBadge, { color: colors.light.warning }]}>
                           {STRINGS.BOOKING_CREATE.RETURN_TIME_BADGE(formatTimeOnly(endDate))}
                         </Text>
                       </View>

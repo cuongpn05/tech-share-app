@@ -26,7 +26,9 @@ function fixture(afterPhotos, status = 'active') {
   Booking.findById = () => ({ populate() { return this; }, then(resolve) { return resolve(booking); } });
   User.findById = () => ({ lean: async () => ({ _id: ownerId }) });
   User.findOne = () => ({ select() { return this; }, lean: async () => ({ _id: ownerId }) });
-  Device.findByIdAndUpdate = async () => { deviceUpdates.push(booking.status); };
+  Device.findByIdAndUpdate = async (id, update) => {
+    deviceUpdates.push({ id, update, savedStatus: saves.at(-1) });
+  };
   const req = { params: { id: 'booking' }, auth: { id: ownerId }, body: { status: 'completed' } };
   const res = { status(code) { this.code = code; return this; }, json() { return this; } };
   return { booking, req, res, saves, deviceUpdates };
@@ -56,7 +58,11 @@ for (const [name, complete] of [
     await complete(req, res);
     assert.equal(res.code, 200);
     assert.deepEqual(saves, ['completed']);
-    assert.deepEqual(deviceUpdates, ['completed']);
+    assert.deepEqual(deviceUpdates, [{
+      id: 'device',
+      savedStatus: 'completed',
+      update: { $set: { status: 'available' }, $inc: { 'stats.rentalCount': 1 } },
+    }]);
   });
 }
 

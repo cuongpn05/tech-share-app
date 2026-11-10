@@ -32,8 +32,8 @@ const slides = [
         title: 'Share your gear, earn extra income',
         description: 'List your equipment and connect with verified users who need it.',
         icon: 'hardware-chip' as const,
-        accent: '#059669',
-        tint: '#D1FAE5',
+        accent: colors.light.success,
+        tint: colors.light.successLight,
         secondaryIcon: 'trending-up' as const,
     },
     {
@@ -41,8 +41,8 @@ const slides = [
         title: 'Track every rental with ease',
         description: 'Manage requests, schedules, and notifications all in one place.',
         icon: 'calendar' as const,
-        accent: '#EA580C',
-        tint: '#FFEDD5',
+        accent: colors.light.warning,
+        tint: colors.light.warningLight,
         secondaryIcon: 'notifications' as const,
     },
 ];
@@ -157,7 +157,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
             <StatusBar barStyle="dark-content" />
             <View style={styles.topBar}>
                 <View style={styles.brandMark}>
-                    <Ionicons name="hardware-chip" size={17} color="#FFFFFF" />
+                    <Ionicons name="hardware-chip" size={17} color={colors.light.white} />
                 </View>
                 <Text style={styles.brandName}>TechShare</Text>
                 {activeIndex < slides.length - 1 ? (
@@ -181,13 +181,13 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
                     <View style={[styles.slide, { width }]}>
                         <View style={[styles.artwork, activeIndex === slides.length - 1 && styles.finalArtwork, { backgroundColor: item.tint }]}>
                             <View style={[styles.iconTile, { backgroundColor: item.accent }]}>
-                                <Ionicons name={item.icon} size={54} color="#FFFFFF" />
+                                <Ionicons name={item.icon} size={54} color={colors.light.white} />
                             </View>
                             <View style={[styles.secondaryTile, styles.secondaryTop]}>
                                 <Ionicons name={item.secondaryIcon} size={23} color={item.accent} />
                             </View>
                             <View style={[styles.secondaryTile, styles.secondaryBottom]}>
-                                <Ionicons name="checkmark" size={22} color="#FFFFFF" />
+                                <Ionicons name="checkmark" size={22} color={colors.light.white} />
                             </View>
                             <View style={[styles.artworkLine, { backgroundColor: item.accent }]} />
                         </View>
@@ -203,7 +203,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
                                     accessibilityState={{ checked: hasAcceptedTerms }}
                                     accessibilityLabel="Agree to Terms of Service"
                                 >
-                                    {hasAcceptedTerms ? <Ionicons name="checkmark" size={15} color="#FFFFFF" /> : null}
+                                    {hasAcceptedTerms ? <Ionicons name="checkmark" size={15} color={colors.light.white} /> : null}
                                 </TouchableOpacity>
                                 <Text style={styles.acceptTermsText}>
                                     I have read and agree to the{' '}
@@ -243,7 +243,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
                     <Text style={styles.nextButtonText}>
                         {activeIndex === slides.length - 1 ? 'Get Started' : 'Next'}
                     </Text>
-                    <Ionicons name="arrow-forward" size={19} color="#FFFFFF" />
+                    <Ionicons name="arrow-forward" size={19} color={colors.light.white} />
                 </TouchableOpacity>
             </View>
         </SafeAreaView>
@@ -316,11 +316,11 @@ const styles = StyleSheet.create({
         width: 50,
         height: 50,
         borderRadius: 16,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: colors.light.white,
         alignItems: 'center',
         justifyContent: 'center',
         elevation: 3,
-        shadowColor: '#0F172A',
+        shadowColor: colors.light.shadow,
         shadowOpacity: 0.1,
         shadowRadius: 8,
         shadowOffset: { width: 0, height: 3 },
@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
     secondaryBottom: {
         bottom: 44,
         left: '18%',
-        backgroundColor: '#0F172A',
+        backgroundColor: colors.light.textPrimary,
     },
     artworkLine: {
         position: 'absolute',
@@ -394,7 +394,7 @@ const styles = StyleSheet.create({
         textDecorationLine: 'underline',
     },
     nextButtonDisabled: {
-        backgroundColor: '#94A3B8',
+        backgroundColor: colors.light.textMuted,
     },
     termsTopBar: {
         minHeight: 56,
@@ -441,8 +441,8 @@ const styles = StyleSheet.create({
     termsDraftNote: {
         marginTop: 14,
         marginBottom: 20,
-        color: '#9A3412',
-        backgroundColor: '#FFF7ED',
+        color: colors.light.warning,
+        backgroundColor: colors.light.warningLight,
         padding: 12,
         borderRadius: 8,
         fontSize: 13,
@@ -495,7 +495,7 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     nextButtonText: {
-        color: '#FFFFFF',
+        color: colors.light.white,
         fontSize: 16,
         fontWeight: '700',
     },

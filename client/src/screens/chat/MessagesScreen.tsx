@@ -77,7 +77,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ navigation }) =>
 
   return (
     <View style={[styles.screenContainer, { paddingTop: topInset }]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="dark-content" backgroundColor={theme.colors.white} />
 
       {/* 1. Header Bar */}
       <View style={styles.headerBar}>
@@ -175,7 +175,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ navigation }) =>
             onPress={retry}
             activeOpacity={0.8}
           >
-            <Ionicons name="refresh" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+            <Ionicons name="refresh" size={16} color={theme.colors.white} style={{ marginRight: 6 }} />
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   notificationBadgeText: {
-    color: '#FFFFFF',
+    color: theme.colors.white,
     fontSize: 9.5,
     fontWeight: theme.typography.fontWeight.bold,
   },
@@ -396,7 +396,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   retryButtonText: {
-    color: '#FFFFFF',
+    color: theme.colors.white,
     fontSize: 14,
     fontWeight: theme.typography.fontWeight.semibold,
   },

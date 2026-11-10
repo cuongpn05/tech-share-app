@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
     height: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000000',
+    shadowColor: theme.colors.black,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   unreadBadgeText: {
-    color: '#FFFFFF',
+    color: theme.colors.white,
     fontSize: 11,
     fontWeight: theme.typography.fontWeight.bold,
     textAlign: 'center',

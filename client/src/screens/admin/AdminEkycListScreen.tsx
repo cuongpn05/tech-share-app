@@ -146,13 +146,13 @@ function AdminEkycPhotoTile({
         </View>
       )}
       <View style={styles.photoLabelBar}>
-        <Ionicons name="scan-outline" size={13} color="#FFFFFF" />
+        <Ionicons name="scan-outline" size={13} color={theme.colors.white} />
         <Text style={styles.photoLabelText} numberOfLines={1}>
           {label}
         </Text>
       </View>
       <View style={styles.zoomHintIcon}>
-        <Ionicons name="expand-outline" size={14} color="#FFFFFF" />
+        <Ionicons name="expand-outline" size={14} color={theme.colors.white} />
       </View>
     </TouchableOpacity>
   );
@@ -606,29 +606,29 @@ export function AdminEkycListScreen({
       case 'pending':
         return {
           label: S.STATUS_BADGES.PENDING,
-          bg: '#FEF3C7',
-          text: '#B45309',
+          bg: theme.colors.warningLight,
+          text: theme.colors.warning,
           icon: 'time-outline' as const,
         };
       case 'approved':
         return {
           label: S.STATUS_BADGES.APPROVED,
-          bg: '#ECFDF5',
-          text: '#047857',
+          bg: theme.colors.successLight,
+          text: theme.colors.success,
           icon: 'checkmark-circle' as const,
         };
       case 'rejected':
         return {
           label: S.STATUS_BADGES.REJECTED,
-          bg: '#FEF2F2',
-          text: '#B91C1C',
+          bg: theme.colors.dangerLight,
+          text: theme.colors.danger,
           icon: 'close-circle' as const,
         };
       default:
         return {
           label: status,
-          bg: '#F1F5F9',
-          text: '#64748B',
+          bg: theme.colors.surfaceMuted,
+          text: theme.colors.text.muted,
           icon: 'ellipse-outline' as const,
         };
     }
@@ -676,15 +676,15 @@ export function AdminEkycListScreen({
         {/* Row 2: Contact Info (Email, Phone, Address) */}
         <View style={styles.contactContainer}>
           <View style={styles.contactRow}>
-            <Ionicons name="mail-outline" size={14} color="#64748B" />
+            <Ionicons name="mail-outline" size={14} color={theme.colors.text.muted} />
             <Text style={styles.contactText} numberOfLines={1}>{u.email}</Text>
           </View>
           <View style={styles.contactRow}>
-            <Ionicons name="call-outline" size={14} color="#64748B" />
+            <Ionicons name="call-outline" size={14} color={theme.colors.text.muted} />
             <Text style={styles.contactText} numberOfLines={1}>{u.phone}</Text>
           </View>
           <View style={styles.contactRow}>
-            <Ionicons name="location-outline" size={14} color="#64748B" />
+            <Ionicons name="location-outline" size={14} color={theme.colors.text.muted} />
             <Text style={styles.contactText} numberOfLines={2}>{u.address}</Text>
           </View>
         </View>
@@ -762,7 +762,7 @@ export function AdminEkycListScreen({
         {/* Rejection reason box if rejected */}
         {item.status === 'rejected' && item.rejectReason ? (
           <View style={styles.rejectReasonBox}>
-            <Ionicons name="alert-circle" size={16} color="#DC2626" />
+            <Ionicons name="alert-circle" size={16} color={theme.colors.danger} />
             <Text style={styles.rejectReasonText}>
               {S.CARD.REJECT_REASON_PREFIX(item.rejectReason)}
             </Text>
@@ -783,7 +783,7 @@ export function AdminEkycListScreen({
               <Ionicons
                 name="close-circle-outline"
                 size={16}
-                color={theme.colors.red}
+                color={theme.colors.text.secondary}
                 style={{ marginRight: 6 }}
               />
               <Text style={styles.rejectButtonText}>{S.ACTIONS.REJECT}</Text>
@@ -798,13 +798,13 @@ export function AdminEkycListScreen({
               accessibilityLabel={isOwnerCategory ? S.ACTIONS.APPROVE_OWNER : S.ACTIONS.APPROVE}
             >
               {actionLoadingId === item._id ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <ActivityIndicator size="small" color={theme.colors.white} />
               ) : (
                 <>
                   <Ionicons
                     name="checkmark-circle-outline"
                     size={16}
-                    color="#FFFFFF"
+                    color={theme.colors.white}
                     style={{ marginRight: 6 }}
                   />
                   <Text style={styles.approveButtonText}>
@@ -836,7 +836,7 @@ export function AdminEkycListScreen({
     const isOwnerCategory = activeCategory === 'owner';
     return (
       <View style={styles.emptyContainer}>
-        <Ionicons name="finger-print-outline" size={64} color="#CBD5E1" />
+        <Ionicons name="finger-print-outline" size={64} color={theme.colors.text.subtle} />
         <Text style={styles.emptyTitle}>{S.EMPTY_STATES.TITLE}</Text>
         <Text style={styles.emptySubtitle}>
           {searchQuery
@@ -855,7 +855,7 @@ export function AdminEkycListScreen({
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="dark-content" backgroundColor={theme.colors.surface} />
 
       {/* ─── HEADER BAR ─── */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
@@ -864,7 +864,7 @@ export function AdminEkycListScreen({
           onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons name="menu-outline" size={26} color="#0F172A" />
+          <Ionicons name="menu-outline" size={26} color={theme.colors.text.primary} />
         </TouchableOpacity>
 
         <View style={styles.headerTitleWrap}>
@@ -973,11 +973,11 @@ export function AdminEkycListScreen({
       {/* ─── SEARCH BAR ─── */}
       <View style={styles.searchSection}>
         <View style={styles.searchBar}>
-          <Ionicons name="search-outline" size={18} color="#64748B" style={{ marginRight: 8 }} />
+          <Ionicons name="search-outline" size={18} color={theme.colors.text.subtle} style={{ marginRight: 8 }} />
           <TextInput
             style={styles.searchInput}
             placeholder={S.SEARCH.PLACEHOLDER}
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={theme.colors.text.subtle}
             value={searchQuery}
             onChangeText={setSearchQuery}
             autoCapitalize="none"
@@ -985,7 +985,7 @@ export function AdminEkycListScreen({
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={18} color="#94A3B8" />
+              <Ionicons name="close-circle" size={18} color={theme.colors.text.subtle} />
             </TouchableOpacity>
           )}
         </View>
@@ -1021,7 +1021,7 @@ export function AdminEkycListScreen({
       {/* ─── ERROR BANNER ─── */}
       {errorMessage ? (
         <View style={styles.errorBanner}>
-          <Ionicons name="alert-circle-outline" size={18} color="#DC2626" />
+          <Ionicons name="alert-circle-outline" size={18} color={theme.colors.danger} />
           <Text style={styles.errorBannerText}>{errorMessage}</Text>
         </View>
       ) : null}
@@ -1080,7 +1080,7 @@ export function AdminEkycListScreen({
               style={styles.imageViewerCloseBtn}
               onPress={() => setPreviewImageUrl(null)}
             >
-              <Ionicons name="close" size={24} color="#FFFFFF" />
+              <Ionicons name="close" size={24} color={theme.colors.white} />
             </TouchableOpacity>
           </View>
 
@@ -1116,7 +1116,7 @@ export function AdminEkycListScreen({
             {/* Header Modal */}
             <View style={styles.rejectModalHeader}>
               <View style={styles.rejectModalIconWrap}>
-                <Ionicons name="close-circle" size={24} color="#DC2626" />
+                <Ionicons name="close-circle" size={24} color={theme.colors.danger} />
               </View>
               <View style={{ flex: 1, marginLeft: 10 }}>
                 <Text style={styles.rejectModalTitle}>
@@ -1131,7 +1131,7 @@ export function AdminEkycListScreen({
                 onPress={handleCloseRejectModal}
                 disabled={isSubmittingReject}
               >
-                <Ionicons name="close" size={20} color="#64748B" />
+                <Ionicons name="close" size={20} color={theme.colors.text.muted} />
               </TouchableOpacity>
             </View>
 
@@ -1182,7 +1182,7 @@ export function AdminEkycListScreen({
               <TextInput
                 style={styles.customReasonInput}
                 placeholder={S.REJECT_MODAL.CUSTOM_REASON_PLACEHOLDER}
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={theme.colors.text.subtle}
                 multiline
                 numberOfLines={3}
                 value={customRejectReason}
@@ -1213,10 +1213,10 @@ export function AdminEkycListScreen({
                 disabled={isSubmittingReject}
               >
                 {isSubmittingReject ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <ActivityIndicator size="small" color={theme.colors.white} />
                 ) : (
                   <>
-                    <Ionicons name="send" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+                    <Ionicons name="send" size={14} color={theme.colors.white} style={{ marginRight: 6 }} />
                     <Text style={styles.rejectModalSubmitText}>{S.REJECT_MODAL.SUBMIT_BTN}</Text>
                   </>
                 )}
@@ -1301,7 +1301,7 @@ export function AdminEkycListScreen({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -1309,9 +1309,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingBottom: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: theme.colors.border.default,
   },
   drawerButton: {
     width: 40,
@@ -1327,11 +1327,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#0F172A',
+    color: theme.colors.text.primary,
   },
   headerSubtitle: {
     fontSize: 12,
-    color: '#64748B',
+    color: theme.colors.text.muted,
     marginTop: 2,
   },
   refreshButton: {
@@ -1348,7 +1348,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 10,
     paddingBottom: 4,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     gap: 8,
   },
   categoryTabBtn: {
@@ -1400,12 +1400,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: theme.colors.surfaceMuted,
     borderRadius: 10,
     paddingHorizontal: 12,
     height: 42,
@@ -1413,14 +1413,14 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 14,
-    color: '#0F172A',
+    color: theme.colors.text.primary,
   },
 
   // Filter Tabs
   tabsWrapper: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: theme.colors.border.default,
     paddingBottom: 10,
   },
   tabsContent: {
@@ -1472,17 +1472,17 @@ const styles = StyleSheet.create({
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF2F2',
+    backgroundColor: theme.colors.dangerLight,
     padding: 10,
     marginHorizontal: 16,
     marginTop: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: theme.colors.redBorder,
   },
   errorBannerText: {
     fontSize: 13,
-    color: '#DC2626',
+    color: theme.colors.danger,
     marginLeft: 6,
     flex: 1,
   },
@@ -1497,7 +1497,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 10,
     fontSize: 14,
-    color: '#64748B',
+    color: theme.colors.text.muted,
   },
 
   // List
@@ -1513,7 +1513,7 @@ const styles = StyleSheet.create({
   },
   loadingMoreText: {
     fontSize: 13,
-    color: '#64748B',
+    color: theme.colors.text.muted,
   },
 
   // Card
@@ -1573,7 +1573,7 @@ const styles = StyleSheet.create({
   },
   timeText: {
     fontSize: 12,
-    color: '#64748B',
+    color: theme.colors.text.muted,
     marginTop: 2,
   },
   statusBadge: {
@@ -1594,7 +1594,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: theme.colors.border.subtle,
     gap: 4,
   },
   contactRow: {
@@ -1604,7 +1604,7 @@ const styles = StyleSheet.create({
   },
   contactText: {
     fontSize: 13,
-    color: '#475569',
+    color: theme.colors.text.secondary,
     flex: 1,
   },
 
@@ -1613,13 +1613,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.colors.background,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 9,
     marginTop: 10,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border.default,
   },
   idNumberLeft: {
     flexDirection: 'row',
@@ -1629,12 +1629,12 @@ const styles = StyleSheet.create({
   idNumberLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#334155',
+    color: theme.colors.text.secondary,
   },
   idNumberValue: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#0F172A',
+    color: theme.colors.text.primary,
     letterSpacing: 0.5,
   },
 
@@ -1645,7 +1645,7 @@ const styles = StyleSheet.create({
   photosSectionTitle: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#334155',
+    color: theme.colors.text.secondary,
     marginBottom: 8,
   },
   photosRow: {
@@ -1657,10 +1657,10 @@ const styles = StyleSheet.create({
     height: 110,
     borderRadius: 10,
     overflow: 'hidden',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: theme.colors.surfaceMuted,
     position: 'relative',
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: theme.colors.border.default,
   },
   photoFallback: {
     width: '100%',
@@ -1678,7 +1678,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    backgroundColor: theme.colors.overlay,
     paddingVertical: 4,
     paddingHorizontal: 6,
     flexDirection: 'row',
@@ -1687,7 +1687,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   photoLabelText: {
-    color: '#FFFFFF',
+    color: theme.colors.white,
     fontSize: 11,
     fontWeight: '600',
     flexShrink: 1,
@@ -1746,7 +1746,7 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    backgroundColor: theme.colors.overlay,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1755,9 +1755,9 @@ const styles = StyleSheet.create({
   rejectReasonBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF2F2',
+    backgroundColor: theme.colors.dangerLight,
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: theme.colors.redBorder,
     borderRadius: 8,
     padding: 10,
     marginTop: 10,
@@ -1765,7 +1765,7 @@ const styles = StyleSheet.create({
   },
   rejectReasonText: {
     fontSize: 12,
-    color: '#DC2626',
+    color: theme.colors.danger,
     flex: 1,
     fontWeight: '500',
   },
@@ -1785,9 +1785,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.colors.redLight,
+    backgroundColor: theme.colors.surfaceMuted,
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: theme.colors.border.default,
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -1795,7 +1795,7 @@ const styles = StyleSheet.create({
   rejectButtonText: {
     fontSize: 13,
     fontWeight: '700',
-    color: theme.colors.red,
+    color: theme.colors.text.secondary,
   },
   approveButton: {
     flex: 1,
@@ -1842,12 +1842,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#334155',
+    color: theme.colors.text.primary,
     marginTop: 14,
   },
   emptySubtitle: {
     fontSize: 13,
-    color: '#64748B',
+    color: theme.colors.text.muted,
     textAlign: 'center',
     marginTop: 6,
     lineHeight: 18,
@@ -1868,7 +1868,7 @@ const styles = StyleSheet.create({
   imageViewerTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: theme.colors.white,
     flex: 1,
     marginRight: 12,
   },
@@ -1894,7 +1894,7 @@ const styles = StyleSheet.create({
   // Reject Modal
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    backgroundColor: theme.colors.backdrop,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -1902,11 +1902,11 @@ const styles = StyleSheet.create({
   rejectModalCard: {
     width: '100%',
     maxWidth: 420,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     borderRadius: 16,
     overflow: 'hidden',
     maxHeight: '85%',
-    shadowColor: '#000',
+    shadowColor: theme.colors.text.primary,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.15,
     shadowRadius: 10,
@@ -1918,25 +1918,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-    backgroundColor: '#FFFFFF',
+    borderBottomColor: theme.colors.border.subtle,
+    backgroundColor: theme.colors.surface,
   },
   rejectModalIconWrap: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: theme.colors.dangerLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
   rejectModalTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#0F172A',
+    color: theme.colors.text.primary,
   },
   rejectModalSubTitle: {
     fontSize: 12,
-    color: '#64748B',
+    color: theme.colors.text.muted,
     marginTop: 2,
   },
   rejectModalCloseBtn: {
@@ -1945,14 +1945,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: theme.colors.surfaceMuted,
   },
   rejectModalBody: {
     padding: 16,
   },
   rejectReasonGuide: {
     fontSize: 13,
-    color: '#475569',
+    color: theme.colors.text.secondary,
     marginBottom: 12,
     lineHeight: 18,
   },
@@ -1965,56 +1965,56 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 10,
     borderRadius: 10,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.colors.background,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border.default,
   },
   reasonRadioItemSelected: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FCA5A5',
+    backgroundColor: theme.colors.dangerLight,
+    borderColor: theme.colors.redBorder,
   },
   radioCircle: {
     width: 18,
     height: 18,
     borderRadius: 9,
     borderWidth: 2,
-    borderColor: '#94A3B8',
+    borderColor: theme.colors.text.subtle,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10,
   },
   radioCircleActive: {
-    borderColor: '#DC2626',
+    borderColor: theme.colors.danger,
   },
   radioDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#DC2626',
+    backgroundColor: theme.colors.danger,
   },
   reasonRadioText: {
     fontSize: 13,
-    color: '#334155',
+    color: theme.colors.text.secondary,
     flex: 1,
   },
   reasonRadioTextActive: {
-    color: '#B91C1C',
+    color: theme.colors.danger,
     fontWeight: '600',
   },
   customReasonLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#334155',
+    color: theme.colors.text.secondary,
     marginBottom: 6,
   },
   customReasonInput: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.colors.background,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: theme.colors.border.default,
     borderRadius: 10,
     padding: 10,
     fontSize: 13,
-    color: '#0F172A',
+    color: theme.colors.text.primary,
     minHeight: 70,
   },
   rejectModalActions: {
@@ -2025,19 +2025,19 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 10,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    backgroundColor: '#FFFFFF',
+    borderTopColor: theme.colors.border.subtle,
+    backgroundColor: theme.colors.surface,
   },
   rejectModalCancelBtn: {
     paddingVertical: 9,
     paddingHorizontal: 16,
     borderRadius: 8,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: theme.colors.surfaceMuted,
   },
   rejectModalCancelText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#64748B',
+    color: theme.colors.text.secondary,
   },
   rejectModalSubmitBtn: {
     flexDirection: 'row',
@@ -2045,12 +2045,12 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     paddingHorizontal: 16,
     borderRadius: 8,
-    backgroundColor: '#DC2626',
+    backgroundColor: theme.colors.danger,
   },
   rejectModalSubmitText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: theme.colors.white,
   },
 });
 

@@ -58,7 +58,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
         : await ImagePicker.requestMediaLibraryPermissionsAsync();
 
       if (!permission.granted) {
-        Alert.alert('Quyền truy cập', 'Vui lòng cấp quyền truy cập để gửi hình ảnh.');
+        Alert.alert('Permissions Required', 'Please grant permissions to send images.');
         return;
       }
 
@@ -79,7 +79,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
         );
       }
     } catch (err: any) {
-      Alert.alert('Lỗi', err.message || 'Không thể chọn hình ảnh');
+      Alert.alert('Error', err.message || 'Failed to pick image');
     }
   };
 
@@ -89,7 +89,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Quyền vị trí', 'Vui lòng cấp quyền vị trí để chia sẻ tọa độ hiện tại.');
+        Alert.alert('Location Permission', 'Please grant location permission to share your current location.');
         return;
       }
 
@@ -111,7 +111,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
 
       onSendLocation({ latitude, longitude, address });
     } catch (err: any) {
-      Alert.alert('Lỗi', 'Không thể lấy vị trí hiện tại');
+      Alert.alert('Error', 'Failed to get current location');
     } finally {
       setIsLocating(false);
     }
@@ -121,7 +121,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
 
   return (
     <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-      {/* Nút dấu cộng mở Modal đính kèm */}
+      {/* Plus button to open action sheet */}
       <TouchableOpacity
         style={styles.actionBtn}
         onPress={() => setShowActionModal(true)}
@@ -131,23 +131,23 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
         {isLocating ? (
           <ActivityIndicator size="small" color={theme.colors.brand[500]} />
         ) : (
-          <Ionicons name="add" size={22} color="#475569" />
+          <Ionicons name="add" size={22} color={theme.colors.text.secondary} />
         )}
       </TouchableOpacity>
 
-      {/* Ô nhập tin nhắn */}
+      {/* Input box */}
       <View style={styles.inputWrap}>
         <TextInput
           style={styles.textInput}
-          placeholder="Nhập tin nhắn..."
-          placeholderTextColor="#94A3B8"
+          placeholder="Type a message..."
+          placeholderTextColor={theme.colors.text.subtle}
           value={inputText}
           onChangeText={setInputText}
           multiline
         />
       </View>
 
-      {/* Nút gửi */}
+      {/* Send button */}
       <TouchableOpacity
         style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
         onPress={handleSend}
@@ -155,9 +155,9 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
         activeOpacity={0.8}
       >
         {isSending ? (
-          <ActivityIndicator size="small" color="#FFFFFF" />
+          <ActivityIndicator size="small" color={theme.colors.white} />
         ) : (
-          <Ionicons name="send" size={16} color="#FFFFFF" />
+          <Ionicons name="send" size={16} color={theme.colors.white} />
         )}
       </TouchableOpacity>
 
@@ -170,7 +170,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
       >
         <Pressable style={styles.modalOverlay} onPress={() => setShowActionModal(false)}>
           <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>Tùy chọn đính kèm</Text>
+            <Text style={styles.modalTitle}>Attachment Options</Text>
 
             <TouchableOpacity
               style={styles.optionRow}
@@ -178,7 +178,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
               activeOpacity={0.7}
             >
               <Ionicons name="images-outline" size={22} color={theme.colors.brand[500]} />
-              <Text style={styles.optionText}>Chọn ảnh từ thư viện</Text>
+              <Text style={styles.optionText}>Photo Library</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -186,8 +186,8 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
               onPress={() => handlePickImage(true)}
               activeOpacity={0.7}
             >
-              <Ionicons name="camera-outline" size={22} color="#D97706" />
-              <Text style={styles.optionText}>Chụp ảnh mới</Text>
+              <Ionicons name="camera-outline" size={22} color={theme.colors.warning} />
+              <Text style={styles.optionText}>Take Photo</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -195,8 +195,8 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
               onPress={handleShareLocation}
               activeOpacity={0.7}
             >
-              <Ionicons name="location-outline" size={22} color="#16A34A" />
-              <Text style={styles.optionText}>Chia sẻ vị trí hiện tại</Text>
+              <Ionicons name="location-outline" size={22} color={theme.colors.success} />
+              <Text style={styles.optionText}>Share Current Location</Text>
             </TouchableOpacity>
           </Pressable>
         </Pressable>
@@ -211,25 +211,25 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.white,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: theme.colors.border.light,
     gap: 8,
   },
   actionBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: theme.colors.surfaceMuted,
     alignItems: 'center',
     justifyContent: 'center',
   },
   inputWrap: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.colors.background,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border.default,
     paddingHorizontal: 14,
     paddingVertical: 6,
     minHeight: 40,
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
   },
   textInput: {
     fontSize: 14.5,
-    color: '#0F172A',
+    color: theme.colors.text.primary,
     maxHeight: 90,
   },
   sendBtn: {
@@ -253,11 +253,11 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: theme.colors.overlay,
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.white,
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
     padding: 20,
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#0F172A',
+    color: theme.colors.text.primary,
     marginBottom: 16,
   },
   optionRow: {
@@ -278,7 +278,7 @@ const styles = StyleSheet.create({
   optionText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1E293B',
+    color: theme.colors.text.primary,
   },
 });
 

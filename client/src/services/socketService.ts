@@ -134,7 +134,7 @@ export const socketService = {
         fn({
           _id: `bs_${Date.now()}`,
           userId: currentUserId || '',
-          title: 'Cập nhật trạng thái đơn thuê',
+          title: 'Booking status update',
           body: '',
           type: 'order',
         })

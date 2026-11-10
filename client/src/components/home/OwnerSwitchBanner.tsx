@@ -51,7 +51,7 @@ export function OwnerSwitchBanner({ visible, onPress }: OwnerSwitchBannerProps) 
       </View>
 
       <View style={styles.ownerSwitchCta}>
-        <Ionicons name="arrow-forward" size={13} color="#FFFFFF" />
+        <Ionicons name="arrow-forward" size={13} color={colors.light.white} />
       </View>
     </TouchableOpacity>
   );
