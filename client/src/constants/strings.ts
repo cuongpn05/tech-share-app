@@ -1213,6 +1213,10 @@ export const STRINGS = {
   AUTH_VERIFY_ALERT: {
     TITLE: 'Identity Verification Required (eKYC)',
     MSG: 'You must complete Identity Verification (eKYC) before renting devices.',
+    DEVICE_LABEL: 'Device',
+    REQUIREMENT_LABEL: 'Requirement',
+    REQUIREMENT_VALUE: 'Identity Verification (eKYC)',
+    NOTICE: 'Complete a quick ID verification so your rental booking can be submitted.',
     LATER: 'Later',
     VERIFY_NOW: 'Verify Now',
   },
