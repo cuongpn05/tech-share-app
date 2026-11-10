@@ -90,6 +90,7 @@ export function OwnerAvailabilityModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [scheduleError, setScheduleError] = useState(false);
+  const [successVisible, setSuccessVisible] = useState(false);
 
   const year = displayedMonth.getFullYear();
   const month = displayedMonth.getMonth();
@@ -212,11 +213,7 @@ export function OwnerAvailabilityModal({
     setIsSaving(true);
     try {
       await onUpdateBlockedDates(deviceId, blockedDates);
-      Alert.alert(
-        STRINGS.AVAILABILITY.ALERT_SUCCESS_TITLE,
-        STRINGS.AVAILABILITY.ALERT_SUCCESS_MSG,
-      );
-      onClose();
+      setSuccessVisible(true);
     } catch (error) {
       console.error('[OwnerAvailabilityModal] Could not save blocked dates:', error);
       const errorMessage = isAxiosError<{ message?: unknown }>(error) &&
@@ -234,14 +231,20 @@ export function OwnerAvailabilityModal({
     }
   };
 
+  const dismissSuccess = () => {
+    setSuccessVisible(false);
+    onClose();
+  };
+
   return (
     <Modal
       visible={visible}
       transparent
       animationType="slide"
-      onRequestClose={onClose}
+      onRequestClose={successVisible ? dismissSuccess : onClose}
     >
-      <View style={styles.overlay}>
+      <View style={successVisible ? styles.successScreen : styles.overlay}>
+        {!successVisible && (
         <View style={styles.modal}>
           <View style={styles.header}>
             <View style={styles.heading}>
@@ -464,6 +467,31 @@ export function OwnerAvailabilityModal({
             </Pressable>
           </View>
         </View>
+        )}
+        {successVisible && (
+          <View
+            accessibilityRole="alert"
+            accessibilityViewIsModal
+            style={styles.successCard}
+          >
+            <View style={styles.successIcon}>
+              <Ionicons name="checkmark" size={27} color={theme.success} />
+            </View>
+            <Text style={styles.successTitle}>
+              {STRINGS.AVAILABILITY.ALERT_SUCCESS_TITLE}
+            </Text>
+            <Text style={styles.successMessage}>
+              {STRINGS.AVAILABILITY.ALERT_SUCCESS_MSG}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={dismissSuccess}
+              style={styles.successButton}
+            >
+              <Text style={styles.successButtonText}>{STRINGS.COMMON.OK}</Text>
+            </Pressable>
+          </View>
+        )}
       </View>
     </Modal>
   );
@@ -474,6 +502,63 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
     backgroundColor: theme.overlay,
+  },
+  successScreen: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: theme.spacing.lg,
+    backgroundColor: theme.overlay,
+  },
+  successCard: {
+    width: '84%',
+    maxWidth: 340,
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.md,
+    borderRadius: theme.radii.lg,
+    backgroundColor: theme.surface,
+    borderWidth: 1,
+    borderColor: theme.border,
+    ...theme.shadows.card,
+  },
+  successIcon: {
+    width: 54,
+    height: 54,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: theme.spacing.sm,
+    borderRadius: theme.radii.full,
+    backgroundColor: theme.successLight,
+  },
+  successTitle: {
+    color: theme.textPrimary,
+    fontSize: theme.typography.sizes.title,
+    fontWeight: theme.typography.weights.bold,
+    textAlign: 'center',
+  },
+  successMessage: {
+    marginTop: theme.spacing.xs,
+    marginBottom: theme.spacing.md,
+    color: theme.textSecondary,
+    fontSize: theme.typography.sizes.body,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  successButton: {
+    minWidth: 104,
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: theme.spacing.lg,
+    borderRadius: theme.radii.md,
+    backgroundColor: theme.primary,
+  },
+  successButtonText: {
+    color: theme.white,
+    fontSize: theme.typography.sizes.base,
+    fontWeight: theme.typography.weights.bold,
   },
   modal: {
     maxHeight: '92%',
