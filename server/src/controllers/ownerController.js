@@ -673,55 +673,59 @@ exports.updateBookingStatus = async (req, res) => {
     // Bắn thông báo tự động cho người thuê
     if (booking.renterId) {
       const renterIdVal = booking.renterId._id || booking.renterId;
-      const deviceName = booking.deviceId?.name || 'thiết bị';
+      const deviceName = booking.deviceId?.name || 'device';
       if (status === 'approved') {
         await createAndSendNotification({
           userId: renterIdVal,
-          title: 'Yêu cầu thuê đã được duyệt! 🎉',
-          body: `Chủ máy ${ownerUser.name || 'chủ máy'} đã duyệt đơn thuê "${deviceName}" (#${booking.bookingCode}). Vui lòng chuẩn bị nhận máy.`,
+          title: 'Booking Request Approved! 🎉',
+          body: `Owner ${ownerUser.name || 'Owner'} approved your booking for "${deviceName}" (#${booking.bookingCode}). Please prepare for device handover.`,
           type: 'order',
           relatedId: booking._id,
           data: {
             bookingId: booking._id.toString(),
             status: 'approved',
+            bookingCode: booking.bookingCode,
           },
-        }).catch((err) => console.error('❌ Lỗi gửi thông báo duyệt cho khách:', err.message));
+        }).catch((err) => console.error('❌ Error sending approval notification to renter:', err.message));
       } else if (status === 'rejected' || status === 'cancelled') {
         await createAndSendNotification({
           userId: renterIdVal,
-          title: 'Yêu cầu thuê đã bị từ chối ❌',
-          body: `Chủ máy không thể đáp ứng đơn thuê "${deviceName}" (#${booking.bookingCode}). Lý do: ${reason || 'Chủ máy bận vào thời gian này'}.`,
+          title: 'Booking Request Declined ❌',
+          body: `The owner was unable to accept your rental request for "${deviceName}" (#${booking.bookingCode}). Reason: ${reason || 'Owner unavailable during requested dates'}.`,
           type: 'order',
           relatedId: booking._id,
           data: {
             bookingId: booking._id.toString(),
             status: 'rejected',
+            bookingCode: booking.bookingCode,
           },
-        }).catch((err) => console.error('❌ Lỗi gửi thông báo từ chối cho khách:', err.message));
+        }).catch((err) => console.error('❌ Error sending decline notification to renter:', err.message));
       } else if (status === 'active') {
         await createAndSendNotification({
           userId: renterIdVal,
-          title: 'Thiết bị đã được bàn giao! 📱',
-          body: `Đơn thuê "${deviceName}" (#${booking.bookingCode}) đã bắt đầu tính thời gian thuê. Chúc bạn trải nghiệm tốt!`,
+          title: 'Device Handover Completed! 📱',
+          body: `Rental period for "${deviceName}" (#${booking.bookingCode}) has officially started. Enjoy your device!`,
           type: 'order',
           relatedId: booking._id,
           data: {
             bookingId: booking._id.toString(),
             status: 'active',
+            bookingCode: booking.bookingCode,
           },
-        }).catch((err) => console.error('❌ Lỗi gửi thông báo bàn giao cho khách:', err.message));
+        }).catch((err) => console.error('❌ Error sending handover notification to renter:', err.message));
       } else if (status === 'completed') {
         await createAndSendNotification({
           userId: renterIdVal,
-          title: 'Đơn thuê đã hoàn tất! 🎉',
-          body: `Chủ máy đã xác nhận nhận lại "${deviceName}" (#${booking.bookingCode}). Hãy để lại đánh giá trải nghiệm thuê nhé!`,
+          title: 'Rental Completed! 🎉',
+          body: `The owner confirmed the return of "${deviceName}" (#${booking.bookingCode}). Your deposit has been released. Please leave a review!`,
           type: 'order',
           relatedId: booking._id,
           data: {
             bookingId: booking._id.toString(),
             status: 'completed',
+            bookingCode: booking.bookingCode,
           },
-        }).catch((err) => console.error('❌ Lỗi gửi thông báo hoàn tất cho khách:', err.message));
+        }).catch((err) => console.error('❌ Error sending completion notification to renter:', err.message));
       }
     }
 

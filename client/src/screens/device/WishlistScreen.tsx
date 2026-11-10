@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
   StatusBar,
   Platform,
-  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -23,7 +22,6 @@ import {
 import { Device } from '../../types';
 import { colors } from '../../theme/colors';
 import { STRINGS } from '../../constants/strings';
-import { DeviceCard } from '../../components/device/DeviceCard';
 import { API_BASE_URL } from '../../config/api';
 
 export interface WishlistScreenProps {
@@ -48,13 +46,17 @@ const resolveImageUri = (url?: string): string => {
   return url;
 };
 
+/**
+ * WishlistScreen
+ *
+ * Màn hình danh sách thiết bị yêu thích chuẩn giao diện List view (thẻ ngang) đồng bộ với hệ thống chung (Owner, Admin, Renter).
+ */
 export function WishlistScreen({
   onBack,
   onNavigateToDeviceDetail,
   onNavigateToHome,
 }: WishlistScreenProps) {
   const insets = useSafeAreaInsets();
-  const { width: windowWidth } = useWindowDimensions();
   const topInset = Math.max(
     insets.top,
     Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 20
@@ -64,9 +66,6 @@ export function WishlistScreen({
   const wishlist = useAppSelector((state) => state.wishlist.items);
   const loading = useAppSelector((state) => state.wishlist.loading);
   const [refreshing, setRefreshing] = useState(false);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-
-  const columnWidth = (windowWidth - 32 - 12) / 2;
 
   useFocusEffect(
     useCallback(() => {
@@ -84,7 +83,7 @@ export function WishlistScreen({
     dispatch(toggleFavoriteDevice(device));
   };
 
-  // ─── 1. RENDER LIST ITEM (Horizontal Compact Card) ───
+  // ─── RENDER LIST ITEM (Horizontal Card) ───
   const renderListItem = ({ item }: { item: Device }) => {
     const rawImages: any = item.images || (item as any).image;
     const rawUrl =
@@ -96,6 +95,7 @@ export function WishlistScreen({
 
     const imageUrl = resolveImageUri(rawUrl);
     const isAvailable = item.status === 'available';
+    const ratingValue = Number(item.rating || 5.0).toFixed(1);
 
     return (
       <TouchableOpacity
@@ -135,10 +135,12 @@ export function WishlistScreen({
 
         {/* Content Info */}
         <View style={styles.listContentBox}>
-          {/* Top row: Brand + Favorite button */}
+          {/* Top row: Brand Badge + Favorite Button */}
           <View style={styles.listHeaderRow}>
             <View style={styles.brandBadge}>
-              <Text style={styles.brandText}>{item.brand || STRINGS.WISHLIST.DEFAULT_BRAND}</Text>
+              <Text style={styles.brandText}>
+                {item.brand || STRINGS.WISHLIST.DEFAULT_BRAND}
+              </Text>
             </View>
 
             <TouchableOpacity
@@ -147,27 +149,29 @@ export function WishlistScreen({
               activeOpacity={0.7}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Ionicons name="heart" size={18} color={colors.light.danger} />
+              <Ionicons name="heart" size={17} color={colors.light.danger} />
             </TouchableOpacity>
           </View>
 
           {/* Title */}
-          <Text style={styles.listTitle} numberOfLines={2}>
+          <Text style={styles.listTitle} numberOfLines={1}>
             {item.name || item.title}
           </Text>
 
-          {/* Category & Rating */}
+          {/* Meta row: Category + Rating */}
           <View style={styles.listMetaRow}>
-            <Text style={styles.categoryText}>{item.category}</Text>
+            <Text style={styles.categoryText}>
+              {typeof item.category === 'object' && item.category !== null
+                ? (item.category as any).name || 'Tech'
+                : item.category || 'Tech'}
+            </Text>
             <View style={styles.ratingBadge}>
-              <Ionicons name="star" size={11} color={colors.light.ratingStar} />
-              <Text style={styles.ratingText}>
-                {item.rating ? item.rating.toFixed(1) : '5.0'}
-              </Text>
+              <Ionicons name="star" size={10} color={colors.light.warning} />
+              <Text style={styles.ratingText}>{ratingValue}</Text>
             </View>
           </View>
 
-          {/* Bottom row: Price & View button */}
+          {/* Footer: Daily rate + Price + Arrow button */}
           <View style={styles.listFooter}>
             <View>
               <Text style={styles.priceSub}>{STRINGS.WISHLIST.DAILY_RATE}</Text>
@@ -186,38 +190,23 @@ export function WishlistScreen({
     );
   };
 
-  // ─── 2. RENDER GRID ITEM (2 Columns using DeviceCard) ───
-  const renderGridItem = ({ item }: { item: Device }) => (
-    <View style={styles.gridCardWrapper}>
-      <DeviceCard
-        device={item}
-        onPress={onNavigateToDeviceDetail}
-        onToggleFavorite={handleRemoveItem}
-        isFavorite={true}
-        width={columnWidth}
-      />
-    </View>
-  );
-
-  // ─── 3. EMPTY STATE ───
+  // ─── EMPTY STATE ───
   const renderEmpty = () => {
     if (loading) return null;
     return (
       <View style={styles.emptyContainer}>
         <View style={styles.emptyIconCircle}>
-          <Ionicons name="heart-dislike-outline" size={44} color={colors.light.textMuted} />
+          <Ionicons name="heart-dislike-outline" size={40} color={colors.light.danger} />
         </View>
         <Text style={styles.emptyTitle}>{STRINGS.WISHLIST.EMPTY_TITLE}</Text>
-        <Text style={styles.emptySubtitle}>
-          {STRINGS.WISHLIST.EMPTY_SUBTITLE}
-        </Text>
+        <Text style={styles.emptySubtitle}>{STRINGS.WISHLIST.EMPTY_SUBTITLE}</Text>
         {onNavigateToHome && (
           <TouchableOpacity
             style={styles.exploreBtn}
             onPress={onNavigateToHome}
-            activeOpacity={0.8}
+            activeOpacity={0.85}
           >
-            <Ionicons name="compass-outline" size={18} color={colors.light.white} />
+            <Ionicons name="sparkles" size={16} color={colors.light.white} />
             <Text style={styles.exploreBtnText}>{STRINGS.WISHLIST.EXPLORE_DEVICES}</Text>
           </TouchableOpacity>
         )}
@@ -226,16 +215,25 @@ export function WishlistScreen({
   };
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { paddingTop: topInset }]}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.light.surface} />
 
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: topInset + 8 }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>
-          <Ionicons name="chevron-back" size={22} color={colors.light.textPrimary} />
-        </TouchableOpacity>
+      {/* 1. Header Bar: Back, Centered Title + Count Badge */}
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          {onBack && (
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={onBack}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="chevron-back" size={22} color={colors.light.textPrimary} />
+            </TouchableOpacity>
+          )}
+        </View>
 
-        <View style={styles.headerTitleBox}>
+        <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>{STRINGS.WISHLIST.TITLE}</Text>
           {wishlist.length > 0 && (
             <View style={styles.countBadge}>
@@ -244,75 +242,38 @@ export function WishlistScreen({
           )}
         </View>
 
-        {/* View Mode Switcher (Grid / List) */}
-        {wishlist.length > 0 ? (
-          <View style={styles.viewModeSwitch}>
-            <TouchableOpacity
-              style={[
-                styles.modeBtn,
-                viewMode === 'grid' && styles.modeBtnActive,
-              ]}
-              onPress={() => setViewMode('grid')}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name="grid"
-                size={16}
-                color={viewMode === 'grid' ? colors.light.primary : colors.light.textMuted}
-              />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.modeBtn,
-                viewMode === 'list' && styles.modeBtnActive,
-              ]}
-              onPress={() => setViewMode('list')}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name="list"
-                size={16}
-                color={viewMode === 'list' ? colors.light.primary : colors.light.textMuted}
-              />
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={{ width: 40 }} />
-        )}
+        <View style={styles.headerRight} />
       </View>
 
-      {/* Subheader status bar if items exist */}
+      {/* 2. Sub-Header Summary */}
       {wishlist.length > 0 && (
         <View style={styles.subHeader}>
           <View style={styles.subHeaderLeft}>
-            <View style={styles.subHeaderIconBox}>
+            <View style={styles.subHeaderIconCircle}>
               <Ionicons name="heart" size={13} color={colors.light.danger} />
             </View>
             <Text style={styles.subHeaderText}>
               {STRINGS.WISHLIST.SAVED_COUNT_PREFIX}
-              <Text style={styles.subHeaderHighlight}>{wishlist.length}</Text>
+              <Text style={{ fontWeight: '700', color: colors.light.textPrimary }}>
+                {wishlist.length}
+              </Text>
               {STRINGS.WISHLIST.SAVED_COUNT_SUFFIX}
             </Text>
           </View>
-          <Text style={styles.subHeaderHint}>
-            {viewMode === 'grid' ? STRINGS.WISHLIST.GRID_VIEW : STRINGS.WISHLIST.LIST_VIEW}
-          </Text>
         </View>
       )}
 
-      {loading ? (
+      {/* 3. Main Content / List */}
+      {loading && !refreshing ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={colors.light.primary} />
           <Text style={styles.loadingText}>{STRINGS.WISHLIST.LOADING}</Text>
         </View>
       ) : (
         <FlatList
-          key={viewMode}
           data={wishlist}
           keyExtractor={(item: Device) => item._id}
-          numColumns={viewMode === 'grid' ? 2 : 1}
-          columnWrapperStyle={viewMode === 'grid' ? styles.gridColumnWrapper : undefined}
-          renderItem={viewMode === 'grid' ? renderGridItem : renderListItem}
+          renderItem={renderListItem}
           ListEmptyComponent={renderEmpty}
           contentContainerStyle={[
             styles.listContent,
@@ -323,8 +284,8 @@ export function WishlistScreen({
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={[colors.light.primary]}
               tintColor={colors.light.primary}
+              colors={[colors.light.primary]}
             />
           }
         />
@@ -333,33 +294,41 @@ export function WishlistScreen({
   );
 }
 
+export default WishlistScreen;
+
 const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.light.background,
   },
   header: {
-    backgroundColor: colors.light.surface,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingVertical: 12,
+    backgroundColor: colors.light.surface,
     borderBottomWidth: 1,
-    borderBottomColor: colors.light.border,
+    borderBottomColor: colors.light.borderSubtle,
   },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.light.border,
+  headerLeft: {
+    width: 38,
+    alignItems: 'flex-start',
+  },
+  backButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.light.background,
+    borderWidth: 1,
+    borderColor: colors.light.borderDefault,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerTitleBox: {
+  headerCenter: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 18,
@@ -370,32 +339,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.light.dangerLight,
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 12,
+    borderRadius: 10,
+    marginLeft: 6,
   },
   countBadgeText: {
     fontSize: 12,
     fontWeight: '700',
     color: colors.light.danger,
   },
-  viewModeSwitch: {
-    flexDirection: 'row',
-    backgroundColor: colors.light.border,
-    borderRadius: 10,
-    padding: 3,
-    gap: 2,
-  },
-  modeBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 7,
-  },
-  modeBtnActive: {
-    backgroundColor: colors.light.surface,
-    shadowColor: colors.light.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+  headerRight: {
+    width: 38,
   },
   subHeader: {
     flexDirection: 'row',
@@ -403,46 +356,29 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: colors.light.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.light.borderDefault,
+    backgroundColor: colors.light.background,
   },
   subHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
   },
-  subHeaderIconBox: {
+  subHeaderIconCircle: {
     width: 24,
     height: 24,
     borderRadius: 12,
     backgroundColor: colors.light.dangerLight,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 8,
   },
   subHeaderText: {
     fontSize: 13,
     color: colors.light.textSecondary,
-  },
-  subHeaderHighlight: {
-    fontWeight: '700',
-    color: colors.light.textPrimary,
-  },
-  subHeaderHint: {
-    fontSize: 12,
-    color: colors.light.textMuted,
     fontWeight: '500',
   },
   listContent: {
     padding: 16,
     paddingBottom: 36,
-  },
-  gridColumnWrapper: {
-    justifyContent: 'space-between',
-    marginBottom: 14,
-  },
-  gridCardWrapper: {
-    marginBottom: 0,
   },
 
   // ─── COMPACT LIST CARD STYLES ───
@@ -454,7 +390,7 @@ const styles = StyleSheet.create({
     borderColor: colors.light.borderDefault,
     padding: 12,
     flexDirection: 'row',
-    shadowColor: colors.light.shadow,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 8,
@@ -468,7 +404,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
     borderWidth: 1,
-    borderColor: colors.light.border,
+    borderColor: colors.light.borderSubtle,
   },
   listImage: {
     width: '100%',
@@ -483,20 +419,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
-    paddingVertical: 2,
+    paddingVertical: 2.5,
     borderRadius: 6,
-    gap: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    gap: 3.5,
   },
-  statusAvailable: {
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
-  },
-  statusRented: {
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
-  },
+  statusAvailable: {},
+  statusRented: {},
   statusDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
+    width: 5.5,
+    height: 5.5,
+    borderRadius: 3,
   },
   statusDotAvailable: {
     backgroundColor: colors.light.success,
@@ -505,7 +438,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.light.error,
   },
   statusText: {
-    fontSize: 9,
+    fontSize: 9.5,
     fontWeight: '700',
   },
   statusTextAvailable: {
@@ -527,7 +460,7 @@ const styles = StyleSheet.create({
   brandBadge: {
     backgroundColor: colors.light.primaryLight,
     paddingHorizontal: 7,
-    paddingVertical: 2,
+    paddingVertical: 2.5,
     borderRadius: 6,
   },
   brandText: {
@@ -545,10 +478,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   listTitle: {
-    fontSize: 14,
+    fontSize: 14.5,
     fontWeight: '700',
     color: colors.light.textPrimary,
-    lineHeight: 18,
+    lineHeight: 19,
     marginTop: 2,
     marginBottom: 2,
   },
@@ -558,7 +491,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   categoryText: {
-    fontSize: 11,
+    fontSize: 11.5,
     color: colors.light.textSecondary,
     textTransform: 'capitalize',
   },
@@ -567,12 +500,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 3,
     backgroundColor: colors.light.warningLight,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
+    paddingHorizontal: 5.5,
+    paddingVertical: 1.5,
     borderRadius: 4,
   },
   ratingText: {
-    fontSize: 10,
+    fontSize: 10.5,
     fontWeight: '700',
     color: colors.light.warning,
   },
@@ -585,17 +518,17 @@ const styles = StyleSheet.create({
     borderTopColor: colors.light.borderSubtle,
   },
   priceSub: {
-    fontSize: 9,
+    fontSize: 9.5,
     color: colors.light.textMuted,
     fontWeight: '500',
   },
   priceValue: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '800',
     color: colors.light.primary,
   },
   priceUnit: {
-    fontSize: 10,
+    fontSize: 10.5,
     fontWeight: '500',
     color: colors.light.textSecondary,
   },
@@ -661,5 +594,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-
-export default WishlistScreen;
