@@ -8,6 +8,7 @@ import { store } from './src/store';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { navigationRef } from './src/navigation/navigationRef';
 import { InAppNotificationBanner } from './src/components/notification/InAppNotificationBanner';
+import { LogoutConfirmModal } from './src/components/common/LogoutConfirmModal';
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
           />
           <RootNavigator />
           <InAppNotificationBanner />
+          <LogoutConfirmModal />
         </NavigationContainer>
       </SafeAreaProvider>
     </Provider>
