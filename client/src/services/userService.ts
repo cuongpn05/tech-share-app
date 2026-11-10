@@ -39,12 +39,13 @@ export interface MapOwner {
 }
 
 export const userService = {
-  async getMapOwners(params?: { category?: string; lat?: number; lng?: number }): Promise<MapOwner[]> {
+  async getMapOwners(params?: { category?: string; lat?: number; lng?: number; radius?: number }): Promise<MapOwner[]> {
     const response = await apiClient.get<{ success: boolean; data: MapOwner[] }>('/owner/map-owners', {
       params: {
         category: params?.category && params.category !== 'all' ? params.category : undefined,
         lat: params?.lat,
         lng: params?.lng,
+        radius: params?.radius,
       },
     });
     if (response.data?.success !== true || !Array.isArray(response.data.data)) {

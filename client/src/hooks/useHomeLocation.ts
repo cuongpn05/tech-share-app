@@ -51,7 +51,7 @@ async function getCurrentLocationWithTimeout(): Promise<Location.LocationObject>
     return await Promise.race([
       Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High, mayShowUserSettingsDialog: true }),
       new Promise<never>((_, reject) => {
-        timeout = setTimeout(() => reject(new Error('Unable to determine your location. Check GPS and try again.')), 15000);
+        timeout = setTimeout(() => reject(new Error('Không thể xác định vị trí của bạn. Vui lòng kiểm tra GPS và thử lại.')), 15000);
       }),
     ]);
   } finally {
@@ -149,7 +149,7 @@ export function useHomeLocation(onLocation: (coordinate: HomeCoordinate, force: 
       queryLocationRef.current = null;
       cachedLocation = null;
       setPosition(null);
-      throw new Error('Allow location access to find nearby devices.');
+      throw new Error('Vui lòng cấp quyền truy cập vị trí để xem thiết bị lân cận.');
     }
     return true;
   }
@@ -160,7 +160,7 @@ export function useHomeLocation(onLocation: (coordinate: HomeCoordinate, force: 
 
     debug('services:', areLocationServicesEnabled);
     if (!areLocationServicesEnabled) {
-      throw new Error('Turn on location services to find nearby devices.');
+      throw new Error('Vui lòng bật dịch vụ định vị (GPS) trên thiết bị để xem thiết bị lân cận.');
     }
     return true;
   }
@@ -180,7 +180,7 @@ export function useHomeLocation(onLocation: (coordinate: HomeCoordinate, force: 
   function handleLocationError(locationError: unknown, force: boolean) {
     const errorMessage = locationError instanceof Error
       ? locationError.message
-      : 'Unable to determine your location.';
+      : 'Không thể xác định vị trí của bạn.';
     debug('location error:', errorMessage);
 
     const lastUsableLocation = latestLocationRef.current;

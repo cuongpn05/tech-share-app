@@ -79,6 +79,8 @@ export function getMapDevices(devices: Device[]): MapDevice[] {
 export type MapMessage =
   | { type: 'ready' }
   | { type: 'select'; id: string; deviceId?: string }
+  | { type: 'select_device'; deviceId: string }
+  | { type: 'center_change'; center: [number, number]; zoom?: number }
   | { type: 'error'; message: string };
 
 /**
@@ -94,6 +96,27 @@ export function parseMapMessage(value: string): MapMessage | null {
       const targetId = (data as any).id || (data as any).deviceId || '';
       if (typeof targetId === 'string' && (/^[a-f\d]{24}$/i.test(targetId) || targetId === '')) {
         return { type: 'select', id: targetId, deviceId: targetId };
+      }
+    }
+    if (data.type === 'select_device') {
+      const devId = (data as any).deviceId || (data as any).id || '';
+      if (typeof devId === 'string' && (/^[a-f\d]{24}$/i.test(devId) || devId === '')) {
+        return { type: 'select_device', deviceId: devId };
+      }
+    }
+    if (data.type === 'center_change') {
+      const center = (data as any).center;
+      if (
+        Array.isArray(center) &&
+        center.length === 2 &&
+        Number.isFinite(center[0]) &&
+        Number.isFinite(center[1])
+      ) {
+        return {
+          type: 'center_change',
+          center: [center[0], center[1]],
+          zoom: typeof (data as any).zoom === 'number' ? (data as any).zoom : undefined,
+        };
       }
     }
     if (data.type === 'error' && 'message' in data && typeof data.message === 'string') {
@@ -259,6 +282,49 @@ export function createGoogleMapHtml(): string {
     .g-red { color: #EA4335; }
     .g-yellow { color: #FBBC05; }
     .g-green { color: #34A853; }
+
+    /* Ghim vị trí Thiết bị (Device Pin) */
+    .device-pin-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      cursor: pointer;
+      transform-origin: bottom center;
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .device-pin-wrap:hover {
+      transform: scale(1.22);
+    }
+    .device-badge-pill {
+      background: #D97706;
+      color: #FFFFFF;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 10px;
+      white-space: nowrap;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+      border: 1px solid #FFFFFF;
+      margin-bottom: -3px;
+      z-index: 10;
+    }
+    .device-pin-icon svg {
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+    }
+    .device-name-label {
+      background: rgba(255, 255, 255, 0.95);
+      color: #1E293B;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 4px;
+      white-space: nowrap;
+      max-width: 90px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+      border: 1px solid #E2E8F0;
+    }
   </style>
 </head>
 <body>
@@ -277,8 +343,9 @@ export function createGoogleMapHtml(): string {
       var map, roadLayer, satLayer, currentLayer = 'road';
       var userMarker = null;
       var markersMap = {};
+      var deviceMarkersMap = {};
       var failed = false, ready = false, lastMessageId = 0;
-      var items = [], position = null, centered = false, selectedId = null;
+      var items = [], devicesList = [], position = null, centered = false, selectedId = null;
 
       function send(data) {
         if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
@@ -411,11 +478,64 @@ export function createGoogleMapHtml(): string {
           }
         });
 
-        // Xóa ghim không còn tồn tại
+        // Xóa ghim chủ sở hữu không còn tồn tại
         Object.keys(markersMap).forEach(function (id) {
           if (!activeIds[id]) {
             map.removeLayer(markersMap[id]);
             delete markersMap[id];
+          }
+        });
+
+        // Vẽ ghim các Thiết bị (Devices)
+        var activeDevIds = {};
+        devicesList.forEach(function (device) {
+          activeDevIds[device.id] = true;
+          var devLatLng = toLatLng(device.coordinates);
+          if (!devLatLng) return;
+
+          var rateText = device.price ? (Number(device.price) >= 1000 ? Math.round(Number(device.price) / 1000) + 'k' : device.price + 'đ') : 'Thiết bị';
+          var devHtml = '<div class="device-pin-wrap">' +
+            '<div class="device-badge-pill">' + rateText + '</div>' +
+            '<div class="device-pin-icon">' +
+              '<svg width="26" height="32" viewBox="0 0 26 32" fill="none">' +
+                '<path d="M13 0C5.82 0 0 5.82 0 13C0 22.75 13 32 13 32C13 32 26 22.75 26 13C26 5.82 20.18 0 13 0Z" fill="#D97706"/>' +
+                '<circle cx="13" cy="12" r="7" fill="#FFFFFF"/>' +
+                '<path d="M9 10H17V15H9V10Z" fill="#D97706"/>' +
+              '</svg>' +
+            '</div>' +
+            '<div class="device-name-label">' + escapeHtml(device.name) + '</div>' +
+          '</div>';
+
+          var devIcon = L.divIcon({
+            className: 'device-icon-container',
+            html: devHtml,
+            iconSize: [28, 44],
+            iconAnchor: [14, 44]
+          });
+
+          if (deviceMarkersMap[device.id]) {
+            deviceMarkersMap[device.id].setIcon(devIcon);
+            deviceMarkersMap[device.id].setLatLng(devLatLng);
+          } else {
+            var dm = L.marker(devLatLng, {
+              icon: devIcon,
+              zIndexOffset: 600
+            }).addTo(map);
+
+            dm.on('click', function (e) {
+              if (e && e.originalEvent) e.originalEvent.stopPropagation();
+              send({ type: 'select_device', deviceId: device.id });
+            });
+
+            deviceMarkersMap[device.id] = dm;
+          }
+        });
+
+        // Xóa ghim thiết bị không còn tồn tại
+        Object.keys(deviceMarkersMap).forEach(function (id) {
+          if (!activeDevIds[id]) {
+            map.removeLayer(deviceMarkersMap[id]);
+            delete deviceMarkersMap[id];
           }
         });
       }
@@ -428,11 +548,15 @@ export function createGoogleMapHtml(): string {
           lastMessageId = data.messageId;
 
           if (data.type === 'update') {
-            var rawList = Array.isArray(data.owners) ? data.owners : (Array.isArray(data.devices) ? data.devices : []);
+            var rawList = Array.isArray(data.owners) ? data.owners : [];
             items = rawList.filter(function (d) {
               return d && typeof d.id === 'string' && /^[a-f0-9]{24}$/i.test(d.id) &&
                 typeof d.name === 'string' && validCoordinates(d.coordinates);
             });
+
+            devicesList = Array.isArray(data.devices) ? data.devices.filter(function (d) {
+              return d && typeof d.id === 'string' && validCoordinates(d.coordinates);
+            }) : [];
 
             if (data.selectedId !== undefined) {
               selectedId = data.selectedId;
@@ -456,6 +580,16 @@ export function createGoogleMapHtml(): string {
             var focusLatLng = toLatLng(data.position);
             if (focusLatLng) {
               map.flyTo(focusLatLng, 15, { animate: true, duration: 1 });
+            }
+          } else if (data.type === 'focus_device' && validCoordinates(data.position)) {
+            var devFocusLatLng = toLatLng(data.position);
+            if (devFocusLatLng) {
+              map.flyTo(devFocusLatLng, 16, { animate: true, duration: 0.8 });
+            }
+          } else if (data.type === 'center' && validCoordinates(data.position)) {
+            var cLatLng = toLatLng(data.position);
+            if (cLatLng) {
+              map.panTo(cLatLng, { animate: true, duration: 0.8 });
             }
           }
         } catch (e) {
@@ -488,8 +622,8 @@ export function createGoogleMapHtml(): string {
           });
 
           map = L.map('map', {
-            center: [21.0285, 105.8544], // Mặc định Hà Nội
-            zoom: 13,
+            center: [16.047, 107.5], // Toàn cảnh Việt Nam (không hardcode Hà Nội)
+            zoom: 6,
             zoomControl: false,
             layers: [roadLayer],
             attributionControl: false
@@ -503,6 +637,17 @@ export function createGoogleMapHtml(): string {
               renderMarkers();
               send({ type: 'select', id: '', deviceId: '' });
             }
+          });
+
+          // Lắng nghe khi người dùng kéo bản đồ sang khu vực khác
+          map.on('dragend', function () {
+            if (!ready) return;
+            var c = map.getCenter();
+            send({
+              type: 'center_change',
+              center: [c.lng, c.lat],
+              zoom: map.getZoom()
+            });
           });
 
           ready = true;
