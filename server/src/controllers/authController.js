@@ -518,7 +518,6 @@ const verifyRegisterOtp = async (req, res) => {
       referredBy: null,
       rating: 5.0,
       totalReviews: 0,
-      isActive: true,
     });
 
     // 7. Xoá mã OTP đã sử dụng

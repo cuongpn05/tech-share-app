@@ -292,7 +292,6 @@ const verifyRegisterOtp = async (req, res) => {
       referredBy  : null,
       rating      : 5.0,
       totalReviews: 0,
-      isActive    : true,
     });
 
     // ── Bước 8: Xoá document OTP đã sử dụng ──────────────
