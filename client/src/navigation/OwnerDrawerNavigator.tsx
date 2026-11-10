@@ -103,9 +103,8 @@ export const OwnerDrawerNavigator: React.FC = () => {
       <Drawer.Screen name="OwnerMessages" component={OwnerMessagesScreen} />
 
       <Drawer.Screen name="OwnerDeviceInventory">
-        {({ navigation }: any) => (
-          <MyDevicesScreen
-            onBack={() => navigation.navigate('OwnerDashboard')}
+        {({ navigation  }: any) => (
+          <MyDevicesScreen navigation={navigation}
           />
         )}
       </Drawer.Screen>

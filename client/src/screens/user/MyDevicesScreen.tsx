@@ -27,6 +27,7 @@ import type {
   Device,
   ManagedDeviceStatus,
 } from '../../types';
+import { colors } from '../../theme/colors';
 
 const FALLBACK_DEVICE_IMAGE =
   'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=600';
@@ -42,10 +43,13 @@ const resolveImageUri = (image?: string) => {
 };
 
 interface MyDevicesScreenProps {
-  onBack: () => void;
+  navigation?: {
+    goBack?: () => void;
+    openDrawer?: () => void;
+  };
 }
 
-export function MyDevicesScreen({ onBack }: MyDevicesScreenProps) {
+export function MyDevicesScreen({ navigation }: MyDevicesScreenProps) {
   const insets = useSafeAreaInsets();
   const token = useAppSelector((state) => state.auth.token);
   const topInset = Math.max(
@@ -178,12 +182,12 @@ export function MyDevicesScreen({ onBack }: MyDevicesScreenProps) {
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: topInset + theme.spacing.sm }]}>
         <TouchableOpacity
-          onPress={onBack}
+          onPress={navigation?.openDrawer}
           style={styles.backButton}
           accessibilityRole="button"
           accessibilityLabel={STRINGS.MY_DEVICES.BACK_ACCESSIBILITY_LABEL}
         >
-          <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
+         <Ionicons name="menu-outline" size={24} color={colors.light.textPrimary} />
         </TouchableOpacity>
         <View style={styles.heading}>
           <Text style={styles.title} accessibilityRole="header">
