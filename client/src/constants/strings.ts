@@ -1925,7 +1925,10 @@ export const STRINGS = {
     GUEST_DESC:
       'You are browsing TechShare as a Guest. Log in to unlock full features, book devices, and manage your rentals.',
     LOGIN_SIGNUP_BUTTON: 'Log In / Sign Up',
-    REVIEWS_COUNT: (count: number) => `(${count} reviews)`,
+    REVIEWS_COUNT: (count: number) => `(${count} ${count === 1 ? 'review' : 'reviews'})`,
+    NO_RATING_YET: 'No rating yet',
+    TRUST_SCORE_LABEL: 'Trust Score',
+    NO_TRUST_SCORE_YET: 'No trust score yet',
 
     // Contact Information
     CONTACT_SECTION_TITLE: 'Contact Information',

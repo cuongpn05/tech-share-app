@@ -63,7 +63,9 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
         ? authUser.address
         : authUser?.address?.fullAddress || '',
     avatar: authUser?.avatar || '',
-    rating: authUser?.rating ?? 5.0,
+    trust: authUser?.trust,
+    trustScore: authUser?.trust?.score ?? authUser?.trustScore,
+    rating: authUser?.rating,
     totalReviews: authUser?.totalReviews ?? authUser?.totalReview ?? 0,
   }));
 
@@ -136,15 +138,21 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
       const data = await userService.getProfile();
       if (data?.user) {
         const resolvedRole = (data.account?.role || data.user.role) as User['role'];
+        const resolvedTotalReviews = data.user.totalReviews ?? data.user.totalReview ?? 0;
+        const resolvedTrustScore = data.user.trust?.score ?? data.user.trustScore;
         setProfile((prev) => ({
           ...prev,
           ...data.user,
+          totalReviews: resolvedTotalReviews,
+          trustScore: resolvedTrustScore,
           role: resolvedRole || prev.role,
           email: data.account?.email || data.user.email || prev.email,
         }));
         dispatch(
           updateUser({
             ...data.user,
+            totalReviews: resolvedTotalReviews,
+            trustScore: resolvedTrustScore,
             ...(resolvedRole ? { role: resolvedRole } : {}),
             email: data.account?.email || data.user.email,
           })
@@ -411,6 +419,22 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
   const effectiveOwnerStatus: 'none' | 'pending' | 'approved' | 'rejected' =
     currentRole === 'owner' ? 'approved' : ownerEkycStatus;
 
+  const reviewCount = Number(profile.totalReviews ?? profile.totalReview ?? 0);
+  const hasReviews = Number.isFinite(reviewCount) && reviewCount > 0;
+  const ratingValue =
+    typeof profile.rating === 'number' && Number.isFinite(profile.rating) && profile.rating > 0
+      ? profile.rating
+      : null;
+  const hasDisplayableRating = hasReviews && ratingValue !== null;
+
+  const resolvedTrustScore =
+    typeof profile.trust?.score === 'number' && Number.isFinite(profile.trust.score)
+      ? profile.trust.score
+      : typeof profile.trustScore === 'number' && Number.isFinite(profile.trustScore)
+      ? profile.trustScore
+      : null;
+  const hasDisplayableTrustScore = hasReviews && resolvedTrustScore !== null;
+
   if (!isAuthenticated) {
     return (
       <GuestPromptView
@@ -508,15 +532,60 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
 
               <Text style={styles.profileName}>{profile.name}</Text>
 
-              {/* Star Rating */}
-              <View style={styles.ratingBox}>
-                <Ionicons name="star" size={15} color="#F59E0B" />
-                <Text style={styles.ratingNumber}>
-                  {profile.rating?.toFixed(1) || '5.0'}
-                </Text>
-                <Text style={styles.ratingCount}>
-                  {STRINGS.PROFILE_SCREEN.REVIEWS_COUNT(profile.totalReviews || 0)}
-                </Text>
+              {/* Star Rating & Trust Score */}
+              <View style={styles.reputationRow}>
+                <View
+                  style={[
+                    styles.reputationPill,
+                    hasDisplayableRating ? styles.ratingPillActive : styles.reputationPillEmpty,
+                  ]}
+                >
+                  <Ionicons
+                    name={hasDisplayableRating ? 'star' : 'star-outline'}
+                    size={14}
+                    color={hasDisplayableRating ? theme.warning : theme.textMuted}
+                  />
+                  {hasDisplayableRating && ratingValue !== null ? (
+                    <>
+                      <Text style={styles.ratingNumber}>{ratingValue.toFixed(1)}</Text>
+                      <Text style={styles.ratingCount}>
+                        {STRINGS.PROFILE_SCREEN.REVIEWS_COUNT(reviewCount)}
+                      </Text>
+                    </>
+                  ) : (
+                    <Text style={styles.reputationEmptyText}>
+                      {STRINGS.PROFILE_SCREEN.NO_RATING_YET}
+                    </Text>
+                  )}
+                </View>
+
+                <View
+                  style={[
+                    styles.reputationPill,
+                    hasDisplayableTrustScore
+                      ? styles.trustScorePillActive
+                      : styles.reputationPillEmpty,
+                  ]}
+                >
+                  <Ionicons
+                    name={hasDisplayableTrustScore ? 'shield-checkmark' : 'shield-outline'}
+                    size={14}
+                    color={
+                      hasDisplayableTrustScore ? theme.primaryDark : theme.textMuted
+                    }
+                  />
+                  {hasDisplayableTrustScore && resolvedTrustScore !== null ? (
+                    <Text style={styles.trustScoreText}>
+                      {`${STRINGS.PROFILE_SCREEN.TRUST_SCORE_LABEL}: ${Math.round(
+                        resolvedTrustScore
+                      )}`}
+                    </Text>
+                  ) : (
+                    <Text style={styles.reputationEmptyText}>
+                      {STRINGS.PROFILE_SCREEN.NO_TRUST_SCORE_YET}
+                    </Text>
+                  )}
+                </View>
               </View>
             </View>
 
@@ -1012,20 +1081,53 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 6,
   },
-  ratingBox: {
+  reputationRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 8,
+    marginTop: 2,
+  },
+  reputationPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: theme.radii.full,
+    borderWidth: 1,
+  },
+  ratingPillActive: {
+    backgroundColor: theme.warningLight,
+    borderColor: theme.warningLight,
+  },
+  trustScorePillActive: {
+    backgroundColor: theme.primaryBg,
+    borderColor: theme.primaryLight,
+  },
+  reputationPillEmpty: {
+    backgroundColor: theme.colors.slate[50],
+    borderColor: theme.borderDefault,
   },
   ratingNumber: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#B45309',
+    color: theme.colors.warning[600],
   },
   ratingCount: {
-    fontSize: 13,
+    fontSize: 12.5,
     color: theme.textSecondary,
+  },
+  trustScoreText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: theme.primaryDark,
+  },
+  reputationEmptyText: {
+    fontSize: 12.5,
+    fontWeight: '500',
+    color: theme.textMuted,
   },
 
   /* 2. Thông tin liên hệ */
