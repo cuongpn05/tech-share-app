@@ -30,7 +30,8 @@ export const STRINGS = {
   },
 
   HOME_SCREEN: {
-    BRAND_TITLE: 'TechShare',
+    BRAND_TITLE_PREFIX: 'Tech',
+    BRAND_TITLE_SUFFIX: 'Share',
     LOCATION_DEFAULT: 'Hanoi, Vietnam',
     AI_CONSULTANT_ACCESSIBILITY_LABEL: 'Open AI rental consultant',
     OWNER_SWITCH_PREFIX: 'Renter Mode • ',
@@ -272,10 +273,8 @@ export const STRINGS = {
     MENU_OVERVIEW: 'Dashboard & KPIs',
     MENU_USERS: 'User Management',
     MENU_DEVICES: 'Device Moderation',
-    MENU_DISPUTES: 'Deposit Disputes',
     MENU_EKYC: 'eKYC Reviews',
-    MENU_VOUCHERS: 'Vouchers & Promotions',
-    LOGOUT_BUTTON: 'Sign Out of Admin Session',
+    LOGOUT_BUTTON: 'Sign Out',
     LOGOUT_CONFIRM_SUBTITLE: 'Are you sure you want to end this session and sign out of TechShare Admin?',
   },
 
@@ -1688,18 +1687,20 @@ export const STRINGS = {
     APP_SUBTITLE: 'A platform for sharing and renting tech devices',
 
     // Login
-    LOGIN: 'Log In',
+    LOGIN: 'Log in',
+    LOGIN_BTN: 'Log in',
     LOGIN_TITLE: 'Log In',
-    LOGIN_DESC: 'Welcome back to the community',
-    IDENTIFIER_LABEL: 'Username or email',
-    IDENTIFIER_PLACEHOLDER: 'Enter username or email',
+    WELCOME_BACK: 'Welcome back',
+    LOGIN_DESC: 'Log in to continue to TechShare',
+    IDENTIFIER_LABEL: 'Email or username',
+    IDENTIFIER_PLACEHOLDER: 'Enter your email or username',
     PASSWORD_LABEL: 'Password',
-    PASSWORD_PLACEHOLDER: 'Enter password',
+    PASSWORD_PLACEHOLDER: 'Enter your password',
     REMEMBER_ME: 'Remember me',
     FORGOT_PASSWORD: 'Forgot password?',
-    SIGN_IN_BTN: 'SIGN IN',
+    SIGN_IN_BTN: 'Log in',
     NO_ACCOUNT_PROMPT: "Don't have an account? ",
-    SIGN_UP_LINK: 'Sign up now',
+    SIGN_UP_LINK: 'Sign up',
     ERR_REQUIRED_FIELDS: 'Please enter username/email and password',
     ERR_INVALID_RESPONSE: 'Login response is invalid',
     ERR_SERVER_CONNECTION: 'Cannot connect to the server. Check that the backend is running and the device is on the same Wi-Fi.',
@@ -2039,7 +2040,7 @@ export const STRINGS = {
     GUEST_NAME: 'Guest',
     GUEST_DESC:
       'You are browsing TechShare as a Guest. Log in to unlock full features, book devices, and manage your rentals.',
-    LOGIN_SIGNUP_BUTTON: 'Log In / Sign Up',
+    LOGIN_SIGNUP_BUTTON: 'Sign In',
     REVIEWS_COUNT: (count: number) => `(${count} ${count === 1 ? 'review' : 'reviews'})`,
     NO_RATING_YET: 'No rating yet',
     TRUST_SCORE_LABEL: 'Trust Score',
@@ -2080,7 +2081,7 @@ export const STRINGS = {
 
     // Action Buttons
     EDIT_PROFILE_BUTTON: 'Edit Profile',
-    LOGOUT_BUTTON: 'Log Out',
+    LOGOUT_BUTTON: 'Sign Out',
     LOGOUT_ALERT_TITLE: 'Log Out',
     LOGOUT_ALERT_MSG: 'Are you sure you want to log out?',
 

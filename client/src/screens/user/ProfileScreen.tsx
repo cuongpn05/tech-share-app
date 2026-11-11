@@ -666,7 +666,7 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
                       : STRINGS.PROFILE_SCREEN.EKYC_DESC_UNVERIFIED}
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
+                <Ionicons name="chevron-forward" size={18} color={theme.textMuted} style={styles.ekycChevron} />
               </TouchableOpacity>
 
               {showOwnerEkycRow && (
@@ -746,7 +746,7 @@ export function ProfileScreen({ navigation, onBack, onNavigateToWishlist }: Prof
                         : STRINGS.PROFILE_SCREEN.OWNER_EKYC_DESC_AVAILABLE}
                     </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
+                  <Ionicons name="chevron-forward" size={18} color={theme.textMuted} style={styles.ekycChevron} />
                 </TouchableOpacity>
               )}
             </View>
@@ -1161,8 +1161,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     backgroundColor: theme.colors.danger[50],
-    borderWidth: 1,
-    borderColor: theme.colors.danger[500],
     paddingVertical: 14,
     borderRadius: theme.radii.md,
   },
@@ -1295,9 +1293,15 @@ const styles = StyleSheet.create({
   },
   ekycTitleRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'space-between',
+    columnGap: 8,
+    rowGap: 4,
     marginBottom: 4,
+  },
+  ekycChevron: {
+    marginLeft: 8,
   },
   ekycTitle: {
     fontSize: 14,

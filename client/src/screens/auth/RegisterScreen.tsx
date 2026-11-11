@@ -9,8 +9,11 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
   Platform,
+  Image,
   ScrollView,
+  StatusBar,
   StyleSheet,
+  useWindowDimensions,
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +24,8 @@ import { setAuthToken } from '../../config/api';
 import { socketService } from '../../services/socketService';
 import { registerService } from '../../services/registerService';
 import { theme } from '../../theme/tokens';
+
+const registerBackground = require('../../../assets/images/login-background.png');
 
 export interface RegisterScreenProps {
   navigation?: any;
@@ -34,6 +39,10 @@ export function RegisterScreen({
   onRegisterSuccess,
 }: RegisterScreenProps) {
   const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
+  const canGoBack = navigation?.canGoBack?.();
+  const topInset = Math.max(insets.top, Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 16);
+  const heroHeight = Math.max(224, Math.round(height * 0.36));
   const dispatch = useAppDispatch();
 
   // Step 1: Điền thông tin đăng ký | Step 2: Nhập mã OTP xác thực
@@ -231,12 +240,14 @@ export function RegisterScreen({
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.rootContainer}
     >
+      <Image source={registerBackground} style={styles.screenBackground} resizeMode="stretch" accessible={false} />
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
         <View style={styles.screenWrapper}>
           {/* Nút quay lại/đóng */}
-          {navigation?.canGoBack?.() && (
+          {canGoBack && (
             <TouchableOpacity
-              style={[styles.closeBtn, { top: Math.max(insets.top, 16) + 4 }]}
+              style={[styles.closeBtn, { top: topInset + 6 }]}
               onPress={() => {
                 if (step === 'otp') {
                   setStep('form');
@@ -246,11 +257,13 @@ export function RegisterScreen({
                 }
               }}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel={step === 'otp' ? 'Back to registration form' : 'Close'}
             >
               <Ionicons
                 name={step === 'otp' ? 'arrow-back' : 'close'}
-                size={24}
-                color={theme.colors.text.secondary}
+                size={20}
+                color={theme.colors.text.primary}
               />
             </TouchableOpacity>
           )}
@@ -258,31 +271,34 @@ export function RegisterScreen({
           <ScrollView
             contentContainerStyle={[
               styles.scrollContent,
-              { paddingTop: Math.max(insets.top, 20) + 12, paddingBottom: Math.max(insets.bottom, 20) + 20 },
+              { paddingBottom: Math.max(insets.bottom, theme.spacing.md) },
             ]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Header: Logo & Brand */}
-            <View style={styles.header}>
-              <View style={styles.logoBadge}>
-                <Ionicons name="hardware-chip-outline" size={30} color={theme.colors.white} />
+            <View style={[styles.header, {
+              minHeight: heroHeight,
+              paddingTop: topInset + (canGoBack ? 48 : 14),
+            }]}>
+              <View style={styles.headerCopy}>
+                <View style={styles.brandRow}>
+                  <View style={styles.logoBadge}>
+                    <Ionicons name="hardware-chip-outline" size={16} color={theme.colors.white} />
+                  </View>
+                  <Text style={styles.brandTitle}>TechShare</Text>
+                </View>
+                <Text accessibilityRole="header" style={styles.cardTitle}>
+                  {step === 'form' ? 'Create Account' : 'Email Verification'}
+                </Text>
+                {step === 'form' && (
+                  <Text style={styles.cardSubtitle}>Enter your details.</Text>
+                )}
               </View>
-              <Text style={styles.brandTitle}>TechShare</Text>
-              <Text style={styles.brandSubtitle}>
-                Leading technology sharing and rental platform
-              </Text>
             </View>
 
-            {/* Khung viền Form đăng ký / OTP */}
-            <View style={styles.cardFrame}>
+            <View style={styles.formContainer}>
               {step === 'form' ? (
                 <>
-                  <View style={styles.cardHeader}>
-                    <Text style={styles.cardTitle}>Create Account</Text>
-                    <Text style={styles.cardSubtitle}>Fill in your details below to get started</Text>
-                  </View>
-
                   {/* Error Alert */}
                   {errorMessage ? (
                     <View style={styles.alertError}>
@@ -486,7 +502,6 @@ export function RegisterScreen({
                     <View style={styles.otpIconBadge}>
                       <Ionicons name="mail-unread-outline" size={32} color={theme.colors.brand[500]} />
                     </View>
-                    <Text style={styles.cardTitle}>Email Verification</Text>
                     <Text style={styles.otpInstruction}>
                       We sent a 6-digit verification code to:
                     </Text>
@@ -584,71 +599,74 @@ export function RegisterScreen({
 const styles = StyleSheet.create({
   rootContainer: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: theme.colors.brand[50],
+  },
+  screenBackground: {
+    ...StyleSheet.absoluteFill,
+    width: '100%',
+    height: '100%',
   },
   screenWrapper: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: theme.spacing.xl,
     alignItems: 'center',
-    flexGrow: 1,
   },
   closeBtn: {
     position: 'absolute',
-    left: 20,
+    left: theme.spacing.lg,
     zIndex: 10,
-    padding: 8,
+    width: 36,
+    height: 36,
+    borderRadius: theme.radii.full,
+    backgroundColor: theme.colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...theme.shadows.card,
   },
   header: {
+    width: '100%',
+    maxWidth: 420,
+    justifyContent: 'center',
+    paddingBottom: theme.spacing.sm,
+  },
+  headerCopy: {
+    maxWidth: '72%',
+  },
+  brandRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.sm + theme.spacing.xs,
   },
   logoBadge: {
-    width: 56,
-    height: 56,
-    borderRadius: theme.radii.full,
+    width: 28,
+    height: 28,
+    borderRadius: theme.radii.sm,
     backgroundColor: theme.colors.brand[500],
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
-    ...theme.shadows.card,
   },
   brandTitle: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: theme.typography.fontSize.md,
+    fontWeight: theme.typography.fontWeight.bold,
     color: theme.colors.text.primary,
-    marginBottom: 4,
   },
-  brandSubtitle: {
-    fontSize: 13,
-    color: theme.colors.text.muted,
-    textAlign: 'center',
-    maxWidth: 320,
-  },
-  cardFrame: {
+  formContainer: {
     width: '100%',
     maxWidth: 420,
-    backgroundColor: theme.colors.white,
-    borderWidth: 1.5,
-    borderColor: theme.colors.border.default,
-    borderRadius: 24,
-    paddingVertical: 24,
-    paddingHorizontal: 20,
-    ...theme.shadows.card,
-  },
-  cardHeader: {
-    marginBottom: 18,
+    paddingTop: theme.spacing.md,
   },
   cardTitle: {
-    fontSize: 21,
-    fontWeight: '700',
+    fontSize: theme.typography.fontSize['3xl'],
+    fontWeight: theme.typography.fontWeight.bold,
     color: theme.colors.text.primary,
-    marginBottom: 4,
+    marginBottom: theme.spacing.xs,
   },
   cardSubtitle: {
-    fontSize: 13,
-    color: theme.colors.text.muted,
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
   },
   alertError: {
     flexDirection: 'row',

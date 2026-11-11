@@ -1,549 +1,344 @@
-import { API_BASE_URL, apiClient } from '../../config/api';
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { ReactNode, useMemo, useState, useEffect } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Platform,
-  StatusBar,
-  RefreshControl,
+  ActivityIndicator, Pressable, RefreshControl, ScrollView, StatusBar,
+  StyleSheet, Text, useColorScheme, useWindowDimensions, View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../../theme/tokens';
 import { ADMIN_STRINGS } from '../../constants/adminStrings';
+import {
+  BookingStatusChart, DeviceCategoryChart, formatCompact, formatCount, formatVnd, RentalVolumeChart,
+} from '../../components/admin/AdminDashboardCharts';
+import { AdminDashboardData, adminService, DashboardPeriod } from '../../services/adminService';
+import { colors, ThemeColors } from '../../theme/colors';
+import { theme } from '../../theme/tokens';
+
+type DashboardRoutes = {
+  AdminDashboard: undefined;
+  DeviceModeration: undefined;
+  EkycReviews: undefined;
+  OwnerEkycReviews: undefined;
+};
 
 export interface AdminDashboardScreenProps {
-  navigation?: any;
+  navigation?: DrawerNavigationProp<DashboardRoutes, 'AdminDashboard'>;
 }
 
-interface DashboardKpis {
-  rentalVolume: number;
-  rentalVolumeFormatted: string;
-  rentalVolumeTrend: string;
-  totalUsers: number;
-  verifiedUsers: number;
-  activeUsers: number;
-  totalDevices: number;
-  rentedDevices: number;
-  availableDevices: number;
-  totalOrders: number;
-  activeOrders: number;
-  completedOrders: number;
-}
-
-interface ActionItemsData {
-  pendingDisputes: number;
-  pendingEkyc: number;
-  isSmooth: boolean;
-  message: string;
-}
-
-interface CategoryBreakdownItem {
-  id: string;
-  name: string;
-  percentage: number;
-  color?: string;
-  icon?: keyof typeof Ionicons.glyphMap;
-}
-
-interface DashboardData {
-  kpis: DashboardKpis;
-  actionItems: ActionItemsData;
-  categoryBreakdown: CategoryBreakdownItem[];
-}
-
-const DEFAULT_DASHBOARD_DATA: DashboardData = {
-  kpis: {
-    rentalVolume: 0,
-    rentalVolumeFormatted: '0 VND',
-    rentalVolumeTrend: '',
-    totalUsers: 0,
-    verifiedUsers: 0,
-    activeUsers: 0,
-    totalDevices: 0,
-    rentedDevices: 0,
-    availableDevices: 0,
-    totalOrders: 0,
-    activeOrders: 0,
-    completedOrders: 0,
-  },
-  actionItems: {
-    pendingDisputes: 0,
-    pendingEkyc: 0,
-    isSmooth: true,
-    message: ADMIN_STRINGS.ACTION_ITEMS.STATUS_OK,
-  },
-  categoryBreakdown: [],
+type IconName = keyof typeof Ionicons.glyphMap;
+type DashboardAction = {
+  label: string;
+  count: number;
+  icon: IconName;
+  route?: 'EkycReviews' | 'OwnerEkycReviews' | 'DeviceModeration';
 };
+const strings = ADMIN_STRINGS.DASHBOARD;
+const { spacing, radii, typography } = theme;
+const periods: DashboardPeriod[] = ['7d', '30d', '90d', 'year'];
 
-const CATEGORY_STYLES: Record<
-  string,
-  { color: string; icon: keyof typeof Ionicons.glyphMap }
-> = {
-  cameras: {
-    color: theme.colors.categories.cameras,
-    icon: 'camera-outline',
-  },
-  laptops: {
-    color: theme.colors.categories.laptops,
-    icon: 'laptop-outline',
-  },
-  smartphones: {
-    color: theme.colors.categories.smartphones,
-    icon: 'phone-portrait-outline',
-  },
-  gaming: {
-    color: theme.colors.categories.gaming,
-    icon: 'game-controller-outline',
-  },
-};
+type DashboardStyles = ReturnType<typeof createStyles>;
+
+function Panel({ title, caption, children, styles }: {
+  title: string; caption?: string; children: ReactNode; styles: DashboardStyles;
+}) {
+  return (
+    <View style={[styles.surface, styles.panel]}>
+      <View style={styles.panelHeading}>
+        <Text accessibilityRole="header" style={styles.sectionTitle}>{title}</Text>
+        {!!caption && <Text style={styles.caption}>{caption}</Text>}
+      </View>
+      {children}
+    </View>
+  );
+}
+
+function KpiCard({ label, icon, value, unit, accessibleValue, caption, onPress, wide, palette, styles }: {
+  label: string; icon: IconName; value: string; accessibleValue?: string; caption: string; onPress?: () => void;
+  unit?: string;
+  wide: boolean; palette: ThemeColors; styles: DashboardStyles;
+}) {
+  const content = (
+    <>
+      <Ionicons name={icon} color={palette.textSecondary} size={18} />
+      <Text numberOfLines={wide ? undefined : 1} style={styles.kpiLabel}>{label}</Text>
+      <Text numberOfLines={1} style={styles.kpiValue}>
+        {value}{unit && <Text style={styles.kpiUnit}>{' ' + unit}</Text>}
+      </Text>
+      <Text numberOfLines={wide ? undefined : 1} style={styles.caption}>{caption}</Text>
+    </>
+  );
+  const cardStyle = [styles.surface, styles.kpiCard];
+  const accessibilityLabel = [label, accessibleValue ?? value, caption].join(', ');
+  return onPress ? (
+    <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} onPress={onPress}
+      style={({ pressed }) => [cardStyle, pressed && styles.pressed]}>
+      {content}
+    </Pressable>
+  ) : <View accessible accessibilityLabel={accessibilityLabel} style={cardStyle}>{content}</View>;
+}
 
 export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation }) => {
-  const [data, setData] = useState<DashboardData>(DEFAULT_DASHBOARD_DATA);
-  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-
-  // Gọi API lấy dữ liệu trực tiếp từ MongoDB Atlas
-  const fetchDashboardData = useCallback(async () => {
-    try {
-      const response = await apiClient.get('/admin/dashboard');
-      if (response.data?.success && response.data?.data) {
-        setData(response.data.data);
-        return;
-      }
-    } catch {
-      try {
-        const res = await fetch(`${API_BASE_URL}/admin/dashboard`);
-        if (res.ok) {
-          const result = await res.json();
-          if (result && result.success && result.data) {
-            setData(result.data);
-          }
-        }
-      } catch (err) {
-        console.warn('Error fetching admin dashboard:', err);
-      }
-    }
-  }, []);
+  const isDark = useColorScheme() === 'dark';
+  const palette = isDark ? colors.dark : colors.light;
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  const { width, fontScale } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const singleColumn = (width - insets.left - insets.right) / fontScale < 310;
+  const periodColumns = (width - insets.left - insets.right) / fontScale < 305 ? 2 : 4;
+  const [period, setPeriod] = useState<DashboardPeriod>('30d');
+  const [revision, setRevision] = useState(0);
+  const [data, setData] = useState<AdminDashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
+    const controller = new AbortController();
+    setLoading(true);
+    setError(false);
+    adminService.getDashboard(period, controller.signal).then(result => {
+      if (!controller.signal.aborted) setData(result);
+    }).catch(() => {
+      if (!controller.signal.aborted) setError(true);
+    }).finally(() => {
+      if (!controller.signal.aborted) {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    });
+    return () => controller.abort();
+  }, [period, revision]);
 
-  // Thao tác kéo xuống để làm mới (Pull-to-refresh)
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await fetchDashboardData();
-    setIsRefreshing(false);
+  const refresh = () => {
+    if (loading) return;
+    setRefreshing(true);
+    setRevision(value => value + 1);
   };
 
-  const handleOpenDrawer = () => {
-    if (navigation?.openDrawer) {
-      navigation.openDrawer();
-    }
-  };
-
-  const insets = useSafeAreaInsets();
-  const topInset = Math.max(
-    insets.top,
-    Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 20
-  );
-  const bottomInset = Math.max(insets.bottom, 24);
-
-  const { kpis, actionItems, categoryBreakdown } = data;
+  const analytics = data?.analytics;
+  const reportingPeriod = strings.PERIODS[analytics?.period ?? period];
+  const orderCount = analytics?.bookingStatuses.reduce((total, row) => total + row.count, 0);
+  const completedOrders = analytics?.bookingStatuses.find(row => row.status === 'completed')?.count ?? 0;
+  const actionItems = data?.actionItems;
+  const actionRows: DashboardAction[] = [
+    { label: strings.RENTER_EKYC, count: actionItems?.pendingEkyc ?? 0, icon: 'id-card-outline', route: 'EkycReviews' },
+    { label: strings.OWNER_EKYC, count: actionItems?.pendingOwnerEkyc ?? 0, icon: 'person-add-outline', route: 'OwnerEkycReviews' },
+    { label: strings.DEVICE_APPROVALS, count: actionItems?.pendingDeviceApprovals ?? 0, icon: 'hardware-chip-outline', route: 'DeviceModeration' },
+  ];
+  const actions = actionRows.filter(item => item.count > 0);
 
   return (
-    <View style={[styles.safeArea, { paddingTop: topInset }]}>
-      <StatusBar barStyle="dark-content" />
-
-      {/* 1. TOP HEADER BAR */}
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel="Menu"
-            style={styles.menuButton}
-            onPress={handleOpenDrawer}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="menu-outline" size={24} color={theme.colors.text.primary} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>{ADMIN_STRINGS.HEADER.TITLE}</Text>
+        <View style={[styles.headerContent, styles.contentWidth]}>
+          <Pressable accessibilityRole="button" accessibilityLabel={strings.MENU}
+            style={({ pressed }) => [styles.menu, pressed && styles.pressed]}
+            onPress={() => navigation?.openDrawer()}>
+            <Ionicons name="menu-outline" size={22} color={palette.textPrimary} />
+          </Pressable>
+          <View style={styles.headerCopy}>
+            <Text accessibilityRole="header" style={styles.title}>{strings.TITLE}</Text>
+            <Text style={styles.caption}>{strings.SUBTITLE}</Text>
+          </View>
         </View>
       </View>
-
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomInset + 16 }]}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            colors={[theme.colors.brand[500]]}
-            tintColor={theme.colors.brand[500]}
-          />
-        }
+        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + spacing.xl }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh}
+          colors={[palette.primary]} tintColor={palette.primary} />}
       >
-        {/* 2. SECTION: PLATFORM PERFORMANCE OVERVIEW */}
-        <View style={styles.sectionHeaderRow}>
-          <Ionicons
-            name="stats-chart"
-            size={20}
-            color={theme.colors.brand[500]}
-            style={styles.sectionHeaderIcon}
-          />
-          <Text style={styles.sectionTitle}>
-            {ADMIN_STRINGS.SECTIONS.PERFORMANCE}
-          </Text>
-        </View>
-
-        {/* 2x2 Grid KPI Cards (Dữ liệu từ MongoDB) */}
-        <View style={styles.kpiGrid}>
-          {/* Card 1: Gross Rental Volume */}
-          <View style={styles.kpiCard}>
-            <View style={[styles.kpiIconCircle, { backgroundColor: theme.colors.greenLight }]}>
-              <Ionicons name="cash-outline" size={20} color={theme.colors.green} />
+        <View style={[styles.contentWidth, styles.sections]}>
+          {error && (
+            <View accessibilityLiveRegion="polite" style={[styles.surface, styles.errorRow]}>
+              <Ionicons name="alert-circle-outline" size={18} color={palette.error} />
+              <Text style={[styles.caption, styles.fill]}>{data ? strings.STALE : strings.ERROR}</Text>
+              <Pressable onPress={refresh} accessibilityRole="button" style={styles.retry}>
+                <Text style={styles.selectedPeriodLabel}>{strings.RETRY}</Text>
+              </Pressable>
             </View>
-            <Text style={styles.kpiLabel}>{ADMIN_STRINGS.KPIS.RENTAL_VOLUME.LABEL}</Text>
-            <Text style={styles.kpiValue} numberOfLines={1} adjustsFontSizeToFit>
-              {kpis.rentalVolumeFormatted}
-            </Text>
-            {kpis.rentalVolumeTrend ? (
-              <View style={styles.trendRow}>
-                <Ionicons name="trending-up" size={14} color={theme.colors.green} />
-                <Text style={styles.trendText}>
-                  {kpis.rentalVolumeTrend}
-                </Text>
+          )}
+
+          {(data || loading) && (
+            <View style={styles.panelHeading}>
+              <Text accessibilityRole="header" style={styles.sectionTitle}>{strings.OVERVIEW}</Text>
+              <Text style={styles.caption}>{strings.LIFETIME}</Text>
+            </View>
+          )}
+
+          {data ? (
+            <View style={styles.kpiGrid}>
+              <View style={singleColumn ? styles.kpiGrid : styles.row}>
+                <KpiCard label={strings.KPI.VOLUME} icon="cash-outline" wide={singleColumn} palette={palette} styles={styles}
+                  value={analytics ? formatCompact(analytics.grossRentalVolume) : strings.UNAVAILABLE}
+                  unit={analytics ? strings.CURRENCY : undefined}
+                  accessibleValue={analytics ? formatVnd(analytics.grossRentalVolume) : undefined} caption={reportingPeriod} />
+                <KpiCard label={strings.KPI.USERS} icon="people-outline" wide={singleColumn} palette={palette} styles={styles}
+                  value={formatCompact(data.kpis.totalUsers)} accessibleValue={formatCount(data.kpis.totalUsers)}
+                  caption={strings.KPI.VERIFIED(formatCount(data.kpis.verifiedUsers))} />
               </View>
-            ) : null}
-          </View>
-
-          {/* Card 2: Users */}
-          <View style={styles.kpiCard}>
-            <View style={[styles.kpiIconCircle, { backgroundColor: theme.colors.blueLight }]}>
-              <Ionicons name="people-outline" size={20} color={theme.colors.blue} />
+              <View style={singleColumn ? styles.kpiGrid : styles.row}>
+                <KpiCard label={strings.KPI.DEVICES} icon="hardware-chip-outline" wide={singleColumn} palette={palette} styles={styles}
+                  value={formatCompact(data.kpis.totalDevices)} accessibleValue={formatCount(data.kpis.totalDevices)}
+                  caption={strings.KPI.AVAILABLE(formatCount(data.kpis.availableDevices))}
+                  onPress={navigation ? () => navigation.navigate('DeviceModeration') : undefined} />
+                <KpiCard label={strings.KPI.ORDERS} icon="receipt-outline" wide={singleColumn} palette={palette} styles={styles}
+                  value={orderCount === undefined ? strings.UNAVAILABLE : formatCompact(orderCount)}
+                  accessibleValue={orderCount === undefined ? undefined : formatCount(orderCount)}
+                  caption={analytics ? strings.KPI.COMPLETED(formatCount(completedOrders)) : reportingPeriod} />
+              </View>
             </View>
-            <Text style={styles.kpiLabel}>{ADMIN_STRINGS.KPIS.USERS.LABEL}</Text>
-            <Text style={styles.kpiValue}>
-              {`${kpis.totalUsers} Accounts`}
-            </Text>
-            <Text style={styles.kpiSubtitle}>
-              {`${kpis.verifiedUsers} Verified • ${kpis.activeUsers} Active`}
-            </Text>
-          </View>
-
-          {/* Card 3: Total Devices */}
-          <TouchableOpacity
-            style={styles.kpiCard}
-            activeOpacity={0.7}
-            onPress={() => navigation?.navigate?.('DeviceModeration')}
-          >
-            <View style={[styles.kpiIconCircle, { backgroundColor: theme.colors.amberLight }]}>
-              <Ionicons name="hardware-chip-outline" size={20} color={theme.colors.amber} />
-            </View>
-            <Text style={styles.kpiLabel}>{ADMIN_STRINGS.KPIS.DEVICES.LABEL}</Text>
-            <Text style={styles.kpiValue}>
-              {`${kpis.totalDevices} Units`}
-            </Text>
-            <Text style={styles.kpiSubtitle}>
-              {`${kpis.rentedDevices} Rented • ${kpis.availableDevices} Available`}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Card 4: Rental Orders */}
-          <View style={styles.kpiCard}>
-            <View style={[styles.kpiIconCircle, { backgroundColor: theme.colors.purpleLight }]}>
-              <Ionicons name="receipt-outline" size={20} color={theme.colors.purple} />
-            </View>
-            <Text style={styles.kpiLabel}>{ADMIN_STRINGS.KPIS.ORDERS.LABEL}</Text>
-            <Text style={styles.kpiValue}>
-              {`${kpis.totalOrders} Orders`}
-            </Text>
-            <Text style={styles.kpiSubtitle}>
-              {`${kpis.activeOrders} Active • ${kpis.completedOrders} Completed`}
-            </Text>
-          </View>
-        </View>
-
-        {/* 3. SECTION: ACTION ITEMS */}
-        <View style={styles.sectionHeaderRow}>
-          <Ionicons
-            name="information-circle-outline"
-            size={22}
-            color={theme.colors.brand[500]}
-            style={styles.sectionHeaderIcon}
-          />
-          <Text style={styles.sectionTitle}>
-            {ADMIN_STRINGS.SECTIONS.ACTION_ITEMS}
-          </Text>
-        </View>
-
-        <View style={styles.actionItemsCard}>
-          <View style={styles.checkmarkCircle}>
-            <Ionicons
-              name={actionItems.isSmooth ? 'checkmark-circle' : 'alert-circle'}
-              size={36}
-              color={actionItems.isSmooth ? theme.colors.green : theme.colors.amber}
-            />
-          </View>
-          <Text style={styles.actionItemsMessage}>
-            {actionItems.message}
-          </Text>
-        </View>
-
-        {/* 4. SECTION: RENTAL CATEGORY BREAKDOWN */}
-        <View style={styles.sectionHeaderRow}>
-          <Ionicons
-            name="trending-up"
-            size={20}
-            color={theme.colors.brand[500]}
-            style={styles.sectionHeaderIcon}
-          />
-          <Text style={styles.sectionTitle}>
-            {ADMIN_STRINGS.SECTIONS.CATEGORY_BREAKDOWN}
-          </Text>
-        </View>
-
-        <View style={styles.categoriesCard}>
-          {categoryBreakdown.length === 0 ? (
-            <View style={styles.emptyCategoriesContainer}>
-              <Ionicons name="pie-chart-outline" size={32} color={theme.colors.text.muted} />
-              <Text style={styles.emptyCategoriesText}>{ADMIN_STRINGS.SECTIONS.NO_CATEGORY_DATA}</Text>
-            </View>
-          ) : (
-            categoryBreakdown.map((cat, index) => {
-              const styleConfig = CATEGORY_STYLES[cat.id] || {
-                color: theme.colors.brand[500],
-                icon: 'cube-outline',
-              };
-
-              return (
-                <View
-                  key={cat.id}
-                  style={[
-                    styles.categoryRow,
-                    index === categoryBreakdown.length - 1 && styles.categoryRowLast,
-                  ]}
-                >
-                  {/* Category Icon & Name */}
-                  <View style={styles.categoryLeft}>
-                    <Ionicons
-                      name={styleConfig.icon}
-                      size={18}
-                      color={styleConfig.color}
-                      style={styles.categoryIcon}
-                    />
-                    <Text style={styles.categoryName}>{cat.name}</Text>
+          ) : loading && (
+            <View accessible accessibilityLabel={strings.LOADING} accessibilityState={{ busy: true }}>
+              <View style={styles.kpiGrid}>
+                {[0, 1].map(row => (
+                  <View key={row} style={singleColumn ? styles.kpiGrid : styles.row}>
+                    {[0, 1].map(column => (
+                      <View key={column} style={[styles.surface, styles.kpiCard]}>
+                        <View style={[styles.skeleton, styles.skeletonIcon]} />
+                        <View style={[styles.skeleton, styles.skeletonLabel]} />
+                        <View style={[styles.skeleton, styles.skeletonValue]} />
+                      </View>
+                    ))}
                   </View>
+                ))}
+              </View>
+            </View>
+          )}
 
-                  {/* Progress Bar Track & Fill */}
-                  <View style={styles.progressTrack}>
-                    <View
-                      style={[
-                        styles.progressFill,
-                        { width: `${cat.percentage}%`, backgroundColor: styleConfig.color },
-                      ]}
-                    />
+          <View style={styles.periodSection}>
+            <View style={styles.periodHeading}>
+              <Text style={styles.sectionTitle}>{strings.PERIOD}</Text>
+              <View style={styles.periodIndicator}>
+                {loading && <ActivityIndicator color={palette.primary} accessibilityLabel={strings.LOADING} />}
+              </View>
+            </View>
+            {Array.from({ length: periods.length / periodColumns }, (_, index) => (
+              <View key={index} style={styles.row}>
+                {periods.slice(index * periodColumns, (index + 1) * periodColumns).map(option => (
+                  <Pressable key={option} accessibilityRole="button" accessibilityState={{ selected: period === option }}
+                    onPress={() => setPeriod(option)}
+                    style={({ pressed }) => [styles.period, option === period && styles.selectedPeriod, pressed && styles.pressed]}>
+                    <Text numberOfLines={1} style={[styles.periodLabel, option === period && styles.selectedPeriodLabel]}>
+                      {strings.PERIODS[option]}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            ))}
+          </View>
+
+          {data ? (
+            <>
+              <Panel title={strings.TRENDS} caption={reportingPeriod + ' · ' + strings.VOLUME_SCOPE} styles={styles}>
+                {analytics ? (
+                  <>
+                    {analytics.volumeBookingCount === 0 && <Text style={styles.caption}>{strings.NO_VOLUME}</Text>}
+                    <RentalVolumeChart points={analytics.rentalVolumeTrend} palette={palette} />
+                  </>
+                ) : <Text style={styles.caption}>{strings.UNAVAILABLE}</Text>}
+              </Panel>
+
+              <Panel title={strings.BOOKINGS} caption={reportingPeriod + ' · ' + strings.BOOKING_SCOPE} styles={styles}>
+                {analytics ? <BookingStatusChart statuses={analytics.bookingStatuses} palette={palette} />
+                  : <Text style={styles.caption}>{strings.UNAVAILABLE}</Text>}
+              </Panel>
+
+              <Panel title={strings.CATEGORIES} caption={strings.CATEGORY_SCOPE} styles={styles}>
+                <DeviceCategoryChart categories={data.categoryBreakdown} palette={palette} />
+              </Panel>
+
+              <Panel title={strings.ACTIONS} styles={styles}>
+                {actions.length ? actions.map((item, index) => {
+                  const route = item.route;
+                  const content = (
+                    <>
+                      <Ionicons name={item.icon} size={17} color={palette.textSecondary} />
+                      <Text style={[styles.actionLabel, styles.fill]}>{item.label}</Text>
+                      <Text style={styles.actionCount}>{formatCount(item.count)}</Text>
+                      {route && navigation && <Ionicons name="chevron-forward" size={16} color={palette.textSecondary} />}
+                    </>
+                  );
+                  const row = [styles.actionRow, index > 0 && styles.actionDivider];
+                  return route && navigation ? (
+                    <Pressable key={item.label} accessibilityRole="button"
+                      accessibilityLabel={item.label + ', ' + formatCount(item.count)}
+                      onPress={() => navigation.navigate(route)}
+                      style={({ pressed }) => [row, pressed && styles.pressed]}>
+                      {content}
+                    </Pressable>
+                  ) : <View key={item.label} style={row}>{content}</View>;
+                }) : (
+                  <View style={styles.noActions}>
+                    <Ionicons name="checkmark-circle-outline" size={18} color={palette.success} />
+                    <Text style={[styles.caption, styles.fill]}>{strings.NO_ACTIONS}</Text>
                   </View>
-
-                  {/* Percentage */}
-                  <Text style={styles.percentageText}>{cat.percentage}%</Text>
-                </View>
-              );
-            })
+                )}
+              </Panel>
+            </>
+          ) : loading && (
+            <View accessible accessibilityLabel={strings.LOADING} accessibilityState={{ busy: true }} style={styles.sections}>
+              <Panel title={strings.TRENDS} caption={reportingPeriod + ' · ' + strings.VOLUME_SCOPE} styles={styles}>
+                <View style={[styles.skeleton, styles.skeletonChart]} />
+              </Panel>
+              <Panel title={strings.BOOKINGS} styles={styles}>
+                <View style={[styles.skeleton, styles.skeletonRing]} />
+              </Panel>
+            </View>
           )}
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: 12,
-    backgroundColor: theme.colors.background,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  menuButton: {
-    width: 38,
-    height: 38,
-    borderRadius: theme.radii.md,
-    backgroundColor: theme.colors.background,
-    borderWidth: 1,
-    borderColor: theme.colors.border.light,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  headerTitle: {
-    fontSize: 19,
-    fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.text.primary,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing['2xl'],
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: theme.spacing.lg,
-    marginBottom: theme.spacing.md,
-  },
-  sectionHeaderIcon: {
-    marginRight: theme.spacing.sm,
-  },
-  sectionTitle: {
-    fontSize: theme.typography.fontSize.lg,
-    fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.text.primary,
-  },
-  kpiGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: theme.spacing.md,
-  },
-  kpiCard: {
-    width: '47.5%',
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radii.xl,
-    padding: theme.spacing.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border.divider,
-    ...theme.shadows.card,
-  },
-  kpiIconCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: theme.spacing.sm,
-  },
-  kpiLabel: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.muted,
-    fontWeight: theme.typography.fontWeight.medium,
-    marginBottom: 4,
-  },
-  kpiValue: {
-    fontSize: theme.typography.fontSize.lg,
-    fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.text.primary,
-    marginBottom: 4,
-  },
-  trendRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  trendText: {
-    fontSize: theme.typography.fontSize.xs,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.green,
-    marginLeft: 3,
-  },
-  kpiSubtitle: {
-    fontSize: theme.typography.fontSize.xs,
-    color: theme.colors.text.muted,
-    fontWeight: theme.typography.fontWeight.normal,
-  },
-  actionItemsCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radii.xl,
-    padding: theme.spacing.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: theme.colors.border.divider,
-    ...theme.shadows.card,
-  },
-  checkmarkCircle: {
-    marginBottom: theme.spacing.xs,
-  },
-  actionItemsMessage: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.muted,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  categoriesCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radii.xl,
-    padding: theme.spacing.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border.divider,
-    ...theme.shadows.card,
-  },
-  categoryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-  },
-  categoryRowLast: {
-    paddingBottom: 0,
-  },
-  categoryLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: 140,
-  },
-  categoryIcon: {
-    marginRight: theme.spacing.sm,
-  },
-  categoryName: {
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.medium,
-    color: theme.colors.text.secondary,
-  },
-  progressTrack: {
-    flex: 1,
-    height: 8,
-    backgroundColor: theme.colors.surfaceMuted,
-    borderRadius: theme.radii.full,
-    marginHorizontal: theme.spacing.md,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: theme.radii.full,
-  },
-  percentageText: {
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.text.primary,
-    width: 38,
-    textAlign: 'right',
-  },
-  emptyCategoriesContainer: {
-    paddingVertical: theme.spacing.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyCategoriesText: {
-    marginTop: theme.spacing.sm,
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.muted,
-  },
-});
+function createStyles(palette: ThemeColors) {
+  const accent = palette === colors.dark ? palette.primary : palette.primaryDark;
+  return StyleSheet.create({
+    screen: { flex: 1, backgroundColor: palette.background },
+    contentWidth: { width: '100%', maxWidth: 600, alignSelf: 'center' },
+    header: { backgroundColor: palette.surface, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.borderDefault },
+    headerContent: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    headerCopy: { flex: 1, minWidth: 0, gap: spacing.xs },
+    menu: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md },
+    title: { color: palette.textPrimary, fontSize: typography.fontSize.xl, fontWeight: typography.fontWeight.bold },
+    caption: { color: palette.textSecondary, fontSize: typography.fontSize.sm },
+    scroll: { padding: spacing.md },
+    sections: { gap: spacing.lg },
+    periodSection: { gap: spacing.sm },
+    periodHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 22 },
+    periodIndicator: { width: 24, alignItems: 'center' },
+    period: { flex: 1, minWidth: 0, minHeight: 44, paddingHorizontal: spacing.xs, justifyContent: 'center', alignItems: 'center', borderWidth: 1,
+      borderColor: palette.borderDefault, borderRadius: radii.sm, backgroundColor: palette.surface },
+    selectedPeriod: { backgroundColor: palette.primaryLight, borderColor: palette.primary },
+    periodLabel: { color: palette.textSecondary, fontSize: typography.fontSize.xs, fontWeight: typography.fontWeight.semibold },
+    selectedPeriodLabel: { color: accent, fontWeight: typography.fontWeight.bold },
+    row: { flexDirection: 'row', gap: spacing.sm },
+    kpiGrid: { gap: spacing.sm },
+    surface: { borderWidth: 1, borderColor: palette.borderDefault, borderRadius: radii.md, backgroundColor: palette.card },
+    kpiCard: { flex: 1, minWidth: 0, minHeight: 116, paddingVertical: spacing.sm, paddingHorizontal: spacing.sm + spacing.xs, gap: spacing.xs },
+    kpiLabel: { color: palette.textSecondary, fontSize: typography.fontSize.xs, fontWeight: typography.fontWeight.semibold },
+    kpiValue: { color: palette.textPrimary, fontSize: typography.fontSize['2xl'], fontWeight: typography.fontWeight.bold, fontVariant: ['tabular-nums'] },
+    kpiUnit: { color: palette.textSecondary, fontSize: typography.fontSize.xs, fontWeight: typography.fontWeight.semibold },
+    panel: { padding: spacing.md, gap: spacing.md },
+    panelHeading: { gap: spacing.xs },
+    sectionTitle: { color: palette.textPrimary, fontSize: typography.fontSize.md, fontWeight: typography.fontWeight.bold },
+    errorRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.sm + spacing.xs },
+    retry: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.sm },
+    fill: { flex: 1, minWidth: 0 },
+    actionLabel: { color: palette.textPrimary, fontSize: typography.fontSize.base },
+    actionCount: { color: palette.textPrimary, fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.bold, fontVariant: ['tabular-nums'] },
+    actionRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44, paddingVertical: spacing.xs },
+    actionDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.borderDefault },
+    noActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    pressed: { opacity: 0.68 },
+    skeleton: { backgroundColor: palette.borderSubtle, borderRadius: radii.xs },
+    skeletonIcon: { width: 18, height: 18 },
+    skeletonLabel: { width: '75%', height: 14, marginTop: spacing.xs },
+    skeletonValue: { width: '60%', height: 24 },
+    skeletonChart: { height: 188 },
+    skeletonRing: { width: 112, height: 112, borderRadius: radii.full, alignSelf: 'center' },
+  });
+}
 
 export default AdminDashboardScreen;
